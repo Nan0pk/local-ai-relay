@@ -10,11 +10,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --import tsx --test src/*.test.ts src/**/*.test.ts",
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
     "browser:install": "node --import tsx src/cli/browser-install.ts",
     "browser:login": "node --import tsx src/cli/browser-login.ts",
     "probe:chatgpt": "node --import tsx src/cli/live-probe.ts",
+    "smoke:startup": "npm run build && node dist/cli/startup-smoke.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

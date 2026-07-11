@@ -5,10 +5,26 @@
 
 import { buildApp } from './server.js';
 import { loadConfig } from './config.js';
+import { selectPort } from './startup/port-selection.js';
 
 async function main(): Promise<void> {
-  const config = loadConfig();
+  const requestedConfig = loadConfig();
+  const portSelection = await selectPort(requestedConfig.host, requestedConfig.port);
+  if (portSelection.existingRelay) {
+    console.log(
+      `local-ai-relay is already running at http://127.0.0.1:${portSelection.port}`,
+    );
+    return;
+  }
+  const config = { ...requestedConfig, port: portSelection.port };
   const app = buildApp(config);
+
+  if (config.port !== requestedConfig.port) {
+    app.log.warn(
+      { requestedPort: requestedConfig.port, selectedPort: config.port },
+      `port ${requestedConfig.port} is occupied; using http://${config.host}:${config.port}`,
+    );
+  }
 
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');

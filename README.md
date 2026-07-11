@@ -41,7 +41,9 @@ cp .env.example .env   # optional: tweak host/port
 npm start
 ```
 
-The server listens on `127.0.0.1:8787` by default.
+The server prefers `127.0.0.1:8787`. If another program owns that port, it
+checks whether the relay is already running and otherwise selects the next
+free port through `8796`, printing the selected address.
 
 If the repository is already installed, update and enter it first:
 
@@ -121,6 +123,16 @@ Returns a deterministic mock completion with realistic `usage` counts.
 
 `GET /v1/models` includes an `x_relay` capability hint. Harnesses can discover
 that browser models prefer batched work and accept one active request.
+
+## Verify the basic user journey
+
+The startup smoke test builds the project, deliberately occupies the preferred
+port, starts the relay as a user would, and verifies its `/health` response on
+the automatically selected fallback port:
+
+```bash
+npm run smoke:startup
+```
 
 ## Configuration
 
