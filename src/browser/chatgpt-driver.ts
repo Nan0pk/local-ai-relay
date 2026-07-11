@@ -67,6 +67,14 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
     await page.bringToFront();
   }
 
+  /** Wait until the normal ChatGPT composer is usable after login. */
+  async waitUntilReady(timeoutMs = 10 * 60_000): Promise<void> {
+    const context = await this.getContext();
+    const page = context.pages().find((candidate) => candidate.url().startsWith(CHATGPT_URL));
+    if (!page) throw new Error('The ChatGPT login page is not open.');
+    await this.composer(page).waitFor({ state: 'visible', timeout: timeoutMs });
+  }
+
   async close(): Promise<void> {
     this.pages.clear();
     await this.context?.close();

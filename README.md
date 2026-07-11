@@ -48,6 +48,17 @@ the relay. The profile defaults to
 `~/.local-ai-relay/browser-profiles/chatgpt`; do not replace it with your
 everyday Chrome profile.
 
+For the first real-machine validation, use the self-contained probe instead:
+
+```bash
+npm run probe:chatgpt
+```
+
+It checks Node and the Linux graphical session, installs relay Chromium if
+needed, opens the dedicated profile, waits for the composer, sends one harmless
+message, and verifies that final response extraction works. Login is the only
+manual step.
+
 ```bash
 npm start
 

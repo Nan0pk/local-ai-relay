@@ -35,6 +35,8 @@ a normal, locally authenticated ChatGPT Free browser session.
 - [x] Capture local failure screenshots without exporting credentials.
 - [x] Unit-test batching, continuation, reset, response shaping, and cleanup.
 - [ ] Validate selectors with an authenticated live ChatGPT Free profile.
+- [x] Add a one-command Linux live probe with environment checks and automatic
+      composer detection.
 - [ ] Add a DOM-fixture browser test after capturing a sanitized live fixture.
 
 **Exit criteria:** a request for `browser-chatgpt-free` returns a real
