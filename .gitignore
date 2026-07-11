@@ -141,3 +141,23 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# --- local-ai-relay: secrets & build output ---
+# Build output
+dist/
+build/
+
+# Secrets — never commit credentials, tokens, or keys.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+*token*
+*credentials*
+# Exception: allow this very file and any docs that mention "token" in name.
+!.gitignore
+
