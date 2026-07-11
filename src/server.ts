@@ -11,6 +11,7 @@ import { loadConfig, type AppConfig } from './config.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerModelsRoutes } from './routes/models.js';
 import { registerChatRoutes } from './routes/chat.js';
+import { closeProviders } from './providers/registry.js';
 
 export function buildApp(config: AppConfig = loadConfig()): FastifyInstance {
   const app = Fastify({
@@ -20,6 +21,10 @@ export function buildApp(config: AppConfig = loadConfig()): FastifyInstance {
   registerHealthRoutes(app);
   registerModelsRoutes(app);
   registerChatRoutes(app, config);
+
+  app.addHook('onClose', async () => {
+    await closeProviders();
+  });
 
   return app;
 }

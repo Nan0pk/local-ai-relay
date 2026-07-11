@@ -146,6 +146,8 @@ vite.config.ts.timestamp-*
 # Build output
 dist/
 build/
+.relay-browser/
+diagnostics/
 
 # Secrets — never commit credentials, tokens, or keys.
 .env
@@ -160,4 +162,3 @@ secrets/
 *credentials*
 # Exception: allow this very file and any docs that mention "token" in name.
 !.gitignore
-

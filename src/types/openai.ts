@@ -50,6 +50,14 @@ export interface ModelCard {
   object: 'model';
   created: number;
   owned_by: string;
+  /** Relay-specific capability hints. OpenAI clients safely ignore this. */
+  x_relay?: {
+    transport: 'mock' | 'browser' | 'api' | 'local';
+    execution_style: 'direct' | 'batch' | 'delegate';
+    supports_sessions: boolean;
+    supports_streaming: boolean;
+    max_parallel_requests: number;
+  };
 }
 
 export interface ModelListResponse {

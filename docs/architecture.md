@@ -12,7 +12,7 @@
                 │       │               │       providers/registry
                 │       │               │         ┌─────┴─────┐
                 │       │               │         │           │
-                │       │               │      MockProvider  (future: OpenAI, Anthropic, browser)
+                │       │               │      MockProvider  ChatGptBrowserProvider
                 │       │               │         │           │
                 └───────┴───────────────┴─────────┴───────────┘
                                     │
@@ -49,6 +49,17 @@ shortcut. Adding a provider means registering it; routing code stays put.
 - `mock.ts` — `MockProvider`. Returns deterministic, OpenAI-shaped responses.
   Token counts are crude word-count estimates; replaced with a real tokenizer
   when the first real provider lands.
+- `chatgpt-browser.ts` — maps OpenAI-shaped requests to batch mission packets,
+  sticky relay sessions, and the site-independent browser-driver boundary.
+- `conversation-planner.ts` — sends full context on a new/forked session and
+  only the delta when a known session continues.
+
+### `src/browser/`
+
+- `types.ts` — site-independent browser transport contract, also used by tests.
+- `serial-queue.ts` — permits one browser turn at a time.
+- `chatgpt-driver.ts` — owns the dedicated Playwright profile, ChatGPT
+  locators, completion detection, timeouts, and local failure screenshots.
 
 ### `src/config.ts`
 
@@ -62,7 +73,7 @@ Shared request/response types. Strict enough to compile under
 `--strict --noUnusedLocals --noUnusedParameters`, loose enough that later
 milestones can extend without a rewrite (streaming chunks, tool calls, etc.).
 
-## Data flow (milestone 1)
+## Data flow
 
 1. Client sends `POST /v1/chat/completions` with `{ model, messages }`.
 2. `routes/chat.ts` validates `messages` is a non-empty array.
@@ -72,6 +83,11 @@ milestones can extend without a rewrite (streaming chunks, tool calls, etc.).
 6. Provider returns a `ChatCompletionResponse`. Errors → 500 with an
    OpenAI-shaped body.
 7. Response is sent as JSON.
+
+For `browser-chatgpt-free`, the provider additionally packages messages as a
+batch mission, resolves `X-Relay-Session`, serializes access, sends the prompt
+through the dedicated ChatGPT page, waits for stable final text, and maps it
+back to the same completion shape.
 
 ## Trust boundary
 
@@ -89,5 +105,7 @@ milestones can extend without a rewrite (streaming chunks, tool calls, etc.).
 - **No auth middleware.** The relay binds to `127.0.0.1` by default; adding
   a bearer-token gate is a roadmap item, not a milestone-1 concern.
 - **No persistence.** No request log to disk, no DB. Logs go to stdout.
-- **No browser automation.** Browser-bridged providers are a later
-  milestone and will live behind the same `Provider` interface.
+- **No live web token handling.** The persistent browser profile is the sole
+  credential holder; login remains a normal visible user action.
+- **No browser streaming yet.** The driver observes incremental output only to
+  determine when the final response is stable.

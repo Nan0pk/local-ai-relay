@@ -59,7 +59,14 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
       }
 
       try {
-        const result = await provider.complete(body, model);
+        const rawSessionId = req.headers['x-relay-session'];
+        const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
+        const controller = new AbortController();
+        req.raw.once('aborted', () => controller.abort());
+        const result = await provider.complete(body, model, {
+          ...(sessionId ? { sessionId } : {}),
+          signal: controller.signal,
+        });
         return reply.send(result);
       } catch (err) {
         req.log.error({ err, model }, 'provider.complete failed');

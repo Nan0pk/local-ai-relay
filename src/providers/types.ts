@@ -25,5 +25,18 @@ export interface Provider {
    * input — call sites convert thrown errors to OpenAI-shaped error
    * responses.
    */
-  complete(req: ChatCompletionRequest, model: string): Promise<ChatCompletionResponse>;
+  complete(
+    req: ChatCompletionRequest,
+    model: string,
+    context?: ProviderRequestContext,
+  ): Promise<ChatCompletionResponse>;
+  /** Release browser processes or other provider-owned resources. */
+  close?(): Promise<void>;
+}
+
+export interface ProviderRequestContext {
+  /** Stable caller-provided conversation key. */
+  sessionId?: string;
+  /** Aborted when the HTTP client disconnects or the server shuts down. */
+  signal?: AbortSignal;
 }

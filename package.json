@@ -9,12 +9,16 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test src/*.test.ts src/**/*.test.ts",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
+    "browser:install": "node --import tsx src/cli/browser-install.ts",
+    "browser:login": "tsx src/cli/browser-login.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "fastify": "^5.2.1"
+    "fastify": "^5.2.1",
+    "playwright": "^1.61.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

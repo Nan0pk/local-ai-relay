@@ -11,11 +11,13 @@
 
 import type { Provider } from './types.js';
 import { MockProvider } from './mock.js';
+import { ChatGptBrowserProvider } from './chatgpt-browser.js';
 
 const mockProvider = new MockProvider();
+const chatGptBrowserProvider = new ChatGptBrowserProvider();
 
 /** Registered providers, in registration order. */
-const providers: Provider[] = [mockProvider];
+const providers: Provider[] = [mockProvider, chatGptBrowserProvider];
 
 /** Map from model id → provider. */
 const modelIndex = new Map<string, Provider>();
@@ -33,4 +35,8 @@ export function findProviderForModel(model: string): Provider | undefined {
   return modelIndex.get(model);
 }
 
-export { mockProvider };
+export async function closeProviders(): Promise<void> {
+  await Promise.all(providers.map((provider) => provider.close?.()));
+}
+
+export { mockProvider, chatGptBrowserProvider };

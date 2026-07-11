@@ -12,6 +12,8 @@ OpenAI-compatible endpoint. The primary assets at risk are:
    relay. These may contain sensitive user data.
 3. **The relay process itself** — an attacker who can reach the relay can
    consume the user's provider quota or read prompts.
+4. **Browser profile** — the dedicated automation profile contains an active
+   ChatGPT web session and must be protected like a credential store.
 
 In milestone 1 there are no real credentials in play — the mock provider
 has no secrets. The rules below are forward-looking and apply from day one
@@ -31,6 +33,10 @@ so later milestones don't introduce regressions.
 - **No credential forwarding.** The relay sends credentials only to the
   upstream provider that requires them. It never forwards keys to a
   third party, a telemetry endpoint, or another client.
+- **No web token extraction.** Browser providers rely on the local profile.
+  They do not print, export, copy, or accept cookies or session tokens.
+- **Dedicated profile only.** Never point Playwright at an everyday Chrome
+  profile. The relay profile defaults under `~/.local-ai-relay`.
 
 ## No provider bypass
 
@@ -55,6 +61,13 @@ cannot be silently skipped.
 - Outbound TLS to real providers is a milestone 2 concern and will use the
   provider SDK's defaults; no custom CA bundles or `NODE_TLS_REJECT_UNAUTHORIZED`
   overrides.
+
+## Browser diagnostics
+
+On browser failure the relay writes a local screenshot by default. It can
+contain prompt or response text. Diagnostics stay outside the repository and
+can be disabled with `RELAY_DIAGNOSTICS=0`. DOM dumps, cookies, storage state,
+and request headers are deliberately not captured.
 
 ## Reporting a vulnerability
 
