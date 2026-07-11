@@ -21,9 +21,20 @@ pluggable providers. The mock validates the API contract, while
 `browser-chatgpt-free` drives a dedicated, user-authenticated Playwright
 profile. The relay never asks for or extracts a web session token.
 
-## Quick start
+## Requirements
+
+- Git
+- Node.js 22 or newer
+- npm
+
+## First-time setup
+
+These commands work from any directory on Linux:
 
 ```bash
+cd "$HOME"
+git clone https://github.com/Nan0pk/local-ai-relay.git
+cd local-ai-relay
 npm install
 npm run build
 cp .env.example .env   # optional: tweak host/port
@@ -32,9 +43,17 @@ npm start
 
 The server listens on `127.0.0.1:8787` by default.
 
+If the repository is already installed, update and enter it first:
+
+```bash
+git -C "$HOME/local-ai-relay" pull --ff-only
+cd "$HOME/local-ai-relay"
+```
+
 ## ChatGPT Free browser setup (Linux first)
 
-Install the relay-owned Chromium build and open its dedicated profile:
+After completing the first-time setup above, install relay Chromium and open
+its dedicated profile:
 
 ```bash
 npm run browser:install
@@ -85,7 +104,7 @@ overlapping a stateful Free session.
 | ------ | ------------------------ | ------------------------------------------ |
 | GET    | `/health`                | Liveness probe.                            |
 | GET    | `/v1/models`             | List registered models (OpenAI-shaped).    |
-| POST   | `/v1/chat/completions`   | Chat completion (mock in milestone 1).     |
+| POST   | `/v1/chat/completions`   | Chat completion through a chosen provider. |
 
 ### Example
 
@@ -106,7 +125,8 @@ that browser models prefer batched work and accept one active request.
 ## Configuration
 
 All config is via environment variables — see [`.env.example`](.env.example)
-for the full list. No secrets are required for milestone 1.
+for the full list. The mock needs no secrets; browser authentication stays in
+the dedicated local profile.
 
 ## Project layout
 
