@@ -27,17 +27,26 @@ profile. The relay never asks for or extracts a web session token.
 - Node.js 22 or newer
 - npm
 
-## First-time setup
+## First-time Linux setup
 
-These commands work from any directory on Linux:
+Copy and paste this complete block from any directory:
 
 ```bash
 cd "$HOME"
 git clone https://github.com/Nan0pk/local-ai-relay.git
 cd local-ai-relay
-npm install
-npm run build
-cp .env.example .env   # optional: tweak host/port
+./setup-linux.sh
+```
+
+The setup program installs dependencies, creates local configuration, checks
+the code, simulates startup with an occupied port, installs the relay browser,
+opens ChatGPT for normal login, and verifies one real message round trip. It
+does not ask for a password, cookie, session token, API key, or PAT.
+
+After setup reports `SETUP COMPLETE`, start the relay:
+
+```bash
+cd "$HOME/local-ai-relay"
 npm start
 ```
 
@@ -50,12 +59,13 @@ If the repository is already installed, update and enter it first:
 ```bash
 git -C "$HOME/local-ai-relay" pull --ff-only
 cd "$HOME/local-ai-relay"
+./setup-linux.sh
 ```
 
 ## ChatGPT Free browser setup (Linux first)
 
-After completing the first-time setup above, install relay Chromium and open
-its dedicated profile:
+The setup command already runs the browser probe. These lower-level commands
+are available when diagnosing or repeating only one stage:
 
 ```bash
 npm run browser:install
@@ -69,7 +79,7 @@ the relay. The profile defaults to
 `~/.local-ai-relay/browser-profiles/chatgpt`; do not replace it with your
 everyday Chrome profile.
 
-For the first real-machine validation, use the self-contained probe instead:
+To repeat the complete live browser validation:
 
 ```bash
 npm run probe:chatgpt
