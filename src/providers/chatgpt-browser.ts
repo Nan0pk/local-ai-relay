@@ -44,7 +44,8 @@ export class ChatGptBrowserProvider implements Provider {
     context: ProviderRequestContext = {},
   ): Promise<ChatCompletionResponse> {
     const plan = this.planner.plan(req.messages, context.sessionId);
-    const prompt = plan.prompt + toolInstructions(req.tools);
+    const isContinuation = plan.prompt.startsWith('CONTINUE BATCH MISSION');
+    const prompt = plan.prompt + (isContinuation ? '' : toolInstructions(req.tools));
     const result = await this.driver.send({
       prompt,
       resetSession: plan.resetSession,
