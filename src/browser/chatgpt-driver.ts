@@ -136,22 +136,10 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
 
     const assistantMessages = page.locator('[data-message-author-role="assistant"]');
     const countBefore = await assistantMessages.count();
-    const handle = await composer.elementHandle();
-    if (!handle) throw new Error('ChatGPT composer disappeared before the prompt could be entered.');
-    await page.evaluate(({ el, text }) => {
-      const element = el as unknown as {
-        focus(): void;
-        ownerDocument: { execCommand(command: string, showUi?: boolean, value?: string): boolean };
-        dispatchEvent(event: Event): boolean;
-      };
-      element.focus();
-      const doc = element.ownerDocument;
-      doc.execCommand('selectAll', false);
-      doc.execCommand('delete', false);
-      doc.execCommand('insertText', false, text);
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-    }, { el: handle, text: request.prompt });
+    await composer.focus();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.insertText(request.prompt);
 
     const sendButton = page.locator('[data-testid="send-button"]').first();
     let clicked = false;
