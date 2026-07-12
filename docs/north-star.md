@@ -1,58 +1,33 @@
-# North Star
+# North star
 
-## One sentence
+## Mission
 
-Local-first relay that gives agent harnesses a single OpenAI-compatible
-endpoint, with backends that can be API providers, local models, or browser
-chat bridges — without leaking credentials to a third party.
+Give agent harnesses one local OpenAI-compatible endpoint for the best useful
+API, local, and browser-based AI resources without handing credentials to a
+hosted proxy.
 
-## Who it's for
+## Product principles
 
-- Developers running agent harnesses (Claude Code, Cursor, custom LangChain /
-  LlamaIndex apps) who want one stable `OPENAI_BASE_URL` regardless of which
-  backend serves the request today.
-- Users who can't or won't paste provider API keys into a hosted proxy.
-- Tinkerers who want to drive browser-based chat UIs (ChatGPT, Claude.ai,
-  Gemini) as if they were OpenAI API endpoints, with the browser as the
-  trusted credential holder.
+1. **Local first:** the process and browser profiles stay on the user's machine.
+2. **Value first:** free and already-paid access is preferred when capability
+   is competitive.
+3. **No false availability:** models appear in discovery only after real E2E
+   validation.
+4. **One contract:** all backends pass through the same registry, error model,
+   logging boundary, and OpenAI-compatible surface.
+5. **Isolated adapters:** a website change breaks one driver, not the relay.
+6. **User-controlled authentication:** normal visible login only; no extracted
+   cookies, copied tokens, CAPTCHA bypass, or credential collection.
 
-## What "local-first" means here
+## Success
 
-1. The relay process runs on the user's machine. No SaaS deployment is
-   required and none is planned as the primary surface.
-2. Credentials live in the user's environment (`env`, OS keychain, or a
-   browser session the user controls). The relay never phones home and never
-   forwards keys to a third party.
-3. All telemetry is opt-in and local-first (logs to stdout by default).
+- Hermes can select a named relay model and complete a real tool round trip.
+- Browser prompts stay compact across long agent sessions.
+- Adding Claude, Gemini, DeepSeek, Z.ai, MiniMax, Kimi, Qwen, Grok, or Mistral
+  does not require route changes.
+- Failure is explicit and recoverable; the relay never silently switches to a
+  different model or provider.
+- A clean checkout builds, tests, and starts with one documented command.
 
-## What it is NOT
-
-- **Not a hosted proxy.** There will be no `relay.example.com`. Deploying it
-  yourself is fine; we won't operate it for you.
-- **Not a key vault.** The relay reads credentials from the environment; it
-  does not store them.
-- **Not a provider bypass.** Every request goes through the provider
-  registry. There is no hidden path that lets a client reach an upstream
-  directly, bypassing auth, logging, and rate limits.
-- **Not a browser automation framework.** Browser-bridged providers are a
-  later milestone and will use a real automation library; the relay itself
-  stays a thin HTTP server.
-
-## Success criteria for milestone 1 (current)
-
-- `npm install && npm run build && npm start` works on a clean checkout.
-- `GET /health`, `GET /v1/models`, `POST /v1/chat/completions` return
-  OpenAI-shaped responses.
-- An OpenAI-compatible client (e.g. `openai` npm package with `baseURL`
-  pointed at the relay) can list models and get a chat completion without
-  errors.
-- No secrets required to run; no secrets committed; no provider-bypass code
-  paths.
-
-## Success criteria for later milestones (preview — see roadmap)
-
-- Real API provider (e.g. OpenAI or Anthropic) registered behind the same
-  surface, keys read from env only.
-- Streaming (`stream: true`) supported end-to-end.
-- Browser-bridged provider for one chat UI, using a real automation library,
-  with the browser session as the credential holder.
+The selected provider fleet and implementation order live in
+[providers.md](providers.md); delivery gates live in [roadmap.md](roadmap.md).

@@ -1,100 +1,63 @@
 # Roadmap
 
-Living document. Order is intentional — each milestone is independently
-shippable and end-to-end testable before the next one starts.
+Each provider is shipped independently and registered only after a real
+authenticated E2E pass.
 
-## Milestone 1 — Mock provider (complete)
+## Foundation — complete
 
-**Goal:** stand up the OpenAI-compatible surface with a deterministic mock
-backend so the contract can be validated before any real provider is wired
-in.
+- [x] OpenAI-compatible health, models, and chat-completions routes
+- [x] Provider registry with no bypass or silent fallback
+- [x] Deterministic mock and startup smoke tests
+- [x] Linux setup, port selection, systemd service, and Hermes configuration
+- [x] SSE compatibility, sticky sessions, compact tools, and tool-call bridge
 
-- [x] Node + TypeScript + Fastify scaffold
-- [x] `GET /health`
-- [x] `GET /v1/models` (OpenAI-shaped)
-- [x] `POST /v1/chat/completions` (mock response, OpenAI-shaped)
-- [x] Provider registry + `Provider` interface
-- [x] `README`, `docs/north-star.md`, `docs/architecture.md`,
-      `docs/roadmap.md`, `SECURITY.md`, `.env.example`
-- [x] `npm install` + `npm run build` clean
-- [x] Commit + push
+## Reference adapter: ChatGPT — complete
 
-**Exit criteria:** an OpenAI-compatible client pointed at the relay can list
-models and get a chat completion without errors. No secrets required.
+- [x] Isolated persistent browser profile and visible login
+- [x] Native large-prompt insertion and reliable send-button readiness
+- [x] Full first mission and delta-only continuations
+- [x] Tool-schema omission on continuation turns
+- [x] Authenticated Fedora Hermes → relay → ChatGPT → tool → Hermes E2E
+- [ ] Sanitized DOM-fixture regression test
+- [ ] Explicit logout, usage-limit, and challenge-page error classes
 
-## Milestone 2 — ChatGPT Free browser transport (current)
+## Provider expansion
 
-**Goal:** prove the relay's differentiating path by routing batched work through
-a normal, locally authenticated ChatGPT Free browser session.
+- [ ] Claude (`browser-claude-free`)
+- [ ] Gemini (`browser-gemini-free`)
+- [ ] DeepSeek (`browser-deepseek-free`)
+- [ ] Z.ai / GLM 5.2 (`browser-zai-glm-5.2`)
+- [ ] MiniMax M3 (`browser-minimax-m3`)
+- [ ] Kimi (`browser-kimi-free`)
+- [ ] Qwen (`browser-qwen-free`)
+- [ ] Grok (`browser-grok-free`)
+- [ ] Mistral Le Chat (`browser-mistral-free`)
 
-- [x] Add a dedicated persistent Playwright profile and login command.
-- [x] Implement `browser-chatgpt-free` behind the `Provider` interface.
-- [x] Aggregate messages into batch mission packets.
-- [x] Add sticky sessions via `X-Relay-Session` and reset forked histories.
-- [x] Serialize browser work and support cancellation/timeouts.
-- [x] Capture local failure screenshots without exporting credentials.
-- [x] Unit-test batching, continuation, reset, response shaping, and cleanup.
-- [ ] Validate selectors with an authenticated live ChatGPT Free profile.
-- [x] Add a one-command Linux live probe with environment checks and automatic
-      composer detection.
-- [x] Reuse installed Fedora Chrome/Chromium with an isolated relay profile.
-- [x] Add automatic OpenAI-history session matching for harnesses that cannot
-      send `X-Relay-Session`.
-- [x] Translate tagged browser responses into OpenAI-compatible tool calls.
-- [x] Install a persistent systemd user service and configure Hermes's current
-      documented `custom` provider format.
-- [ ] Add a DOM-fixture browser test after capturing a sanitized live fixture.
+For every checkbox: isolated driver, login/probe command, unit tests, sanitized
+fixture where feasible, live E2E report, and only then registry/Hermes exposure.
+The rationale and exact order are in [providers.md](providers.md).
 
-**Exit criteria:** a request for `browser-chatgpt-free` returns a real
-completion; the same relay session continues the browser conversation; the
-mock remains usable without browser setup.
+## Shared reliability
 
-## Milestone 3 — Browser reliability and structured delegation
+- [ ] Extract reusable browser session/profile lifecycle helpers
+- [ ] Provider-specific logout, challenge, rate-limit, and quota detection
+- [ ] Session inspection and cancellation endpoints
+- [ ] Safe redacted Playwright traces
+- [ ] Structured recoverable provider errors
+- [ ] True upstream streaming for providers that expose it reliably
 
-**Goal:** make browser delegation dependable enough for an agent harness.
+## API and local providers
 
-- [ ] Add structured batch-task and result envelopes.
-- [ ] Recover after page refresh, logout, and Free usage limits.
-- [ ] Add safe, redacted Playwright traces.
-- [ ] Add explicit session inspection and cancellation endpoints.
-- [ ] Bridge structured tool calls for harnesses that require them.
+- [ ] Generic OpenAI-compatible upstream adapter
+- [ ] Local Ollama/LM Studio adapter
+- [ ] Environment/keychain-backed credentials
+- [ ] Capability-aware routing without silent model substitution
 
-**Exit criteria:** a bounded multi-step mission either returns a structured
-result or a specific recoverable error with diagnostics and a checkpoint.
+## Hardening
 
-## Milestone 4 — Auth & multi-tenant basics
-
-**Goal:** let the relay sit behind a bearer token without breaking the
-OpenAI surface.
-
-- [ ] Optional bearer-token middleware (env-configured).
-- [ ] Per-token rate limiting (in-memory, sliding window).
-- [ ] Request ID propagation.
-
-**Exit criteria:** relay rejects unauthenticated requests when configured,
-passes authenticated ones through, and rate-limits per token.
-
-## Milestone 5 — Additional providers and streaming
-
-**Goal:** prove the abstraction beyond the reference browser adapter.
-
-- [ ] Add one API or local-model provider.
-- [ ] Add a second webchat adapter without changing routes.
-- [ ] Extend `Provider` with a streaming method.
-- [ ] Implement SSE for providers that can stream reliably.
-
-**Exit criteria:** API, local, and two browser transports share the same route
-and capability model without site-specific routing shortcuts.
-
-## Milestone 6 — Hardening
-
-**Goal:** make the relay safe to leave running.
-
-- [ ] Structured logging with redaction.
-- [ ] Prometheus metrics endpoint.
-- [ ] Graceful backpressure under load.
-- [ ] Failure-mode tests (provider down, malformed upstream response).
-- [ ] Security review of the provider registry — confirm no bypass paths.
-
-**Exit criteria:** relay runs for 24h under mixed load without leaking
-credentials, dropping requests silently, or growing memory unbounded.
+- [ ] Optional bearer-token middleware
+- [ ] Per-token rate limiting and request-ID propagation
+- [ ] Structured redacted logging and Prometheus metrics
+- [ ] Backpressure and failure-mode tests
+- [ ] 24-hour mixed-provider soak test
+- [ ] Security review before a stable release

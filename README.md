@@ -1,36 +1,31 @@
 # local-ai-relay
 
-Local-first AI relay that lets agent harnesses talk to APIs, local models, and
-browser chat interfaces through one OpenAI-compatible endpoint.
+Local-first bridge from OpenAI-compatible clients such as Hermes to API,
+local-model, and user-authenticated webchat providers.
 
-> **Status:** milestone 2 — experimental ChatGPT Free browser provider plus the
-> deterministic mock. Browser output is emitted after the web response completes and ChatGPT's interface
-> can change without notice. See [docs/roadmap.md](docs/roadmap.md).
+> **Current status:** `browser-chatgpt-free` is working and Fedora-verified.
+> Nine additional first-party webchats are selected but are not advertised as
+> usable until each passes its own live end-to-end test.
 
-## What it is
+## Working now
 
-`local-ai-relay` is a small HTTP server that speaks the OpenAI Chat Completions
-API (`/v1/chat/completions`, `/v1/models`). Agent harnesses (Claude Code,
-Cursor, custom LangChain/LlamaIndex apps, etc.) point their `OPENAI_BASE_URL`
-at the relay and get one stable surface, no matter what backend serves the
-request.
+| Model ID | Backend | Status |
+|---|---|---|
+| `browser-chatgpt-free` | ChatGPT webchat | Fedora E2E verified |
+| `mock-gpt-4o-mini` | Deterministic local mock | Test-only |
 
-The relay is **local-first**: it runs on your machine, holds any credentials
-in your environment, and never proxies through a third party. Backends are
-pluggable providers. The mock validates the API contract, while
-`browser-chatgpt-free` drives a dedicated, user-authenticated Playwright
-profile. The relay never asks for or extracts a web session token.
+The relay supports OpenAI-style model discovery, chat completions, tool calls,
+sticky browser conversations, and SSE compatibility for clients that request
+`stream: true`. Browser output is returned after the website finishes; it is
+not true upstream token streaming.
 
-## Requirements
+## Selected provider fleet
 
-- Git
-- Node.js 22 or newer
-- npm
+The next direct webchat adapters are Claude, Gemini, DeepSeek, Z.ai/GLM 5.2,
+MiniMax M3, Kimi, Qwen, Grok, and Mistral Le Chat. See
+[Provider fleet](docs/providers.md) for IDs, order, rationale, and status.
 
-## Linux setup or update
-
-Copy and paste this complete block from any directory. It clones the project
-when missing and updates the existing checkout when it is already installed:
+## Install or update on Linux
 
 ```bash
 if [ -d "$HOME/local-ai-relay/.git" ]; then
@@ -42,155 +37,106 @@ cd "$HOME/local-ai-relay"
 ./setup-linux.sh
 ```
 
-The setup program installs dependencies, creates local configuration, checks
-the code, simulates startup with an occupied port, reuses installed Chrome when
-available, opens ChatGPT for normal login, verifies one real message round
-trip, installs a per-user background service, and configures Hermes when its
-CLI is installed. It does not ask for a password, cookie, session token, API
-key, or PAT.
+The setup performs a clean dependency check, tests, an occupied-port startup
+smoke test, visible ChatGPT login/probe, systemd user-service installation,
+and Hermes configuration. Login remains a normal browser action: the relay
+never asks for passwords, cookies, session tokens, API keys, or GitHub tokens.
 
-Hermes is registered with a named provider, `local-ai-relay`, so its `/model`
-screen can display and select `browser-chatgpt-free`. Existing Hermes settings
-and other custom providers are preserved; a pre-change backup is saved beside
-`~/.hermes/config.yaml`.
+To validate code without opening a browser:
 
-After setup reports `SETUP COMPLETE`, the relay is already running. Inspect it
-with:
+```bash
+./setup-linux.sh --no-browser
+```
+
+## Hermes
+
+The setup registers:
+
+```text
+provider: custom:local-ai-relay
+model: browser-chatgpt-free
+selector: custom:local-ai-relay:browser-chatgpt-free
+```
+
+Existing Hermes settings and custom providers are preserved, and the config is
+backed up before modification. Start a new Hermes session after configuration.
+
+## Operations
 
 ```bash
 systemctl --user status local-ai-relay
 journalctl --user -u local-ai-relay -f
-```
-
-The server prefers `127.0.0.1:8787`. If another program owns that port, it
-checks whether the relay is already running and otherwise selects the next
-free port through `8796`, printing the selected address.
-
-## ChatGPT Free browser setup (Linux first)
-
-The setup command already runs the browser probe. These lower-level commands
-are available when diagnosing or repeating only one stage:
-
-```bash
-npm run browser:install
-npm run browser:login
-```
-
-Sign into ChatGPT normally in that window. Once the composer is visible, close
-login mode with `Ctrl+C`, start the relay, and request
-`browser-chatgpt-free`. Do not paste a password, cookie, or session token into
-the relay. The profile defaults to
-`~/.local-ai-relay/browser-profiles/chatgpt`; do not replace it with your
-everyday Chrome profile.
-
-To repeat the complete live browser validation:
-
-```bash
 npm run probe:chatgpt
 ```
 
-It checks Node and the Linux graphical session, installs relay Chromium if
-needed, opens the dedicated profile, waits for the composer, sends one harmless
-message, and verifies that final response extraction works. Login is the only
-manual step.
+The relay prefers `127.0.0.1:8787`. If occupied, it reuses an existing healthy
+relay or selects the next free port through `8796`.
 
-```bash
-npm start
+## API
 
-curl -s http://127.0.0.1:8787/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -H 'X-Relay-Session: demo-mission' \
-  -d '{
-    "model": "browser-chatgpt-free",
-    "messages": [
-      {"role":"user","content":"Inspect the design."},
-      {"role":"user","content":"Then return three prioritized improvements."}
-    ]
-  }'
-```
-
-The provider packages related messages into one batch mission. Reusing
-`X-Relay-Session` keeps the ChatGPT conversation sticky; a forked history
-starts a fresh browser conversation. Browser work is serialized to avoid
-overlapping a stateful Free session.
-
-For clients such as Hermes that request streaming, the relay returns a valid
-SSE stream after ChatGPT finishes. This preserves OpenAI client compatibility;
-it does not make the browser backend token-by-token realtime.
-
-## Endpoints
-
-| Method | Path                     | Purpose                                    |
-| ------ | ------------------------ | ------------------------------------------ |
-| GET    | `/health`                | Liveness probe.                            |
-| GET    | `/v1/models`             | List registered models (OpenAI-shaped).    |
-| POST   | `/v1/chat/completions`   | Chat completion through a chosen provider. |
-
-### Example
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/health` | Liveness |
+| `GET` | `/v1/models` | Registered, usable models |
+| `POST` | `/v1/chat/completions` | OpenAI-compatible completion/SSE |
 
 ```bash
 curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H 'Content-Type: application/json' \
+  -H 'X-Relay-Session: demo' \
   -d '{
-    "model": "mock-gpt-4o-mini",
-    "messages": [{ "role": "user", "content": "ping" }]
+    "model":"browser-chatgpt-free",
+    "messages":[{"role":"user","content":"Return three prioritized improvements."}]
   }'
 ```
 
-Returns a deterministic mock completion with realistic `usage` counts.
+## Repository map
 
-`GET /v1/models` includes an `x_relay` capability hint. Harnesses can discover
-that browser models prefer batched work and accept one active request.
+```text
+local-ai-relay/
+├── src/
+│   ├── browser/      Playwright transport, profiles, queue, ChatGPT driver
+│   ├── cli/          setup, login, probe, service, and Hermes commands
+│   ├── hermes/       non-destructive Hermes configuration
+│   ├── providers/    registry, provider adapters, planning, tool bridge
+│   ├── routes/       health, models, and chat-completions endpoints
+│   ├── service/      systemd unit generation
+│   ├── startup/      port selection and startup checks
+│   ├── types/        OpenAI-compatible shared types
+│   ├── config.ts     environment configuration
+│   ├── server.ts     Fastify application factory
+│   └── index.ts      process entrypoint
+├── docs/
+│   ├── providers.md  selected top-10 provider fleet
+│   ├── architecture.md
+│   ├── roadmap.md
+│   ├── north-star.md
+│   └── antigravity-e2e-report.md
+├── setup-linux.sh
+├── SECURITY.md
+└── package.json
+```
 
-## Verify the basic user journey
-
-The startup smoke test builds the project, deliberately occupies the preferred
-port, starts the relay as a user would, and verifies its `/health` response on
-the automatically selected fallback port:
+## Verification
 
 ```bash
+npm ci
+npm test
+npm run build
 npm run smoke:startup
 ```
 
-## Configuration
+The authenticated Fedora evidence is recorded in
+[the E2E report](docs/antigravity-e2e-report.md).
 
-All config is via environment variables — see [`.env.example`](.env.example)
-for the full list. The mock needs no secrets; browser authentication stays in
-the dedicated local profile.
+## Boundaries
 
-## Project layout
-
-```
-src/
-  index.ts            process entry, graceful shutdown
-  server.ts           Fastify factory + route wiring
-  config.ts           env → typed config
-  routes/             /health, /v1/models, /v1/chat/completions
-  providers/          provider interface, registry, browser + mock impls
-  browser/            Playwright transport, queue, ChatGPT driver
-  cli/                dedicated-profile login command
-  types/              OpenAI-compatible request/response types
-docs/
-  north-star.md       product vision
-  architecture.md     component layout & data flow
-  roadmap.md          milestone plan
-SECURITY.md           threat model & secret-handling rules
-```
-
-## Why "no provider bypass"?
-
-The relay routes model ids to registered providers through one code path. There
-is no shortcut that lets a request skip the registry and hit a hardcoded
-upstream. This keeps auth, logging, and rate-limiting in one place as real
-providers are added — see [SECURITY.md](SECURITY.md).
+This is local UI automation, not an official provider API. It does not bypass
+login, CAPTCHA, usage limits, access controls, or safety systems. Webchat
+selectors can change without notice, and each adapter must remain isolated and
+independently testable. See [SECURITY.md](SECURITY.md).
 
 ## License
 
-TBD — not yet licensed. Treat as source-available until a LICENSE file lands.
-
-## Browser-provider boundaries
-
-This is user-controlled UI automation, not an official ChatGPT API. It does
-not bypass login, CAPTCHA, usage limits, access controls, or safety checks.
-Availability and permitted use remain subject to the service's current terms.
-Selectors are isolated in the browser driver because the website can change.
+No license has been selected yet. Treat the repository as source-available,
+not open source, until a `LICENSE` file is added.
