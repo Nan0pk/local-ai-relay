@@ -11,7 +11,7 @@ test('tool instructions include the real Hermes schema and strict envelope', () 
       parameters: { type: 'object', properties: { command: { type: 'string' } } },
     },
   }]);
-  assert.match(prompt, /"name": "terminal"/);
+  assert.match(prompt, /"name"\s*:\s*"terminal"/);
   assert.match(prompt, /<relay_tool_calls>/);
 });
 

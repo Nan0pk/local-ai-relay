@@ -54,7 +54,7 @@ function minifyTool(tool: ChatToolDefinition): any {
 export function toolInstructions(tools: ChatToolDefinition[] | undefined): string {
   if (!tools?.length) return '';
   const minified = tools.map(minifyTool);
-  return `\n\nAVAILABLE HERMES TOOLS\n${JSON.stringify(minified, null, 2)}\n\n` +
+  return `\n\nAVAILABLE HERMES TOOLS\n${JSON.stringify(minified)}\n\n` +
     'If tools are needed, do not pretend to execute them. Return the calls inside these exact tags:\n' +
     `${OPEN_TAG}\n` +
     '[{"id":"call_unique","name":"tool_name","arguments":{}}]\n' +
