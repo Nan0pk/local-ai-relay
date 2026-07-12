@@ -18,33 +18,6 @@ import type {
 } from '../types/openai.js';
 import type { AppConfig } from '../config.js';
 
-function streamCompletion(reply: FastifyReply, result: ChatCompletionResponse): void {
-  reply.hijack();
-  reply.raw.writeHead(200, {
-    'content-type': 'text/event-stream; charset=utf-8',
-    'cache-control': 'no-cache, no-transform',
-    connection: 'keep-alive',
-  });
-  const choice = result.choices[0];
-  const message = choice?.message;
-  const base = { id: result.id, object: 'chat.completion.chunk', created: result.created, model: result.model };
-  reply.raw.write(`data: ${JSON.stringify({ ...base, choices: [{
-    index: choice?.index ?? 0,
-    delta: {
-      role: 'assistant',
-      ...(message?.content !== undefined ? { content: message.content } : {}),
-      ...(message?.tool_calls ? { tool_calls: message.tool_calls } : {}),
-    },
-    finish_reason: null,
-  }] })}\n\n`);
-  reply.raw.write(`data: ${JSON.stringify({ ...base, choices: [{
-    index: choice?.index ?? 0,
-    delta: {},
-    finish_reason: choice?.finish_reason ?? 'stop',
-  }] })}\n\n`);
-  reply.raw.end('data: [DONE]\n\n');
-}
-
 function errorBody(
   message: string,
   type: string,
@@ -77,26 +50,87 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
           .send(errorBody(`Model '${model}' is not registered.`, 'invalid_request_error', 'model_not_found', 'model'));
       }
 
+      let result;
       try {
         const rawSessionId = req.headers['x-relay-session'];
         const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
         const controller = new AbortController();
         req.raw.once('aborted', () => controller.abort());
-        const result = await provider.complete(body, model, {
+        result = await provider.complete(body, model, {
           ...(sessionId ? { sessionId } : {}),
           signal: controller.signal,
         });
-        if (body.stream === true) {
-          streamCompletion(reply, result);
-          return;
-        }
-        return reply.send(result);
       } catch (err) {
         req.log.error({ err, model }, 'provider.complete failed');
         return reply
           .code(500)
           .send(errorBody('Provider returned an unexpected error.', 'server_error', 'internal_error'));
       }
+
+      if (body.stream === true) {
+        reply.raw.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        });
+
+        const choice = result.choices[0];
+        const content = choice?.message?.content;
+        const toolCalls = choice?.message?.tool_calls;
+
+        if (content) {
+          const words = content.split(/(\s+)/);
+          for (const word of words) {
+            if (word.length === 0) continue;
+            const chunk = {
+              id: result.id,
+              object: 'chat.completion.chunk',
+              created: result.created,
+              model: result.model,
+              choices: [{
+                index: 0,
+                delta: { content: word },
+                finish_reason: null,
+              }],
+            };
+            reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+        }
+
+        if (toolCalls && toolCalls.length > 0) {
+          const chunk = {
+            id: result.id,
+            object: 'chat.completion.chunk',
+            created: result.created,
+            model: result.model,
+            choices: [{
+              index: 0,
+              delta: { tool_calls: toolCalls },
+              finish_reason: null,
+            }],
+          };
+          reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        }
+
+        const finalChunk = {
+          id: result.id,
+          object: 'chat.completion.chunk',
+          created: result.created,
+          model: result.model,
+          choices: [{
+            index: 0,
+            delta: {},
+            finish_reason: choice?.finish_reason || 'stop',
+          }],
+        };
+        reply.raw.write(`data: ${JSON.stringify(finalChunk)}\n\n`);
+        reply.raw.write('data: [DONE]\n\n');
+        reply.raw.end();
+        return reply;
+      }
+
+      return reply.send(result);
     },
   );
 }

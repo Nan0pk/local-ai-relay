@@ -93,6 +93,10 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
       viewport: { width: 1440, height: 960 },
       ...(executablePath ? { executablePath } : {}),
     });
+    this.context.on('close', () => {
+      this.context = undefined;
+      this.pages.clear();
+    });
     return this.context;
   }
 
@@ -117,7 +121,7 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
   }
 
   private composer(page: Page): Locator {
-    return page.locator('#prompt-textarea, [data-testid="composer-text-input"], div[contenteditable="true"]').first();
+    return page.locator('div#prompt-textarea, div[contenteditable="true"], [data-testid="composer-text-input"]').first();
   }
 
   private async sendOnPage(page: Page, request: BrowserChatRequest): Promise<BrowserChatResult> {
@@ -132,10 +136,19 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
 
     const assistantMessages = page.locator('[data-message-author-role="assistant"]');
     const countBefore = await assistantMessages.count();
-    await composer.fill(request.prompt);
+    const handle = await composer.elementHandle();
+    if (handle) {
+      await page.evaluate(({ el, text }) => {
+        const doc = (el as any).ownerDocument;
+        (el as any).focus();
+        doc.execCommand('selectAll', false);
+        doc.execCommand('delete', false);
+        doc.execCommand('insertText', false, text);
+      }, { el: handle, text: request.prompt });
+    }
     const sendButton = page.locator('[data-testid="send-button"]').first();
     if (await sendButton.isVisible().catch(() => false)) {
-      await sendButton.click();
+      await sendButton.click({ force: true });
     } else {
       await composer.press('Enter');
     }
@@ -195,6 +208,10 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
         path: join(this.options.diagnosticsDir, `chatgpt-${stamp}.png`),
         fullPage: false,
       });
+      const html = await page.content().catch(() => 'unavailable');
+      const url = page.url();
+      console.error(`DIAGNOSTICS: Failed page URL: ${url}`);
+      console.error(`DIAGNOSTICS: Failed page HTML preview: ${html.slice(0, 1000)}`);
     } catch {
       // Diagnostics must never hide the original browser failure.
     }
