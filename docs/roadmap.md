@@ -37,6 +37,12 @@ a normal, locally authenticated ChatGPT Free browser session.
 - [ ] Validate selectors with an authenticated live ChatGPT Free profile.
 - [x] Add a one-command Linux live probe with environment checks and automatic
       composer detection.
+- [x] Reuse installed Fedora Chrome/Chromium with an isolated relay profile.
+- [x] Add automatic OpenAI-history session matching for harnesses that cannot
+      send `X-Relay-Session`.
+- [x] Translate tagged browser responses into OpenAI-compatible tool calls.
+- [x] Install a persistent systemd user service and configure Hermes's current
+      documented `custom` provider format.
 - [ ] Add a DOM-fixture browser test after capturing a sanitized live fixture.
 
 **Exit criteria:** a request for `browser-chatgpt-free` returns a real

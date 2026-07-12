@@ -39,15 +39,18 @@ cd local-ai-relay
 ```
 
 The setup program installs dependencies, creates local configuration, checks
-the code, simulates startup with an occupied port, installs the relay browser,
-opens ChatGPT for normal login, and verifies one real message round trip. It
-does not ask for a password, cookie, session token, API key, or PAT.
+the code, simulates startup with an occupied port, reuses installed Chrome when
+available, opens ChatGPT for normal login, verifies one real message round
+trip, installs a per-user background service, and configures Hermes when its
+CLI is installed. It does not ask for a password, cookie, session token, API
+key, or PAT.
 
-After setup reports `SETUP COMPLETE`, start the relay:
+After setup reports `SETUP COMPLETE`, the relay is already running. Inspect it
+with:
 
 ```bash
-cd "$HOME/local-ai-relay"
-npm start
+systemctl --user status local-ai-relay
+journalctl --user -u local-ai-relay -f
 ```
 
 The server prefers `127.0.0.1:8787`. If another program owns that port, it

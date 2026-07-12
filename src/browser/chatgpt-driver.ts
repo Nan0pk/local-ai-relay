@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { BrowserContext, Locator, Page } from 'playwright';
 import type { BrowserChatDriver, BrowserChatRequest, BrowserChatResult } from './types.js';
 import { SerialQueue } from './serial-queue.js';
-import { browserBinariesDir } from './paths.js';
+import { browserBinariesDir, findSystemBrowser } from './paths.js';
 
 const CHATGPT_URL = 'https://chatgpt.com/';
 
@@ -84,9 +84,10 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
   private async getContext(): Promise<BrowserContext> {
     if (this.context) return this.context;
     await mkdir(this.options.profileDir, { recursive: true });
-    process.env.PLAYWRIGHT_BROWSERS_PATH ??= browserBinariesDir();
+    const systemBrowser = await findSystemBrowser();
+    if (!systemBrowser) process.env.PLAYWRIGHT_BROWSERS_PATH ??= browserBinariesDir();
     const { chromium } = await import('playwright');
-    const executablePath = process.env.RELAY_BROWSER_EXECUTABLE;
+    const executablePath = systemBrowser;
     this.context = await chromium.launchPersistentContext(this.options.profileDir, {
       headless: this.options.headless,
       viewport: { width: 1440, height: 960 },

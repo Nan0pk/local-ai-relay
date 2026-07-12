@@ -42,7 +42,7 @@ function estimateTokens(text: string): number {
 function lastUserMessage(req: ChatCompletionRequest): string {
   for (let i = req.messages.length - 1; i >= 0; i--) {
     const m = req.messages[i];
-    if (m && m.role === 'user') return m.content;
+    if (m && m.role === 'user') return m.content ?? '';
   }
   return '';
 }
@@ -69,7 +69,7 @@ export class MockProvider implements Provider {
       `Model=${model}. This is a deterministic mock response from local-ai-relay.`;
 
     const promptTokens = estimateTokens(
-      req.messages.map((m) => m.content).join('\n'),
+      req.messages.map((m) => m.content ?? '').join('\n'),
     );
     const completionTokens = estimateTokens(completionText);
 

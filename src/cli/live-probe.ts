@@ -2,7 +2,7 @@ import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { ChatGptPlaywrightDriver } from '../browser/chatgpt-driver.js';
-import { browserBinariesDir } from '../browser/paths.js';
+import { browserBinariesDir, findSystemBrowser } from '../browser/paths.js';
 
 const EXPECTED = 'LOCAL AI RELAY READY';
 
@@ -60,8 +60,11 @@ async function main(): Promise<void> {
     throw new Error('No graphical Linux session was detected (DISPLAY/WAYLAND_DISPLAY is missing).');
   }
 
-  const explicitBrowser = process.env.RELAY_BROWSER_EXECUTABLE;
-  const hasExplicitBrowser = explicitBrowser ? await exists(explicitBrowser) : false;
+  const systemBrowser = await findSystemBrowser();
+  if (systemBrowser) {
+    process.env.RELAY_BROWSER_EXECUTABLE = systemBrowser;
+    console.log(`Browser: using installed ${systemBrowser} with the isolated relay profile`);
+  }
   let hasRelayBrowser = false;
   try {
     process.env.PLAYWRIGHT_BROWSERS_PATH ??= browserBinariesDir();
@@ -70,7 +73,7 @@ async function main(): Promise<void> {
   } catch {
     hasRelayBrowser = false;
   }
-  if (!hasExplicitBrowser && !hasRelayBrowser) await runBrowserInstall();
+  if (!systemBrowser && !hasRelayBrowser) await runBrowserInstall();
 
   const driver = new ChatGptPlaywrightDriver({ headless: false });
   try {

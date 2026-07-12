@@ -33,7 +33,21 @@ async function main(): Promise<void> {
           const response = await fetch(`http://127.0.0.1:${port}/health`);
           const body = await response.json() as { service?: string };
           if (body.service === 'local-ai-relay') {
-            console.log(`PASS: occupied-port startup selected ${port} and /health responded.`);
+            const completion = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                model: 'mock-gpt-4o-mini',
+                messages: [{ role: 'user', content: 'startup smoke' }],
+              }),
+            });
+            const completionBody = await completion.json() as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            if (!completion.ok || !completionBody.choices?.[0]?.message?.content?.includes('startup smoke')) {
+              throw new Error('Relay health passed but its OpenAI chat-completions route failed.');
+            }
+            console.log(`PASS: occupied-port startup selected ${port}; /health and /v1/chat/completions responded.`);
             return;
           }
         } catch {

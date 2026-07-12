@@ -7,6 +7,7 @@ import type {
 } from '../types/openai.js';
 import type { Provider, ProviderRequestContext } from './types.js';
 import { ConversationPlanner } from './conversation-planner.js';
+import { parseBrowserResponse, toolInstructions } from './tool-bridge.js';
 
 const MODEL_ID = 'browser-chatgpt-free';
 
@@ -43,15 +44,22 @@ export class ChatGptBrowserProvider implements Provider {
     context: ProviderRequestContext = {},
   ): Promise<ChatCompletionResponse> {
     const plan = this.planner.plan(req.messages, context.sessionId);
+    const prompt = plan.prompt + toolInstructions(req.tools);
     const result = await this.driver.send({
-      prompt: plan.prompt,
+      prompt,
       resetSession: plan.resetSession,
-      ...(context.sessionId ? { sessionId: context.sessionId } : {}),
+      sessionId: plan.sessionId,
       ...(context.signal ? { signal: context.signal } : {}),
     });
-    plan.remember(result.text);
+    const parsed = parseBrowserResponse(result.text);
+    const assistantMessage = {
+      role: 'assistant' as const,
+      content: parsed.content,
+      ...(parsed.toolCalls ? { tool_calls: parsed.toolCalls } : {}),
+    };
+    plan.remember(assistantMessage);
 
-    const promptTokens = estimateTokens(plan.prompt);
+    const promptTokens = estimateTokens(prompt);
     const completionTokens = estimateTokens(result.text);
     return {
       id: `chatcmpl-browser-${crypto.randomUUID()}`,
@@ -60,8 +68,8 @@ export class ChatGptBrowserProvider implements Provider {
       model,
       choices: [{
         index: 0,
-        message: { role: 'assistant', content: result.text },
-        finish_reason: 'stop',
+        message: assistantMessage,
+        finish_reason: parsed.toolCalls ? 'tool_calls' : 'stop',
         logprobs: null,
       }],
       usage: {

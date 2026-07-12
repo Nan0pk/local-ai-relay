@@ -4,6 +4,10 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+# Keep installation self-contained and avoid broken/root-owned global npm
+# caches. The directory is already covered by .gitignore via .relay-browser/.
+export NPM_CONFIG_CACHE="$ROOT_DIR/.relay-browser/npm-cache"
+
 NO_BROWSER=0
 if [[ "${1:-}" == "--no-browser" ]]; then
   NO_BROWSER=1
@@ -47,8 +51,24 @@ if (( NO_BROWSER == 1 )); then
 else
   echo "==> Starting the ChatGPT browser authentication and live probe"
   npm run probe:chatgpt
+
+  echo "==> Installing and starting the per-user background relay service"
+  npm run service:install
+
+  if command -v hermes >/dev/null 2>&1; then
+    echo "==> Configuring the installed Hermes agent"
+    npm run hermes:configure
+  else
+    echo "==> Hermes was not found; skipping Hermes configuration"
+    echo "    Install Hermes later, then run: npm run hermes:configure"
+  fi
 fi
 
 echo
-echo "SETUP COMPLETE"
-echo "Start the relay from this directory with: npm start"
+if (( NO_BROWSER == 1 )); then
+  echo "SIMULATION COMPLETE (browser, service, and Hermes stages intentionally skipped)"
+else
+  echo "SETUP COMPLETE"
+  echo "Relay status: systemctl --user status local-ai-relay"
+  echo "Relay logs:   journalctl --user -u local-ai-relay -f"
+fi
