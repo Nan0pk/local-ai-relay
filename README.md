@@ -27,14 +27,18 @@ profile. The relay never asks for or extracts a web session token.
 - Node.js 22 or newer
 - npm
 
-## First-time Linux setup
+## Linux setup or update
 
-Copy and paste this complete block from any directory:
+Copy and paste this complete block from any directory. It clones the project
+when missing and updates the existing checkout when it is already installed:
 
 ```bash
-cd "$HOME"
-git clone https://github.com/Nan0pk/local-ai-relay.git
-cd local-ai-relay
+if [ -d "$HOME/local-ai-relay/.git" ]; then
+  git -C "$HOME/local-ai-relay" pull --ff-only
+else
+  git clone https://github.com/Nan0pk/local-ai-relay.git "$HOME/local-ai-relay"
+fi
+cd "$HOME/local-ai-relay"
 ./setup-linux.sh
 ```
 
@@ -56,14 +60,6 @@ journalctl --user -u local-ai-relay -f
 The server prefers `127.0.0.1:8787`. If another program owns that port, it
 checks whether the relay is already running and otherwise selects the next
 free port through `8796`, printing the selected address.
-
-If the repository is already installed, update and enter it first:
-
-```bash
-git -C "$HOME/local-ai-relay" pull --ff-only
-cd "$HOME/local-ai-relay"
-./setup-linux.sh
-```
 
 ## ChatGPT Free browser setup (Linux first)
 
