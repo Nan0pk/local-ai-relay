@@ -20,6 +20,10 @@
 | **In-session Model Switching** | **PASS** | `/model` command displays provider and switches successfully. |
 | **End-to-End Tool Execution** | **PASS** | Real Hermes session ran `pwd` via local-ai-relay and completed successfully. |
 
+Repository review after integration: `npm test` passes 18/18 tests, including
+multi-chunk SSE reconstruction, and `npm run build` succeeds on commit
+`97d38c9`.
+
 ## Implementation Details
 
 ### 1. Streaming Support (`src/routes/chat.ts`)

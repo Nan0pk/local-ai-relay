@@ -137,15 +137,18 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
     const assistantMessages = page.locator('[data-message-author-role="assistant"]');
     const countBefore = await assistantMessages.count();
     const handle = await composer.elementHandle();
-    if (handle) {
-      await page.evaluate(({ el, text }) => {
-        const doc = (el as any).ownerDocument;
-        (el as any).focus();
-        doc.execCommand('selectAll', false);
-        doc.execCommand('delete', false);
-        doc.execCommand('insertText', false, text);
-      }, { el: handle, text: request.prompt });
-    }
+    if (!handle) throw new Error('ChatGPT composer disappeared before the prompt could be entered.');
+    await page.evaluate(({ el, text }) => {
+      const element = el as unknown as {
+        focus(): void;
+        ownerDocument: { execCommand(command: string, showUi?: boolean, value?: string): boolean };
+      };
+      element.focus();
+      const doc = element.ownerDocument;
+      doc.execCommand('selectAll', false);
+      doc.execCommand('delete', false);
+      doc.execCommand('insertText', false, text);
+    }, { el: handle, text: request.prompt });
     const sendButton = page.locator('[data-testid="send-button"]').first();
     if (await sendButton.isVisible().catch(() => false)) {
       await sendButton.click({ force: true });
@@ -208,10 +211,6 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
         path: join(this.options.diagnosticsDir, `chatgpt-${stamp}.png`),
         fullPage: false,
       });
-      const html = await page.content().catch(() => 'unavailable');
-      const url = page.url();
-      console.error(`DIAGNOSTICS: Failed page URL: ${url}`);
-      console.error(`DIAGNOSTICS: Failed page HTML preview: ${html.slice(0, 1000)}`);
     } catch {
       // Diagnostics must never hide the original browser failure.
     }
