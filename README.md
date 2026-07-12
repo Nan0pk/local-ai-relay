@@ -4,7 +4,7 @@ Local-first AI relay that lets agent harnesses talk to APIs, local models, and
 browser chat interfaces through one OpenAI-compatible endpoint.
 
 > **Status:** milestone 2 — experimental ChatGPT Free browser provider plus the
-> deterministic mock. Browser output is non-streaming and ChatGPT's interface
+> deterministic mock. Browser output is emitted after the web response completes and ChatGPT's interface
 > can change without notice. See [docs/roadmap.md](docs/roadmap.md).
 
 ## What it is
@@ -113,6 +113,10 @@ The provider packages related messages into one batch mission. Reusing
 `X-Relay-Session` keeps the ChatGPT conversation sticky; a forked history
 starts a fresh browser conversation. Browser work is serialized to avoid
 overlapping a stateful Free session.
+
+For clients such as Hermes that request streaming, the relay returns a valid
+SSE stream after ChatGPT finishes. This preserves OpenAI client compatibility;
+it does not make the browser backend token-by-token realtime.
 
 ## Endpoints
 

@@ -18,6 +18,33 @@ import type {
 } from '../types/openai.js';
 import type { AppConfig } from '../config.js';
 
+function streamCompletion(reply: FastifyReply, result: ChatCompletionResponse): void {
+  reply.hijack();
+  reply.raw.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+  });
+  const choice = result.choices[0];
+  const message = choice?.message;
+  const base = { id: result.id, object: 'chat.completion.chunk', created: result.created, model: result.model };
+  reply.raw.write(`data: ${JSON.stringify({ ...base, choices: [{
+    index: choice?.index ?? 0,
+    delta: {
+      role: 'assistant',
+      ...(message?.content !== undefined ? { content: message.content } : {}),
+      ...(message?.tool_calls ? { tool_calls: message.tool_calls } : {}),
+    },
+    finish_reason: null,
+  }] })}\n\n`);
+  reply.raw.write(`data: ${JSON.stringify({ ...base, choices: [{
+    index: choice?.index ?? 0,
+    delta: {},
+    finish_reason: choice?.finish_reason ?? 'stop',
+  }] })}\n\n`);
+  reply.raw.end('data: [DONE]\n\n');
+}
+
 function errorBody(
   message: string,
   type: string,
@@ -50,14 +77,6 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
           .send(errorBody(`Model '${model}' is not registered.`, 'invalid_request_error', 'model_not_found', 'model'));
       }
 
-      if (body.stream === true) {
-        // Streaming lands in a later milestone. Reject explicitly so
-        // clients don't silently get a non-streaming response.
-        return reply
-          .code(400)
-          .send(errorBody('Streaming is not supported in milestone 1.', 'invalid_request_error', 'streaming_not_supported', 'stream'));
-      }
-
       try {
         const rawSessionId = req.headers['x-relay-session'];
         const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
@@ -67,6 +86,10 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
           ...(sessionId ? { sessionId } : {}),
           signal: controller.signal,
         });
+        if (body.stream === true) {
+          streamCompletion(reply, result);
+          return;
+        }
         return reply.send(result);
       } catch (err) {
         req.log.error({ err, model }, 'provider.complete failed');
