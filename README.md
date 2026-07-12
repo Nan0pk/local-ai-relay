@@ -49,6 +49,11 @@ trip, installs a per-user background service, and configures Hermes when its
 CLI is installed. It does not ask for a password, cookie, session token, API
 key, or PAT.
 
+Hermes is registered with a named provider, `local-ai-relay`, so its `/model`
+screen can display and select `browser-chatgpt-free`. Existing Hermes settings
+and other custom providers are preserved; a pre-change backup is saved beside
+`~/.hermes/config.yaml`.
+
 After setup reports `SETUP COMPLETE`, the relay is already running. Inspect it
 with:
 

@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "fastify": "^5.2.1",
-    "playwright": "^1.61.1"
+    "playwright": "^1.61.1",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
