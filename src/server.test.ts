@@ -34,11 +34,15 @@ test('streaming chat completions use OpenAI-compatible SSE', async () => {
     assert.match(response.headers['content-type'] ?? '', /^text\/event-stream/);
     const events = response.body.trim().split('\n\n');
     assert.equal(events.at(-1), 'data: [DONE]');
-    const first = JSON.parse(events[0]!.slice('data: '.length));
-    assert.equal(first.object, 'chat.completion.chunk');
-    assert.match(first.choices[0].delta.content, /Hermes stream check/);
-    const final = JSON.parse(events[1]!.slice('data: '.length));
-    assert.equal(final.choices[0].finish_reason, 'stop');
+    const chunks = events.slice(0, -1).map((event) =>
+      JSON.parse(event.slice('data: '.length)),
+    );
+    assert.equal(chunks[0].object, 'chat.completion.chunk');
+    const streamedContent = chunks
+      .map((chunk) => chunk.choices[0].delta.content ?? '')
+      .join('');
+    assert.match(streamedContent, /Hermes stream check/);
+    assert.equal(chunks.at(-1).choices[0].finish_reason, 'stop');
   } finally {
     await app.close();
   }
