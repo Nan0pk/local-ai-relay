@@ -3,9 +3,58 @@ import type { ChatToolCall, ChatToolDefinition } from '../types/openai.js';
 const OPEN_TAG = '<relay_tool_calls>';
 const CLOSE_TAG = '</relay_tool_calls>';
 
+function truncate(str: string | undefined, max: number): string | undefined {
+  if (!str) return str;
+  if (str.length <= max) return str;
+  return str.slice(0, max - 3) + '...';
+}
+
+function minifyProperties(properties: Record<string, any> | undefined): Record<string, any> | undefined {
+  if (!properties) return properties;
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (value && typeof value === 'object') {
+      result[key] = {
+        ...value,
+        description: truncate(value.description, 100),
+        ...(value.properties ? { properties: minifyProperties(value.properties) } : {}),
+        ...(value.items && typeof value.items === 'object' ? {
+          items: {
+            ...value.items,
+            description: truncate(value.items.description, 100),
+            ...(value.items.properties ? { properties: minifyProperties(value.items.properties) } : {}),
+          }
+        } : {}),
+      };
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function minifyTool(tool: ChatToolDefinition): any {
+  const params = tool.function.parameters as any;
+  return {
+    type: tool.type,
+    function: {
+      name: tool.function.name,
+      description: truncate(tool.function.description, 150),
+      ...(params ? {
+        parameters: {
+          type: params.type,
+          properties: minifyProperties(params.properties),
+          required: params.required,
+        }
+      } : {})
+    }
+  };
+}
+
 export function toolInstructions(tools: ChatToolDefinition[] | undefined): string {
   if (!tools?.length) return '';
-  return `\n\nAVAILABLE HERMES TOOLS\n${JSON.stringify(tools, null, 2)}\n\n` +
+  const minified = tools.map(minifyTool);
+  return `\n\nAVAILABLE HERMES TOOLS\n${JSON.stringify(minified, null, 2)}\n\n` +
     'If tools are needed, do not pretend to execute them. Return the calls inside these exact tags:\n' +
     `${OPEN_TAG}\n` +
     '[{"id":"call_unique","name":"tool_name","arguments":{}}]\n' +

@@ -142,17 +142,33 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
       const element = el as unknown as {
         focus(): void;
         ownerDocument: { execCommand(command: string, showUi?: boolean, value?: string): boolean };
+        dispatchEvent(event: Event): boolean;
       };
       element.focus();
       const doc = element.ownerDocument;
       doc.execCommand('selectAll', false);
       doc.execCommand('delete', false);
       doc.execCommand('insertText', false, text);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
     }, { el: handle, text: request.prompt });
+
     const sendButton = page.locator('[data-testid="send-button"]').first();
-    if (await sendButton.isVisible().catch(() => false)) {
-      await sendButton.click({ force: true });
-    } else {
+    let clicked = false;
+    try {
+      await sendButton.waitFor({ state: 'visible', timeout: 2000 });
+      for (let i = 0; i < 15; i++) {
+        if (await sendButton.isEnabled().catch(() => false)) {
+          await sendButton.click({ force: true });
+          clicked = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    } catch {
+      // Ignore wait errors and fallback to Enter
+    }
+    if (!clicked) {
       await composer.press('Enter');
     }
 

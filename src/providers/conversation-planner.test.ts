@@ -10,6 +10,7 @@ test('batchPacket combines related instructions into one mission', () => {
   ], false);
 
   assert.match(packet, /^BATCH MISSION/);
+  assert.doesNotMatch(packet, /Work carefully/);
   assert.match(packet, /Inspect the repository/);
   assert.match(packet, /Then implement the fix/);
 });

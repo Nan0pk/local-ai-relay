@@ -24,13 +24,15 @@ function beginsWith(messages: ChatRoleMessage[], prefix: ChatRoleMessage[]): boo
 }
 
 function renderMessages(messages: ChatRoleMessage[]): string {
-  return messages.map((message, index) => {
-    const label = message.name ? `${message.role}:${message.name}` : message.role;
-    const parts = [`### ${index + 1}. ${label.toUpperCase()}`, message.content ?? ''];
-    if (message.tool_calls?.length) parts.push(`TOOL CALLS:\n${JSON.stringify(message.tool_calls, null, 2)}`);
-    if (message.tool_call_id) parts.push(`TOOL CALL ID: ${message.tool_call_id}`);
-    return parts.join('\n');
-  }).join('\n\n');
+  return messages
+    .filter((m) => m.role !== 'system')
+    .map((message, index) => {
+      const label = message.name ? `${message.role}:${message.name}` : message.role;
+      const parts = [`### ${index + 1}. ${label.toUpperCase()}`, message.content ?? ''];
+      if (message.tool_calls?.length) parts.push(`TOOL CALLS:\n${JSON.stringify(message.tool_calls, null, 2)}`);
+      if (message.tool_call_id) parts.push(`TOOL CALL ID: ${message.tool_call_id}`);
+      return parts.join('\n');
+    }).join('\n\n');
 }
 
 function batchPacket(messages: ChatRoleMessage[], continuation: boolean): string {
