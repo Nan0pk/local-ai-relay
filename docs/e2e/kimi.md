@@ -22,7 +22,7 @@ authenticated Kimi account:
 cd ~/local-ai-relay   # (or %HOME%\local-ai-relay on Windows)
 git pull --ff-only
 npm ci                 # npm install on Windows
-npm run login:kimi   # sign in to kimi.moonshot.cn normally, Ctrl+C when composer visible
+npm run login:kimi   # sign in to kimi.com normally, Ctrl+C when composer visible
 npm run probe:kimi   # prints PASS + conversation URL
 ```
 

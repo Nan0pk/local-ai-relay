@@ -6,24 +6,15 @@ REM
 REM Usage:
 REM   setup-windows.cmd               full setup, including ChatGPT probe
 REM   setup-windows.cmd -NoBrowser    skip browser probe, service, Hermes
-REM   setup-windows.cmd --fresh       wipe and re-clone before setup
+REM
+REM Note: --fresh (wipe and re-clone) is handled by bootstrap.ps1 before
+REM this script is invoked. Do NOT add rmdir logic here: a .cmd file cannot
+REM delete the directory it is running from because Windows holds an
+REM exclusive lock on it. bootstrap.ps1 handles --fresh at the parent
+REM directory level where the lock does not apply.
 
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
-
-REM If --fresh, wipe and re-clone so a broken/stale clone never blocks setup.
-if /i "%~1"=="--fresh" (
-  echo ==> Wiping current directory and re-cloning from origin
-  cd /d "%~dp0.."
-  rmdir /s /q "%~dp0" 2>nul
-  git clone https://github.com/Nan0pk/local-ai-relay.git "%~dp0"
-  if errorlevel 1 (
-    echo FAIL: git clone failed. Check your network and try again.
-    exit /b 1
-  )
-  cd /d "%~dp0"
-  shift
-)
 
 REM If setup-windows.ps1 is missing (stale clone), pull it first.
 if not exist "%~dp0setup-windows.ps1" (

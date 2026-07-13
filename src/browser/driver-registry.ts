@@ -42,7 +42,7 @@ const MINIMAX: BrowserProviderDescriptor = {
   factory: () => new MinimaxPlaywrightDriver({ headless: false }),
 };
 const KIMI: BrowserProviderDescriptor = {
-  name: 'kimi', label: 'Kimi', url: 'https://kimi.moonshot.cn/',
+  name: 'kimi', label: 'Kimi', url: 'https://kimi.com/',
   factory: () => new KimiPlaywrightDriver({ headless: false }),
 };
 const QWEN: BrowserProviderDescriptor = {

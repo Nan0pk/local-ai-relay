@@ -5,7 +5,7 @@ export class KimiPlaywrightDriver extends BaseBrowserDriver {
   protected config(): SiteConfig {
     return {
       name: 'kimi',
-      url: 'https://kimi.moonshot.cn/',
+      url: 'https://kimi.com/',
       profileEnvVar: 'RELAY_BROWSER_PROFILE_KIMI',
       composerSelectors: [
         'textarea#chat-input',

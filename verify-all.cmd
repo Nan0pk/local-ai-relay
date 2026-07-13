@@ -84,11 +84,6 @@ echo  Passed:  %PASSED%
 echo  Failed:  %FAILED%
 echo.
 echo  Per-provider:
-for %%P in (%PROVIDERS%) do (
-  for /f "tokens=1,2 delims=|" %%A in ("%%P") do (
-    REM This loop is a placeholder; the real per-provider line is printed below.
-  )
-)
 echo  %RESULTS%
 echo ============================================================
 echo.
