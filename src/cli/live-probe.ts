@@ -46,7 +46,7 @@ async function runBrowserInstall(): Promise<void> {
   });
   if (code !== 0) {
     throw new Error(
-      'Chromium installation failed. On Debian/Ubuntu, run `npx playwright install-deps chromium` once, then retry.',
+      'Chromium installation failed. On Debian/Ubuntu, run `npx patchright install-deps chromium` once, then retry.',
     );
   }
 }
@@ -76,7 +76,7 @@ async function main(): Promise<void> {
   let hasRelayBrowser = false;
   try {
     process.env.PLAYWRIGHT_BROWSERS_PATH ??= browserBinariesDir();
-    const { chromium } = await import('playwright');
+    const { chromium } = await import('patchright');
     hasRelayBrowser = await exists(chromium.executablePath());
   } catch {
     hasRelayBrowser = false;

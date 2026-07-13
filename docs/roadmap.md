@@ -42,7 +42,7 @@ The rationale and exact order are in [providers.md](providers.md).
 - [ ] Extract reusable browser session/profile lifecycle helpers
 - [ ] Provider-specific logout, challenge, rate-limit, and quota detection
 - [ ] Session inspection and cancellation endpoints
-- [ ] Safe redacted Playwright traces
+- [ ] Safe redacted Patchright traces
 - [ ] Structured recoverable provider errors
 - [ ] True upstream streaming for providers that expose it reliably
 
