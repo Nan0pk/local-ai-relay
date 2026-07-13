@@ -8,50 +8,51 @@ local-model, and user-authenticated webchat providers.
 > Qwen, Grok, Mistral) are implemented and unit-tested; each is pending
 > its own live authenticated E2E before it enters `/v1/models` and Hermes.
 
+## Ethos
+
+One command to install. One command to verify everything. Anything that
+can be automated, is. The user never manually `git pull`s, `Remove-Item`s,
+`git clone`s, or runs ten separate `npm run` pairs. Sign-in is the only
+manual step, because only a human can sign in to a website — and that's
+a normal browser action, not relay work.
+
 ## Provider status
 
-| Model ID | Backend | State | Verify with |
-|---|---|---|---|
-| `browser-chatgpt-free` | ChatGPT webchat | E2E verified | `npm run probe:chatgpt` |
-| `browser-claude-free` | Claude webchat | Implemented, pending live E2E | `npm run probe:claude` |
-| `browser-gemini-free` | Gemini webchat | Implemented, pending live E2E | `npm run probe:gemini` |
-| `browser-deepseek-free` | DeepSeek webchat | Implemented, pending live E2E | `npm run probe:deepseek` |
-| `browser-zai-glm-5.2` | Z.ai webchat | Implemented, pending live E2E | `npm run probe:zai` |
-| `browser-minimax-m3` | MiniMax Agent webchat | Implemented, pending live E2E | `npm run probe:minimax` |
-| `browser-kimi-free` | Kimi webchat | Implemented, pending live E2E | `npm run probe:kimi` |
-| `browser-qwen-free` | Qwen Chat webchat | Implemented, pending live E2E | `npm run probe:qwen` |
-| `browser-grok-free` | Grok webchat | Implemented, pending live E2E | `npm run probe:grok` |
-| `browser-mistral-free` | Mistral Le Chat | Implemented, pending live E2E | `npm run probe:mistral` |
-| `mock-gpt-4o-mini` | Deterministic local mock | Test-only | `npm test` |
+| Model ID | Backend | State |
+|---|---|---|
+| `browser-chatgpt-free` | ChatGPT webchat | E2E verified |
+| `browser-claude-free` | Claude webchat | Implemented, pending live E2E |
+| `browser-gemini-free` | Gemini webchat | Implemented, pending live E2E |
+| `browser-deepseek-free` | DeepSeek webchat | Implemented, pending live E2E |
+| `browser-zai-glm-5.2` | Z.ai webchat | Implemented, pending live E2E |
+| `browser-minimax-m3` | MiniMax Agent webchat | Implemented, pending live E2E |
+| `browser-kimi-free` | Kimi webchat | Implemented, pending live E2E |
+| `browser-qwen-free` | Qwen Chat webchat | Implemented, pending live E2E |
+| `browser-grok-free` | Grok webchat | Implemented, pending live E2E |
+| `browser-mistral-free` | Mistral Le Chat | Implemented, pending live E2E |
+| `mock-gpt-4o-mini` | Deterministic local mock | Test-only |
 
 "Implemented, pending live E2E" means the driver, adapter, unit tests, and
-CLI commands are in place and pass `npm test` / `npm run build` / `npm run
-smoke:startup`, but the provider is NOT registered in `/v1/models` or
-Hermes until a real authenticated probe + Hermes tool round trip passes.
-See [Provider fleet](docs/providers.md) for IDs, order, rationale, and
-per-provider E2E evidence under `docs/e2e/<provider>.md`.
+CLI commands pass `npm test` / `npm run build` / `npm run smoke:startup`,
+but the provider is NOT registered in `/v1/models` or Hermes until a real
+authenticated probe + Hermes tool round trip passes. See
+[Provider fleet](docs/providers.md) and per-provider evidence under
+`docs/e2e/<provider>.md`.
 
 The relay supports OpenAI-style model discovery, chat completions, tool calls,
 sticky browser conversations, and SSE compatibility for clients that request
 `stream: true`. Browser output is returned after the website finishes; it is
 not true upstream token streaming.
 
-## Install or update
+## Install — one command
 
-One command from anywhere — even a fresh machine with nothing cloned. The
-bootstrap handles every state: no clone, healthy clone, stale clone, broken
-clone. It clones or pulls as needed, then runs setup.
+From anywhere, even a fresh machine with nothing cloned. The bootstrap
+handles every state: no clone, healthy clone, stale clone, broken clone.
 
 ### Linux / macOS
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh | bash
-```
-
-Or with a clean wipe first (if a clone is broken):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh | bash -s -- --fresh
 ```
 
 ### Windows (PowerShell)
@@ -60,82 +61,49 @@ curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstra
 irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1 | iex
 ```
 
-Or with a clean wipe first:
+That's it. The bootstrap clones (or pulls, or wipes-and-reclones) as needed,
+then runs setup: dependency check, tests, occupied-port startup smoke,
+visible ChatGPT login/probe, systemd service (Linux only), and Hermes
+configuration. Login remains a normal browser action: the relay never asks
+for passwords, cookies, session tokens, API keys, or GitHub tokens.
 
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1))) -Fresh
-```
+## Verify all providers — one command
 
-### What the bootstrap does
+After install, verify every unverified provider in one shot. The script
+runs setup, then for each of the 9 providers: opens the login window,
+waits for you to sign in normally and press a key, runs the live probe,
+and records PASS/FAIL. At the end it prints a summary table.
 
-1. Checks `~/local-ai-relay` (`%USERPROFILE%\local-ai-relay` on Windows).
-2. If it doesn't exist → `git clone`.
-3. If it exists and is a healthy git repo → `git pull --ff-only`.
-4. If it exists but is broken or not a git repo → wipe and `git clone`.
-5. Runs the platform setup script (`setup-linux.sh` or `setup-windows.cmd`),
-   which performs: dependency check, tests, occupied-port startup smoke,
-   visible ChatGPT login/probe, systemd service (Linux only), and Hermes
-   configuration.
-
-To validate code without opening a browser, append `--no-browser` (Linux)
-or `-NoBrowser` (Windows):
+### Linux / macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh | bash -s -- --no-browser
-```
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1))) -NoBrowser
-```
-
-Login remains a normal browser action: the relay never asks for passwords,
-cookies, session tokens, API keys, or GitHub tokens.
-
-## Verify a browser provider
-
-Each browser provider ships behind a dedicated isolated profile under
-`~/.local-ai-relay/browser-profiles/<provider>` and must be authenticated
-once before it is usable. Run these on a machine with a visible graphical
-browser session.
-
-### Linux / macOS (bash)
-
-```bash
-cd ~/local-ai-relay
-git pull --ff-only
-npm ci
-
-# 1. Open the dedicated profile and sign in normally in the visible window.
-#    Do not paste cookies or tokens into the relay. When the provider's
-#    composer is visible, return here and press Ctrl+C.
-npm run login:<provider>
-
-# 2. Run the live probe. It waits for the composer, sends one harmless
-#    marker prompt, and prints PASS + the conversation URL.
-npm run probe:<provider>
+cd ~/local-ai-relay && ./verify-all.sh
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-cd $HOME\local-ai-relay
-git pull --ff-only
-npm install
+cd $HOME\local-ai-relay; .\verify-all.cmd
+```
 
-# 1. Open the dedicated profile and sign in normally in the visible window.
-#    Do not paste cookies or tokens into the relay. When the provider's
-#    composer is visible, return here and press Ctrl+C.
-npm run login:<provider>
+Paste the final SUMMARY block back. For any FAIL, also paste that
+provider's error output. Sign-in is the only manual step — a browser
+window opens for each provider, you sign in normally, press a key, and
+the probe runs automatically.
 
-# 2. Run the live probe. It waits for the composer, sends one harmless
-#    marker prompt, and prints PASS + the conversation URL.
-npm run probe:<provider>
+## Per-provider commands (optional)
+
+The bootstrap and verify-all scripts cover everything. These are here for
+ad-hoc use or debugging a single provider.
+
+```bash
+npm run login:<provider>      # open the dedicated profile, sign in, Ctrl+C
+npm run probe:<provider>      # live probe: sends marker prompt, prints PASS/URL
+npm run smoke:claude-driver   # headless driver-plumbing smoke (no login)
 ```
 
 Known `<provider>` values: `chatgpt`, `claude`, `gemini`, `deepseek`,
-`zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`. A provider appears in
-`/v1/models` and Hermes only after its probe and a real Hermes tool round
-trip pass; record the sanitized evidence under `docs/e2e/<provider>.md`.
+`zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`.
 
 If a probe fails, the driver throws a typed `BrowserFailure` with one of:
 `login_required`, `captcha`, `rate_limit`, `quota_exhausted`,
@@ -146,20 +114,13 @@ systems. A local screenshot is saved under
 
 ## Hermes
 
-The setup registers the `local-ai-relay` named provider and every model the
+Setup registers the `local-ai-relay` named provider and every model the
 running relay advertises in `/v1/models`:
 
 ```text
 provider:  custom:local-ai-relay
 default:   browser-chatgpt-free
 selector:  custom:local-ai-relay:<model-id>
-```
-
-Example selectors:
-
-```text
-custom:local-ai-relay:browser-chatgpt-free
-custom:local-ai-relay:browser-claude-free   # after Claude E2E passes
 ```
 
 Existing Hermes settings and custom providers are preserved, and the config
@@ -176,26 +137,11 @@ systemctl --user status local-ai-relay
 journalctl --user -u local-ai-relay -f
 ```
 
-### All platforms (browser login, probe, smoke)
+### All platforms
 
 ```bash
-# Per-provider login + live probe (visible browser required).
-# Run login first, sign in normally, Ctrl+C when the composer is visible,
-# then run the probe. Repeat for each provider you want to verify:
-npm run login:chatgpt     &&  npm run probe:chatgpt
-npm run login:claude      &&  npm run probe:claude
-npm run login:gemini      &&  npm run probe:gemini
-npm run login:deepseek    &&  npm run probe:deepseek
-npm run login:zai         &&  npm run probe:zai
-npm run login:minimax     &&  npm run probe:minimax
-npm run login:kimi        &&  npm run probe:kimi
-npm run login:qwen        &&  npm run probe:qwen
-npm run login:grok        &&  npm run probe:grok
-npm run login:mistral     &&  npm run probe:mistral
-
-# Headless driver-plumbing smoke (no login required; verifies the driver
-# loads the live site and detects the unauthenticated state):
-npm run smoke:claude-driver
+./verify-all.sh        # Linux/macOS — verify every provider in one shot
+.\verify-all.cmd       # Windows     — same
 ```
 
 The relay prefers `127.0.0.1:8787`. If occupied, it reuses an existing healthy
@@ -223,6 +169,9 @@ curl -s http://127.0.0.1:8787/v1/chat/completions \
 
 ```text
 local-ai-relay/
+├── bootstrap.sh / bootstrap.ps1   one-liner install entry points
+├── verify-all.sh / verify-all.cmd one-liner verify-all-providers entry points
+├── setup-linux.sh / setup-windows.cmd / setup-windows.ps1
 ├── src/
 │   ├── browser/      Playwright transport, profiles, queue, per-site drivers
 │   │                 (chatgpt, claude, gemini, deepseek, zai, minimax,
@@ -245,7 +194,6 @@ local-ai-relay/
 │   ├── roadmap.md
 │   ├── north-star.md
 │   └── antigravity-e2e-report.md
-├── setup-linux.sh
 ├── SECURITY.md
 └── package.json
 ```
