@@ -4,10 +4,9 @@ Local-first bridge from OpenAI-compatible clients such as Hermes to API,
 local-model, and user-authenticated webchat providers.
 
 > **Status:** `browser-chatgpt-free` is working and Fedora-verified.
-> `browser-claude-free` is implemented and unit-tested; live authenticated
-> verification is pending. Seven more webchats are selected but not yet
-> implemented. A model appears in `/v1/models` and Hermes only after its
-> live end-to-end test passes.
+> Nine more webchats (Claude, Gemini, DeepSeek, Z.ai, MiniMax, Kimi,
+> Qwen, Grok, Mistral) are implemented and unit-tested; each is pending
+> its own live authenticated E2E before it enters `/v1/models` and Hermes.
 
 ## Provider status
 
@@ -15,19 +14,22 @@ local-model, and user-authenticated webchat providers.
 |---|---|---|---|
 | `browser-chatgpt-free` | ChatGPT webchat | E2E verified | `npm run probe:chatgpt` |
 | `browser-claude-free` | Claude webchat | Implemented, pending live E2E | `npm run probe:claude` |
+| `browser-gemini-free` | Gemini webchat | Implemented, pending live E2E | `npm run probe:gemini` |
+| `browser-deepseek-free` | DeepSeek webchat | Implemented, pending live E2E | `npm run probe:deepseek` |
+| `browser-zai-glm-5.2` | Z.ai webchat | Implemented, pending live E2E | `npm run probe:zai` |
+| `browser-minimax-m3` | MiniMax Agent webchat | Implemented, pending live E2E | `npm run probe:minimax` |
+| `browser-kimi-free` | Kimi webchat | Implemented, pending live E2E | `npm run probe:kimi` |
+| `browser-qwen-free` | Qwen Chat webchat | Implemented, pending live E2E | `npm run probe:qwen` |
+| `browser-grok-free` | Grok webchat | Implemented, pending live E2E | `npm run probe:grok` |
+| `browser-mistral-free` | Mistral Le Chat | Implemented, pending live E2E | `npm run probe:mistral` |
 | `mock-gpt-4o-mini` | Deterministic local mock | Test-only | `npm test` |
-| `browser-gemini-free` | Gemini webchat | Selected | — |
-| `browser-deepseek-free` | DeepSeek webchat | Selected | — |
-| `browser-zai-glm-5.2` | Z.ai webchat | Selected | — |
-| `browser-minimax-m3` | MiniMax Agent webchat | Selected | — |
-| `browser-kimi-free` | Kimi webchat | Selected | — |
-| `browser-qwen-free` | Qwen Chat webchat | Selected | — |
-| `browser-grok-free` | Grok webchat | Selected | — |
-| `browser-mistral-free` | Mistral Le Chat | Selected | — |
 
-"Selected" means planned, not usable. See [Provider fleet](docs/providers.md)
-for IDs, order, rationale, and per-provider E2E evidence under
-`docs/e2e/<provider>.md`.
+"Implemented, pending live E2E" means the driver, adapter, unit tests, and
+CLI commands are in place and pass `npm test` / `npm run build` / `npm run
+smoke:startup`, but the provider is NOT registered in `/v1/models` or
+Hermes until a real authenticated probe + Hermes tool round trip passes.
+See [Provider fleet](docs/providers.md) for IDs, order, rationale, and
+per-provider E2E evidence under `docs/e2e/<provider>.md`.
 
 The relay supports OpenAI-style model discovery, chat completions, tool calls,
 sticky browser conversations, and SSE compatibility for clients that request
@@ -134,7 +136,8 @@ npm run login:<provider>
 npm run probe:<provider>
 ```
 
-Known `<provider>` values: `chatgpt`, `claude`. A provider appears in
+Known `<provider>` values: `chatgpt`, `claude`, `gemini`, `deepseek`,
+`zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`. A provider appears in
 `/v1/models` and Hermes only after its probe and a real Hermes tool round
 trip pass; record the sanitized evidence under `docs/e2e/<provider>.md`.
 
@@ -182,12 +185,17 @@ journalctl --user -u local-ai-relay -f
 ```bash
 # Per-provider login + live probe (visible browser required).
 # Run login first, sign in normally, Ctrl+C when the composer is visible,
-# then run the probe:
-npm run login:chatgpt
-npm run probe:chatgpt
-
-npm run login:claude
-npm run probe:claude
+# then run the probe. Repeat for each provider you want to verify:
+npm run login:chatgpt     &&  npm run probe:chatgpt
+npm run login:claude      &&  npm run probe:claude
+npm run login:gemini      &&  npm run probe:gemini
+npm run login:deepseek    &&  npm run probe:deepseek
+npm run login:zai         &&  npm run probe:zai
+npm run login:minimax     &&  npm run probe:minimax
+npm run login:kimi        &&  npm run probe:kimi
+npm run login:qwen        &&  npm run probe:qwen
+npm run login:grok        &&  npm run probe:grok
+npm run login:mistral     &&  npm run probe:mistral
 
 # Headless driver-plumbing smoke (no login required; verifies the driver
 # loads the live site and detects the unauthenticated state):
@@ -221,7 +229,8 @@ curl -s http://127.0.0.1:8787/v1/chat/completions \
 local-ai-relay/
 ├── src/
 │   ├── browser/      Playwright transport, profiles, queue, per-site drivers
-│   │                 (chatgpt-driver.ts, claude-driver.ts, driver-registry.ts)
+│   │                 (chatgpt, claude, gemini, deepseek, zai, minimax,
+│   │                  kimi, qwen, grok, mistral) + shared base-driver
 │   ├── cli/          setup, login, probe, service, and Hermes commands
 │   ├── hermes/       non-destructive Hermes configuration (multi-model)
 │   ├── providers/    registry, provider adapters, planning, tool bridge
