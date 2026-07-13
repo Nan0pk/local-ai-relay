@@ -3,27 +3,36 @@
 Local-first bridge from OpenAI-compatible clients such as Hermes to API,
 local-model, and user-authenticated webchat providers.
 
-> **Current status:** `browser-chatgpt-free` is working and Fedora-verified.
-> Nine additional first-party webchats are selected but are not advertised as
-> usable until each passes its own live end-to-end test.
+> **Status:** `browser-chatgpt-free` is working and Fedora-verified.
+> `browser-claude-free` is implemented and unit-tested; live authenticated
+> verification is pending. Seven more webchats are selected but not yet
+> implemented. A model appears in `/v1/models` and Hermes only after its
+> live end-to-end test passes.
 
-## Working now
+## Provider status
 
-| Model ID | Backend | Status |
-|---|---|---|
-| `browser-chatgpt-free` | ChatGPT webchat | Fedora E2E verified |
-| `mock-gpt-4o-mini` | Deterministic local mock | Test-only |
+| Model ID | Backend | State | Verify with |
+|---|---|---|---|
+| `browser-chatgpt-free` | ChatGPT webchat | E2E verified | `npm run probe:chatgpt` |
+| `browser-claude-free` | Claude webchat | Implemented, pending live E2E | `npm run probe:claude` |
+| `mock-gpt-4o-mini` | Deterministic local mock | Test-only | `npm test` |
+| `browser-gemini-free` | Gemini webchat | Selected | — |
+| `browser-deepseek-free` | DeepSeek webchat | Selected | — |
+| `browser-zai-glm-5.2` | Z.ai webchat | Selected | — |
+| `browser-minimax-m3` | MiniMax Agent webchat | Selected | — |
+| `browser-kimi-free` | Kimi webchat | Selected | — |
+| `browser-qwen-free` | Qwen Chat webchat | Selected | — |
+| `browser-grok-free` | Grok webchat | Selected | — |
+| `browser-mistral-free` | Mistral Le Chat | Selected | — |
+
+"Selected" means planned, not usable. See [Provider fleet](docs/providers.md)
+for IDs, order, rationale, and per-provider E2E evidence under
+`docs/e2e/<provider>.md`.
 
 The relay supports OpenAI-style model discovery, chat completions, tool calls,
 sticky browser conversations, and SSE compatibility for clients that request
 `stream: true`. Browser output is returned after the website finishes; it is
 not true upstream token streaming.
-
-## Selected provider fleet
-
-The next direct webchat adapters are Claude, Gemini, DeepSeek, Z.ai/GLM 5.2,
-MiniMax M3, Kimi, Qwen, Grok, and Mistral Le Chat. See
-[Provider fleet](docs/providers.md) for IDs, order, rationale, and status.
 
 ## Install or update on Linux
 
@@ -48,25 +57,75 @@ To validate code without opening a browser:
 ./setup-linux.sh --no-browser
 ```
 
-## Hermes
+## Verify a browser provider
 
-The setup registers:
+Each browser provider ships behind a dedicated isolated profile under
+`~/.local-ai-relay/browser-profiles/<provider>` and must be authenticated
+once before it is usable. Run these on a machine with a visible graphical
+browser session.
 
-```text
-provider: custom:local-ai-relay
-model: browser-chatgpt-free
-selector: custom:local-ai-relay:browser-chatgpt-free
+```bash
+cd ~/local-ai-relay
+git pull --ff-only
+npm ci
+
+# 1. Open the dedicated profile and sign in normally in the visible window.
+#    Do not paste cookies or tokens into the relay. When the provider's
+#    composer is visible, return here and press Ctrl+C.
+npm run login:<provider>
+
+# 2. Run the live probe. It waits for the composer, sends one harmless
+#    marker prompt, and prints PASS + the conversation URL.
+npm run probe:<provider>
 ```
 
-Existing Hermes settings and custom providers are preserved, and the config is
-backed up before modification. Start a new Hermes session after configuration.
+Known `<provider>` values: `chatgpt`, `claude`. A provider appears in
+`/v1/models` and Hermes only after its probe and a real Hermes tool round
+trip pass; record the sanitized evidence under `docs/e2e/<provider>.md`.
+
+If a probe fails, the driver throws a typed `BrowserFailure` with one of:
+`login_required`, `captcha`, `rate_limit`, `quota_exhausted`,
+`composer_disabled`, `generation_interrupted`, `layout_changed`, `timeout`.
+The relay never bypasses CAPTCHA, authentication, rate limits, or safety
+systems. A local screenshot is saved under
+`~/.local-ai-relay/diagnostics/` (set `RELAY_DIAGNOSTICS=0` to disable).
+
+## Hermes
+
+The setup registers the `local-ai-relay` named provider and every model the
+running relay advertises in `/v1/models`:
+
+```text
+provider:  custom:local-ai-relay
+default:   browser-chatgpt-free
+selector:  custom:local-ai-relay:<model-id>
+```
+
+Example selectors:
+
+```text
+custom:local-ai-relay:browser-chatgpt-free
+custom:local-ai-relay:browser-claude-free   # after Claude E2E passes
+```
+
+Existing Hermes settings and custom providers are preserved, and the config
+is backed up before modification. Start a new Hermes session after
+configuration. To re-register after a provider lands or changes, rerun
+`npm run hermes:configure`.
 
 ## Operations
 
 ```bash
 systemctl --user status local-ai-relay
 journalctl --user -u local-ai-relay -f
-npm run probe:chatgpt
+
+# Per-provider login + live probe (visible browser required):
+npm run login:chatgpt    &&  npm run probe:chatgpt
+npm run login:claude     &&  npm run probe:claude
+
+# Headless driver-plumbing smoke (no login required; verifies the driver
+# loads the live site and detects the unauthenticated state):
+npm run smoke:claude-driver
 ```
 
 The relay prefers `127.0.0.1:8787`. If occupied, it reuses an existing healthy
@@ -95,9 +154,10 @@ curl -s http://127.0.0.1:8787/v1/chat/completions \
 ```text
 local-ai-relay/
 ├── src/
-│   ├── browser/      Playwright transport, profiles, queue, ChatGPT driver
+│   ├── browser/      Playwright transport, profiles, queue, per-site drivers
+│   │                 (chatgpt-driver.ts, claude-driver.ts, driver-registry.ts)
 │   ├── cli/          setup, login, probe, service, and Hermes commands
-│   ├── hermes/       non-destructive Hermes configuration
+│   ├── hermes/       non-destructive Hermes configuration (multi-model)
 │   ├── providers/    registry, provider adapters, planning, tool bridge
 │   ├── routes/       health, models, and chat-completions endpoints
 │   ├── service/      systemd unit generation
@@ -106,8 +166,10 @@ local-ai-relay/
 │   ├── config.ts     environment configuration
 │   ├── server.ts     Fastify application factory
 │   └── index.ts      process entrypoint
+├── scripts/          driver-plumbing smoke scripts
 ├── docs/
 │   ├── providers.md  selected top-10 provider fleet
+│   ├── e2e/          per-provider sanitized E2E evidence
 │   ├── architecture.md
 │   ├── roadmap.md
 │   ├── north-star.md
@@ -127,7 +189,8 @@ npm run smoke:startup
 ```
 
 The authenticated Fedora evidence is recorded in
-[the E2E report](docs/antigravity-e2e-report.md).
+[the E2E report](docs/antigravity-e2e-report.md) and per-provider under
+`docs/e2e/`.
 
 ## Boundaries
 
