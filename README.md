@@ -38,71 +38,58 @@ not true upstream token streaming.
 
 ## Install or update
 
-> **Already cloned before?** Both setup scripts self-update with
-> `git pull --ff-only` at startup, so just re-run the script for your
-> platform. If a file is missing (e.g. `setup-windows.ps1` on a clone from
-> before it existed), run `git pull --ff-only` once manually, then re-run
-> the script — it will keep itself current from then on.
+One command from anywhere — even a fresh machine with nothing cloned. The
+bootstrap handles every state: no clone, healthy clone, stale clone, broken
+clone. It clones or pulls as needed, then runs setup.
 
-### Linux / macOS (bash)
+### Linux / macOS
 
 ```bash
-if [ -d "$HOME/local-ai-relay/.git" ]; then
-  git -C "$HOME/local-ai-relay" pull --ff-only
-else
-  git clone https://github.com/Nan0pk/local-ai-relay.git "$HOME/local-ai-relay"
-fi
-cd "$HOME/local-ai-relay"
-./setup-linux.sh
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh | bash
 ```
 
-`setup-linux.sh` self-pulls the latest `main`, then performs a clean
-dependency check, tests, an occupied-port startup smoke test, visible
-ChatGPT login/probe, systemd user-service installation, and Hermes
-configuration. Login remains a normal browser action: the relay never asks
-for passwords, cookies, session tokens, API keys, or GitHub tokens.
-
-To validate code without opening a browser:
+Or with a clean wipe first (if a clone is broken):
 
 ```bash
-./setup-linux.sh --no-browser
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh | bash -s -- --fresh
 ```
 
-### Windows
+### Windows (PowerShell)
 
 ```powershell
-cd $HOME
-git clone https://github.com/Nan0pk/local-ai-relay.git
-cd local-ai-relay
-.\setup-windows.cmd
+irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1 | iex
 ```
 
-Use `setup-windows.cmd` (a batch file), **not** `setup-windows.ps1` directly.
-Batch files are not subject to PowerShell's execution policy, so `.cmd`
-always runs. The `.cmd` wrapper invokes the `.ps1` with
-`-ExecutionPolicy Bypass` so you never hit the "running scripts is disabled"
-error — no manual `Set-ExecutionPolicy` needed.
-
-`setup-windows.cmd` pulls the latest `main`, then performs the same stages
-as `setup-linux.sh`: dependency check, tests, occupied-port startup smoke,
-visible ChatGPT login/probe, and Hermes configuration.
-
-To validate code without opening a browser:
+Or with a clean wipe first:
 
 ```powershell
-.\setup-windows.cmd -NoBrowser
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1))) -Fresh
 ```
 
-If your clone is broken or stale and you want a guaranteed clean start:
+### What the bootstrap does
+
+1. Checks `~/local-ai-relay` (`%USERPROFILE%\local-ai-relay` on Windows).
+2. If it doesn't exist → `git clone`.
+3. If it exists and is a healthy git repo → `git pull --ff-only`.
+4. If it exists but is broken or not a git repo → wipe and `git clone`.
+5. Runs the platform setup script (`setup-linux.sh` or `setup-windows.cmd`),
+   which performs: dependency check, tests, occupied-port startup smoke,
+   visible ChatGPT login/probe, systemd service (Linux only), and Hermes
+   configuration.
+
+To validate code without opening a browser, append `--no-browser` (Linux)
+or `-NoBrowser` (Windows):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh | bash -s -- --no-browser
+```
 
 ```powershell
-.\setup-windows.cmd --fresh
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1))) -NoBrowser
 ```
 
-The systemd service stage does not apply on Windows. The browser login,
-probe, and driver-smoke commands below all work on Windows. Login remains
-a normal browser action: the relay never asks for passwords, cookies,
-session tokens, API keys, or GitHub tokens.
+Login remains a normal browser action: the relay never asks for passwords,
+cookies, session tokens, API keys, or GitHub tokens.
 
 ## Verify a browser provider
 
