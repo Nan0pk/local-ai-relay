@@ -47,6 +47,14 @@ export interface SiteConfig {
   readonly quotaPattern?: RegExp;
   /** Extra body-text patterns to treat as captcha (iframe detection is built in). */
   readonly captchaTextPattern?: RegExp;
+  /**
+   * When true, the send-button click uses `{ force: true }` after DOM-level
+   * enabled checks pass. Needed for headful/occluded contexts (e.g. systemd
+   * services) where Playwright actionability checks throttle. The DOM checks
+   * (aria-disabled, isEnabled) already guard against clicking a genuinely
+   * disabled control, so force-clicking is safe.
+   */
+  readonly forceClick?: boolean;
 }
 
 export interface BaseDriverOptions {
@@ -205,7 +213,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
         if (request.signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
         const disabled = await sendButton.getAttribute('aria-disabled').then((v) => v === 'true').catch(() => false);
         if (!disabled && await sendButton.isEnabled().catch(() => false)) {
-          await sendButton.click();
+          await sendButton.click({ force: cfg.forceClick === true });
           clicked = true;
           break;
         }
