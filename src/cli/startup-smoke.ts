@@ -1,4 +1,4 @@
-import { createServer } from 'node:net';
+import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import type { Readable } from 'node:stream';
 
@@ -30,15 +30,14 @@ async function stopChild(relay: ReturnType<typeof spawn>): Promise<void> {
 
 async function main(): Promise<void> {
   const preferredPort = 20_000 + Math.floor(Math.random() * 20_000);
-  const blocker = createServer((socket) => {
-    // Port selection deliberately probes the occupied port first. Windows can
-    // surface the probe disconnect as ECONNRESET on this accepted socket.
-    socket.on('error', (error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ECONNRESET' && error.code !== 'EPIPE') {
-        console.error(`Occupied-port blocker socket error: ${error.message}`);
-      }
+  const blocker = createServer((_request, response) => {
+    // Answer the relay's health probe normally while identifying as a
+    // different service. This keeps the port occupied without raw TCP resets.
+    response.writeHead(200, {
+      'content-type': 'application/json',
+      connection: 'close',
     });
-    socket.destroy();
+    response.end('{}');
   });
   await new Promise<void>((resolve, reject) => {
     blocker.once('error', reject);
