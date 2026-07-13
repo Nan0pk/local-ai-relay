@@ -1,5 +1,32 @@
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
+import type { Readable } from 'node:stream';
+
+function captureOutput(stream: Readable, append: (text: string) => void): void {
+  stream.on('data', (chunk: Buffer) => append(chunk.toString()));
+  // Windows can reset child-process stdio pipes when the child is terminated.
+  // The pipe is diagnostic-only, so closure during teardown is not a smoke failure.
+  stream.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code !== 'ECONNRESET' && error.code !== 'EPIPE') {
+      append(`Child output stream error: ${error.message}\n`);
+    }
+  });
+}
+
+async function stopChild(relay: ReturnType<typeof spawn>): Promise<void> {
+  if (relay.exitCode !== null) return;
+  relay.kill('SIGTERM');
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, 2_000);
+    timeout.unref();
+    const done = (): void => {
+      clearTimeout(timeout);
+      resolve();
+    };
+    relay.once('exit', done);
+    relay.once('error', done);
+  });
+}
 
 async function main(): Promise<void> {
   const preferredPort = 20_000 + Math.floor(Math.random() * 20_000);
@@ -20,12 +47,15 @@ async function main(): Promise<void> {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
-  relay.stdout.on('data', (chunk: Buffer) => { output += chunk.toString(); });
-  relay.stderr.on('data', (chunk: Buffer) => { output += chunk.toString(); });
+  let spawnError: Error | undefined;
+  relay.once('error', (error) => { spawnError = error; });
+  captureOutput(relay.stdout, (text) => { output += text; });
+  captureOutput(relay.stderr, (text) => { output += text; });
 
   try {
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
+      if (spawnError) throw new Error(`Relay failed to start: ${spawnError.message}`);
       if (relay.exitCode !== null) throw new Error(`Relay exited early.\n${output}`);
       for (let offset = 1; offset < 10; offset++) {
         const port = preferredPort + offset;
@@ -58,8 +88,10 @@ async function main(): Promise<void> {
     }
     throw new Error(`Timed out waiting for relay startup.\n${output}`);
   } finally {
-    relay.kill('SIGTERM');
-    blocker.close();
+    await Promise.all([
+      stopChild(relay),
+      new Promise<void>((resolve) => blocker.close(() => resolve())),
+    ]);
   }
 }
 
