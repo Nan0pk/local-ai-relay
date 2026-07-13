@@ -68,33 +68,35 @@ To validate code without opening a browser:
 ./setup-linux.sh --no-browser
 ```
 
-### Windows (PowerShell)
+### Windows
 
 ```powershell
 cd $HOME
 git clone https://github.com/Nan0pk/local-ai-relay.git
 cd local-ai-relay
-.\setup-windows.ps1
+.\setup-windows.cmd
 ```
 
-`setup-windows.ps1` self-pulls the latest `main`, self-bypasses the
-PowerShell execution policy for its own process (no admin, no permanent
-change), then performs the same stages as `setup-linux.sh`: dependency
-check, tests, occupied-port startup smoke, visible ChatGPT login/probe,
-and Hermes configuration. It uses `npm.cmd` (a batch file) so it works
-even when `npm.ps1` is blocked.
+Use `setup-windows.cmd` (a batch file), **not** `setup-windows.ps1` directly.
+Batch files are not subject to PowerShell's execution policy, so `.cmd`
+always runs. The `.cmd` wrapper invokes the `.ps1` with
+`-ExecutionPolicy Bypass` so you never hit the "running scripts is disabled"
+error — no manual `Set-ExecutionPolicy` needed.
 
-If your org's GPO blocks `Set-ExecutionPolicy` entirely, run this one-liner
-first, then the script above:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\setup-windows.ps1
-```
+`setup-windows.cmd` pulls the latest `main`, then performs the same stages
+as `setup-linux.sh`: dependency check, tests, occupied-port startup smoke,
+visible ChatGPT login/probe, and Hermes configuration.
 
 To validate code without opening a browser:
 
 ```powershell
-.\setup-windows.ps1 -NoBrowser
+.\setup-windows.cmd -NoBrowser
+```
+
+If your clone is broken or stale and you want a guaranteed clean start:
+
+```powershell
+.\setup-windows.cmd --fresh
 ```
 
 The systemd service stage does not apply on Windows. The browser login,

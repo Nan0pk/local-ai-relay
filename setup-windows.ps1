@@ -48,17 +48,17 @@ try {
 }
 
 function Invoke-Npm {
-  param([Parameter(Mandatory=$true, Position=0)][string[]]$Args)
+  param([Parameter(Mandatory=$true, Position=0)][string[]]$NpmArgs)
   # Prefer npm.cmd (batch file, no execution-policy restriction) over npm.ps1.
   $npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
   if ($npmCmd) {
-    & npm.cmd @Args
+    & npm.cmd @NpmArgs
   } else {
     # Fall back to npm (PowerShell will pick .ps1 if policy allows, else .cmd).
-    & npm @Args
+    & npm @NpmArgs
   }
   if ($LASTEXITCODE -ne 0) {
-    throw "npm $($Args -join ' ') exited with code $LASTEXITCODE"
+    throw "npm $($NpmArgs -join ' ') exited with code $LASTEXITCODE"
   }
 }
 
@@ -132,4 +132,4 @@ Write-Host ""
 Write-Host "SETUP COMPLETE" -ForegroundColor Green
 Write-Host "Relay default model: browser-chatgpt-free"
 Write-Host "Verify other providers with: npm.cmd run login:<provider> ; npm.cmd run probe:<provider>"
-Write-Host "Known providers so far:  chatgpt, claude"
+Write-Host "Known providers: chatgpt, claude, gemini, deepseek, zai, minimax, kimi, qwen, grok, mistral"
