@@ -5,12 +5,19 @@
  * model to a registered provider; returns an OpenAI-shaped error if the
  * model is unknown or the request is malformed.
  *
- * Milestone 1: only the mock provider is registered, so every supported
- * model returns a deterministic mock response. No streaming yet.
+ * BrowserFailure errors thrown by browser drivers are mapped to OpenAI-shaped
+ * HTTP responses with a stable `code` field so OpenAI-compatible clients
+ * (Hermes, generic harnesses) can distinguish failure modes without learning
+ * provider internals.
+ *
+ * SSE streaming writes to the raw response with error handlers so client
+ * disconnects during streaming do not surface as unhandled EPIPE/ECONNRESET.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { findProviderForModel } from '../providers/registry.js';
+import { BrowserFailure } from '../browser/types.js';
+import { browserFailureErrorBody } from '../types/openai.js';
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -25,6 +32,25 @@ function errorBody(
   param: string | null = null,
 ): ErrorResponse {
   return { error: { message, type, param, code } };
+}
+
+/**
+ * Write one SSE data frame to the raw response. Returns false if the write
+ * failed (client disconnected) so the caller can stop writing without
+ * surfacing an unhandled EPIPE. The payload is JSON-encoded unless it is
+ * the bare string '[DONE]', which OpenAI SSE sends literally.
+ */
+function writeSseFrame(raw: NodeJS.WritableStream, payload: unknown): boolean {
+  const stream = raw as NodeJS.WritableStream & { destroyed?: boolean; writableEnded?: boolean };
+  if (stream.destroyed || stream.writableEnded) return false;
+  try {
+    const frame = payload === '[DONE]' ? 'data: [DONE]\n\n' : `data: ${JSON.stringify(payload)}\n\n`;
+    return stream.write(frame);
+  } catch {
+    // EPIPE / ECONNRESET during client disconnect — swallow so the request
+    // handler does not throw an unhandled error into the process.
+    return false;
+  }
 }
 
 export function registerChatRoutes(app: FastifyInstance, config: AppConfig): void {
@@ -61,7 +87,18 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
           signal: controller.signal,
         });
       } catch (err) {
-        req.log.error({ err, model }, 'provider.complete failed');
+        // Preserve the BrowserFailure taxonomy at the HTTP boundary.
+        if (err instanceof BrowserFailure) {
+          const mapped = browserFailureErrorBody(err.kind, err.message);
+          if (mapped) {
+            req.log.warn({ kind: err.kind, model, status: mapped.status }, 'browser provider failure');
+            return reply.code(mapped.status).send(mapped.body);
+          }
+          // Unknown BrowserFailureKind — fall through to generic 500.
+          req.log.error({ err, model, kind: err.kind }, 'unmapped BrowserFailure kind');
+        } else {
+          req.log.error({ err, model }, 'provider.complete failed');
+        }
         return reply
           .code(500)
           .send(errorBody('Provider returned an unexpected error.', 'server_error', 'internal_error'));
@@ -74,6 +111,17 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
           'Connection': 'keep-alive',
         });
 
+        // Attach error handlers so a client disconnect during streaming does
+        // not surface as an unhandled EPIPE/ECONNRESET in the process.
+        let streamBroken = false;
+        reply.raw.on('error', (err: NodeJS.ErrnoException) => {
+          if (err.code !== 'EPIPE' && err.code !== 'ECONNRESET') {
+            req.log.warn({ err, model }, 'sse stream error');
+          }
+          streamBroken = true;
+        });
+        reply.raw.on('close', () => { streamBroken = true; });
+
         const choice = result.choices[0];
         const content = choice?.message?.content;
         const toolCalls = choice?.message?.tool_calls;
@@ -82,6 +130,7 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
           const words = content.split(/(\s+)/);
           for (const word of words) {
             if (word.length === 0) continue;
+            if (streamBroken) break;
             const chunk = {
               id: result.id,
               object: 'chat.completion.chunk',
@@ -93,12 +142,12 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
                 finish_reason: null,
               }],
             };
-            reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
+            writeSseFrame(reply.raw, chunk);
             await new Promise((resolve) => setTimeout(resolve, 5));
           }
         }
 
-        if (toolCalls && toolCalls.length > 0) {
+        if (!streamBroken && toolCalls && toolCalls.length > 0) {
           const chunk = {
             id: result.id,
             object: 'chat.completion.chunk',
@@ -110,23 +159,28 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
               finish_reason: null,
             }],
           };
-          reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
+          writeSseFrame(reply.raw, chunk);
         }
 
-        const finalChunk = {
-          id: result.id,
-          object: 'chat.completion.chunk',
-          created: result.created,
-          model: result.model,
-          choices: [{
-            index: 0,
-            delta: {},
-            finish_reason: choice?.finish_reason || 'stop',
-          }],
-        };
-        reply.raw.write(`data: ${JSON.stringify(finalChunk)}\n\n`);
-        reply.raw.write('data: [DONE]\n\n');
-        reply.raw.end();
+        if (!streamBroken) {
+          const finalChunk = {
+            id: result.id,
+            object: 'chat.completion.chunk',
+            created: result.created,
+            model: result.model,
+            choices: [{
+              index: 0,
+              delta: {},
+              finish_reason: choice?.finish_reason || 'stop',
+            }],
+          };
+          writeSseFrame(reply.raw, finalChunk);
+          writeSseFrame(reply.raw, '[DONE]');
+        }
+
+        if (!reply.raw.writableEnded) {
+          reply.raw.end();
+        }
         return reply;
       }
 

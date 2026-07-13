@@ -140,11 +140,32 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
 
   private async getContext(): Promise<BrowserContext> {
     if (this.context) return this.context;
+    const cfg = this.config();
     await mkdir(this.options.profileDir, { recursive: true });
-    this.context = await launchPersistentRelayContext(this.options.profileDir, {
-      headless: this.options.headless,
-      viewport: { width: 1440, height: 960 },
-    });
+    try {
+      this.context = await launchPersistentRelayContext(this.options.profileDir, {
+        headless: this.options.headless,
+        viewport: { width: 1440, height: 960 },
+      });
+    } catch (error) {
+      // Browser launch failures are common in headless/CI environments
+      // without a display or an installed browser. Map them to a typed
+      // BrowserFailure so the HTTP layer returns a structured error instead
+      // of a generic 500.
+      const message = error instanceof Error ? error.message : String(error);
+      if (/executable doesn.?t exist|playwright was just installed|browserType\.launch/i.test(message)) {
+        throw new BrowserFailure('layout_changed',
+          `${cfg.name} browser could not launch. Install Google Chrome or run \`npm run browser:install\`. ` +
+          `Underlying error: ${message.split('\n')[0]}`);
+      }
+      if (/display|wayland|xauth|cannot open display/i.test(message)) {
+        throw new BrowserFailure('layout_changed',
+          `${cfg.name} browser could not launch because no graphical display was detected. ` +
+          `Run on a machine with a visible desktop session, or set RELAY_BROWSER_HEADLESS=1.`);
+      }
+      throw new BrowserFailure('layout_changed',
+        `${cfg.name} browser failed to launch: ${message.split('\n')[0]}`);
+    }
     this.context.on('close', () => { this.context = undefined; this.pages.clear(); });
     return this.context;
   }

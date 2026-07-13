@@ -95,3 +95,48 @@ export interface ErrorResponse {
     code?: string | null;
   };
 }
+
+/**
+ * Maps a BrowserFailureKind to an OpenAI-shaped HTTP error response.
+ *
+ * The relay preserves the BrowserFailure taxonomy at the HTTP boundary so
+ * OpenAI-compatible clients (including Hermes and generic harnesses) can
+ * distinguish failure modes and decide whether to retry, prompt the user to
+ * sign in, or surface a quota message.
+ *
+ * HTTP status follows OpenAI conventions:
+ *  - 401 for auth-required failures (login_required)
+ *  - 403 for provider-side access control (captcha, quota_exhausted)
+ *  - 429 for rate-limit failures (rate_limit)
+ *  - 409 for transient state conflicts (composer_disabled, generation_interrupted)
+ *  - 422 for unprocessable page state (layout_changed, empty_response)
+ *  - 408 for timeouts (timeout)
+ *  - 499 for client cancellation (cancelled)
+ *  - 500 for anything else (internal_error)
+ */
+export const BROWSER_FAILURE_HTTP_MAP: Record<string, {
+  status: number;
+  type: string;
+  code: string;
+}> = {
+  login_required:        { status: 401, type: 'authentication_error',  code: 'login_required' },
+  captcha:               { status: 403, type: 'permission_denied',     code: 'captcha_required' },
+  rate_limit:            { status: 429, type: 'rate_limit_error',      code: 'rate_limit_exceeded' },
+  quota_exhausted:       { status: 403, type: 'permission_denied',     code: 'quota_exhausted' },
+  composer_disabled:     { status: 409, type: 'conflict',              code: 'composer_disabled' },
+  generation_interrupted:{ status: 409, type: 'conflict',              code: 'generation_interrupted' },
+  layout_changed:        { status: 422, type: 'unprocessable_entity',  code: 'layout_changed' },
+  empty_response:        { status: 422, type: 'unprocessable_entity',  code: 'empty_response' },
+  timeout:               { status: 408, type: 'request_timeout',       code: 'browser_timeout' },
+  cancelled:             { status: 499, type: 'client_closed_request', code: 'cancelled' },
+};
+
+/** OpenAI error body for a BrowserFailureKind, or null if kind is unknown. */
+export function browserFailureErrorBody(kind: string, message: string): { status: number; body: ErrorResponse } | null {
+  const mapping = BROWSER_FAILURE_HTTP_MAP[kind];
+  if (!mapping) return null;
+  return {
+    status: mapping.status,
+    body: { error: { message, type: mapping.type, param: null, code: mapping.code } },
+  };
+}
