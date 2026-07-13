@@ -49,7 +49,7 @@ Every new browser provider must have:
    login, rate-limit, and completion-detection logic.
 2. A dedicated persistent profile below
    `~/.local-ai-relay/browser-profiles/<provider>`.
-3. Native Playwright input; no direct `textContent` mutation or deprecated
+3. Native Patchright/Playwright-compatible input; no direct `textContent` mutation or deprecated
    `execCommand` insertion.
 4. Shared conversation planning and compact tool-schema handling.
 5. Explicit cancellation, timeout, serialized access, and redacted local

@@ -180,7 +180,7 @@ local-ai-relay/
 ├── verify-all.sh / verify-all.cmd one-liner verify-all-providers entry points
 ├── setup-linux.sh / setup-windows.cmd / setup-windows.ps1
 ├── src/
-│   ├── browser/      Playwright transport, profiles, queue, per-site drivers
+│   ├── browser/      Patchright transport, profiles, queue, per-site drivers
 │   │                 (chatgpt, claude, gemini, deepseek, zai, minimax,
 │   │                  kimi, qwen, grok, mistral) + shared base-driver
 │   ├── cli/          setup, login, probe, service, and Hermes commands

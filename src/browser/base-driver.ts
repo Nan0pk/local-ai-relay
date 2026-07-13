@@ -1,11 +1,11 @@
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { BrowserContext, Locator, Page } from 'playwright';
+import type { BrowserContext, Locator, Page } from 'patchright';
 import type { BrowserChatDriver, BrowserChatRequest, BrowserChatResult } from './types.js';
 import { BrowserFailure } from './types.js';
 import { SerialQueue } from './serial-queue.js';
-import { browserBinariesDir, findSystemBrowser } from './paths.js';
+import { launchPersistentRelayContext } from './runtime.js';
 
 const SELECT_ALL_KEY = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -15,7 +15,7 @@ const SELECT_ALL_KEY = process.platform === 'darwin' ? 'Meta' : 'Control';
  * Each site-specific driver (ChatGPT, Claude, Gemini, ...) extends this
  * base and supplies only its URL, selectors, and login/rate-limit
  * detection logic. The base handles: persistent-profile lifecycle,
- * serial queue, session-page caching, native Playwright input, completion
+ * serial queue, session-page caching, native Patchright input, completion
  * stability detection, and redacted local diagnostics.
  *
  * Site-specific behavior lives in the subclass via the abstract methods
@@ -133,14 +133,9 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
   private async getContext(): Promise<BrowserContext> {
     if (this.context) return this.context;
     await mkdir(this.options.profileDir, { recursive: true });
-    const systemBrowser = await findSystemBrowser();
-    if (!systemBrowser) process.env.PLAYWRIGHT_BROWSERS_PATH ??= browserBinariesDir();
-    const { chromium } = await import('playwright');
-    const executablePath = systemBrowser;
-    this.context = await chromium.launchPersistentContext(this.options.profileDir, {
+    this.context = await launchPersistentRelayContext(this.options.profileDir, {
       headless: this.options.headless,
       viewport: { width: 1440, height: 960 },
-      ...(executablePath ? { executablePath } : {}),
     });
     this.context.on('close', () => { this.context = undefined; this.pages.clear(); });
     return this.context;

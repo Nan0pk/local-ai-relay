@@ -29,3 +29,10 @@ npm run probe:grok   # prints PASS + conversation URL
 Paste back the `PASS:` line and `Conversation:` URL. After PASS, the
 provider is registered in `registry.ts`, this file is filled with
 sanitized evidence, and the README status flips to "E2E verified".
+
+## Patchright baseline review — code PASS, authenticated E2E pending
+
+Patchright 1.61.1 now supplies the shared Chromium runtime; 122/122 tests,
+TypeScript build, and startup smoke pass. No local diagnostics or recorded
+Grok failures were available, so no detection-related fix is claimed.
+Authenticated E2E remains required and the provider remains unregistered.

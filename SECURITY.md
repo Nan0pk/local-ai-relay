@@ -35,8 +35,16 @@ so later milestones don't introduce regressions.
   third party, a telemetry endpoint, or another client.
 - **No web token extraction.** Browser providers rely on the local profile.
   They do not print, export, copy, or accept cookies or session tokens.
-- **Dedicated profile only.** Never point Playwright at an everyday Chrome
+- **Dedicated profile only.** Never point Patchright at an everyday Chrome
   profile. The relay profile defaults under `~/.local-ai-relay`.
+
+## Automation-artifact boundary
+
+Patchright is used only to reduce false positives caused by automation
+artifacts. It does not solve CAPTCHAs, rotate proxies, automate credentials,
+or retry through rate limits and quota exhaustion. Those surfaces remain typed
+failures requiring normal user action or waiting for the provider's limit to
+reset.
 
 ## No provider bypass
 

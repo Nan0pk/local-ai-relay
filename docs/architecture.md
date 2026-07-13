@@ -1,5 +1,7 @@
 # Architecture
 
+Architecture decisions: [ADR 0001 — Patchright browser runtime](adr/0001-patchright-browser-runtime.md).
+
 ## Request path
 
 ```text
@@ -31,6 +33,7 @@ back to another service.
 | `src/providers/conversation-planner.ts` | Full first turn, delta continuations, fork detection |
 | `src/providers/tool-bridge.ts` | Compact tool definitions and translate tagged tool calls |
 | `src/browser/types.ts` | Site-independent browser driver contract |
+| `src/browser/runtime.ts` | Patchright launch policy and Chrome/Chromium selection |
 | `src/browser/*-driver.ts` | Site-specific page interaction and response extraction |
 | `src/hermes/` | Preserve and update Hermes configuration |
 | `src/service/` | Generate the systemd user unit |
@@ -46,7 +49,7 @@ them. A provider is not registered until live validation succeeds.
 2. Tool definitions are compacted and included on the first turn only.
 3. A continuation sends only new messages; the existing website thread holds
    prior context and tools.
-4. The driver enters text with native Playwright keyboard input, waits for an
+4. The driver enters text with native Patchright/Playwright-compatible keyboard input, waits for an
    enabled send control, and waits for the final assistant message to stabilize.
 5. Tagged tool requests are translated into OpenAI `tool_calls`.
 6. JSON is returned normally, or reconstructed as OpenAI-compatible SSE when

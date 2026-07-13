@@ -77,3 +77,19 @@ After the live run passes, replace this section with:
 Do NOT record cookies, session tokens, OAuth codes, request headers, or
 browser HTML. Screenshots stay local under `~/.local-ai-relay/diagnostics/`
 and are not committed.
+
+## Patchright baseline review — code PASS, authenticated E2E pending
+
+The shared runtime changed from Playwright 1.61.1 to Patchright 1.61.1 with
+real Chrome selected through `channel: "chrome"` when auto-detected. The review
+workspace passed 122/122 tests, TypeScript build, and startup smoke. No local
+diagnostic screenshots were present. The only recorded Claude failure remains
+the expected empty-profile `login_required`; no detection-related Claude
+failure has been observed. Authenticated Claude E2E was not rerun here, so the
+provider remains unregistered.
+
+`./verify-all.sh` completed its non-browser stage after the runtime change,
+including all tests, build, and startup smoke. Its authenticated stage could
+not start in the review workspace because no graphical TTY or signed-in
+profile was available. Patchright's managed-browser download was also blocked
+by the workspace network, so the earlier live-site smoke was not repeated.

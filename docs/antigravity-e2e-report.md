@@ -34,3 +34,13 @@ Intercepts `stream: true` and streams the full response back to Hermes chunk-by-
 - **Background Event Emulation**: Replaced `fill`/`press` with browser-native `document.execCommand('insertText')` to type large prompts instantly and update Lexical state even when browser window is backgrounded.
 - **Forced Clicks**: Added `{ force: true }` to `sendButton.click()` to bypass Playwright's actionability checks (stability, enabled) which throttle in occluded systemd services.
 - **Context Recovery**: Handled browser crashes by listening to the context `close` event and resetting the cached context and pages.
+
+## Patchright baseline review
+
+The browser runtime was changed to Patchright 1.61.1 while preserving the
+isolated ChatGPT profile and headful systemd deployment. The review workspace
+passed 122/122 tests, TypeScript build, and startup smoke. The authenticated
+ChatGPT E2E recorded above predates this runtime change and was not rerun in
+the review workspace, which had no graphical session, authenticated profile,
+or local diagnostics. A fresh Fedora live run is still required before
+claiming Patchright-specific ChatGPT E2E evidence.

@@ -8,7 +8,7 @@ async function main(): Promise<void> {
   await mkdir(destination, { recursive: true });
   console.log(`Installing relay Chromium into ${destination}`);
 
-  const cli = join(process.cwd(), 'node_modules', 'playwright', 'cli.js');
+  const cli = join(process.cwd(), 'node_modules', 'patchright', 'cli.js');
   const child = spawn(process.execPath, [cli, 'install', 'chromium'], {
     stdio: 'inherit',
     env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: destination },

@@ -1,10 +1,10 @@
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { BrowserContext, Locator, Page } from 'playwright';
+import type { BrowserContext, Locator, Page } from 'patchright';
 import type { BrowserChatDriver, BrowserChatRequest, BrowserChatResult } from './types.js';
 import { SerialQueue } from './serial-queue.js';
-import { browserBinariesDir, findSystemBrowser } from './paths.js';
+import { launchPersistentRelayContext } from './runtime.js';
 
 const CHATGPT_URL = 'https://chatgpt.com/';
 
@@ -84,14 +84,9 @@ export class ChatGptPlaywrightDriver implements BrowserChatDriver {
   private async getContext(): Promise<BrowserContext> {
     if (this.context) return this.context;
     await mkdir(this.options.profileDir, { recursive: true });
-    const systemBrowser = await findSystemBrowser();
-    if (!systemBrowser) process.env.PLAYWRIGHT_BROWSERS_PATH ??= browserBinariesDir();
-    const { chromium } = await import('playwright');
-    const executablePath = systemBrowser;
-    this.context = await chromium.launchPersistentContext(this.options.profileDir, {
+    this.context = await launchPersistentRelayContext(this.options.profileDir, {
       headless: this.options.headless,
       viewport: { width: 1440, height: 960 },
-      ...(executablePath ? { executablePath } : {}),
     });
     this.context.on('close', () => {
       this.context = undefined;
