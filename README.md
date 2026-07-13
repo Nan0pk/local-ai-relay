@@ -62,20 +62,30 @@ To validate code without opening a browser:
 
 ### Windows (PowerShell)
 
-There is no `setup-windows.ps1` yet. Set up manually — these are the
-same stages as `setup-linux.sh` minus the systemd service:
-
 ```powershell
 cd $HOME
 git clone https://github.com/Nan0pk/local-ai-relay.git
 cd local-ai-relay
-npm install
-copy .env.example .env
-npm run browser:install
-npm run typecheck
-npm test
-npm run build
-npm run smoke:startup
+.\setup-windows.ps1
+```
+
+`setup-windows.ps1` performs the same stages as `setup-linux.sh`: dependency
+check, tests, occupied-port startup smoke, visible ChatGPT login/probe, and
+Hermes configuration. It self-bypasses the PowerShell execution policy for
+its own process (no admin, no permanent change) and uses `npm.cmd` so it
+works even when `npm.ps1` is blocked.
+
+If your org's GPO blocks `Set-ExecutionPolicy` entirely, run this one-liner
+first, then the script above:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup-windows.ps1
+```
+
+To validate code without opening a browser:
+
+```powershell
+.\setup-windows.ps1 -NoBrowser
 ```
 
 The systemd service stage does not apply on Windows. The browser login,
