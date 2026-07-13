@@ -1,10 +1,18 @@
-import { ChatGptPlaywrightDriver } from '../browser/chatgpt-driver.js';
+import { findBrowserProvider } from '../browser/driver-registry.js';
+
+function parseProvider(argv: string[]): string {
+  const idx = argv.indexOf('--provider');
+  if (idx >= 0 && argv[idx + 1]) return argv[idx + 1]!;
+  if (argv[0] && !argv[0].startsWith('-')) return argv[0];
+  return 'chatgpt';
+}
 
 async function main(): Promise<void> {
-  const driver = new ChatGptPlaywrightDriver({ headless: false });
-  console.log('Opening the dedicated ChatGPT relay profile.');
+  const descriptor = findBrowserProvider(parseProvider(process.argv.slice(2)));
+  const driver = descriptor.factory();
+  console.log(`Opening the dedicated ${descriptor.label} relay profile.`);
   console.log('Sign in normally. Do not paste cookies or tokens into the relay.');
-  console.log('When the ChatGPT composer is visible, return here and press Ctrl+C.');
+  console.log(`When the ${descriptor.label} composer is visible, return here and press Ctrl+C.`);
 
   const shutdown = async () => {
     await driver.close();
@@ -13,9 +21,6 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => void shutdown());
   process.on('SIGTERM', () => void shutdown());
 
-  // An intentionally harmless prompt opens the browser and also verifies
-  // that sign-in has completed. It is not submitted until the user invokes
-  // the relay; login mode only keeps the profile window open.
   await driver.openForLogin();
   await new Promise(() => undefined);
 }

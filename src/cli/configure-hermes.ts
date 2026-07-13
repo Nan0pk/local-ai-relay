@@ -13,14 +13,24 @@ async function activePort(): Promise<number> {
   return Number.parseInt(env.match(/^PORT=(\d+)$/m)?.[1] ?? '8787', 10);
 }
 
-async function writeHermesConfig(baseUrl: string): Promise<void> {
+async function fetchAdvertisedModelIds(baseUrl: string): Promise<string[]> {
+  const response = await fetch(`${baseUrl}/models`);
+  if (!response.ok) throw new Error(`Relay model discovery returned HTTP ${response.status}.`);
+  const body = await response.json() as { data?: Array<{ id?: string }> };
+  const ids = (body.data ?? [])
+    .map((model) => model?.id)
+    .filter((id): id is string => Boolean(id) && id !== HERMES_MODEL_ID);
+  return ids;
+}
+
+async function writeHermesConfig(baseUrl: string, additionalModelIds: readonly string[]): Promise<void> {
   const hermesHome = process.env.HERMES_HOME ?? join(homedir(), '.hermes');
   const configPath = join(hermesHome, 'config.yaml');
   await mkdir(dirname(configPath), { recursive: true });
   let original = '';
   try { original = await readFile(configPath, 'utf8'); } catch { /* create below */ }
   const parsed = original.trim() ? parse(original) : {};
-  const updated = upsertHermesRelayConfig(parsed, baseUrl);
+  const updated = upsertHermesRelayConfig(parsed, baseUrl, additionalModelIds);
   if (original) await copyFile(configPath, `${configPath}.bak-local-ai-relay`);
   const temporary = `${configPath}.local-ai-relay.tmp`;
   await writeFile(temporary, stringify(updated), { mode: 0o600 });
@@ -37,9 +47,15 @@ async function main(): Promise<void> {
     throw new Error(`The running relay does not advertise ${HERMES_MODEL_ID}.`);
   }
 
-  await writeHermesConfig(baseUrl);
-  console.log(`PASS: Hermes named provider ${HERMES_PROVIDER_NAME} uses ${HERMES_MODEL_ID} through ${baseUrl}`);
-  console.log(`Hermes /model selector: custom:${HERMES_PROVIDER_NAME}:${HERMES_MODEL_ID}`);
+  const additionalModelIds = await fetchAdvertisedModelIds(baseUrl);
+  await writeHermesConfig(baseUrl, additionalModelIds);
+
+  const allModels = [HERMES_MODEL_ID, ...additionalModelIds];
+  console.log(`PASS: Hermes named provider ${HERMES_PROVIDER_NAME} advertises ${allModels.length} model(s):`);
+  for (const id of allModels) {
+    console.log(`  - custom:${HERMES_PROVIDER_NAME}:${id}`);
+  }
+  console.log(`Default selector: custom:${HERMES_PROVIDER_NAME}:${HERMES_MODEL_ID}`);
   console.log('Start a new Hermes session for the change to take effect.');
 }
 

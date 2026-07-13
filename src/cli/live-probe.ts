@@ -1,10 +1,17 @@
 import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { ChatGptPlaywrightDriver } from '../browser/chatgpt-driver.js';
+import { findBrowserProvider } from '../browser/driver-registry.js';
 import { browserBinariesDir, findSystemBrowser } from '../browser/paths.js';
 
 const EXPECTED = 'LOCAL AI RELAY READY';
+
+function parseProvider(argv: string[]): string {
+  const idx = argv.indexOf('--provider');
+  if (idx >= 0 && argv[idx + 1]) return argv[idx + 1]!;
+  if (argv[0] && !argv[0].startsWith('-')) return argv[0];
+  return 'chatgpt';
+}
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -45,7 +52,8 @@ async function runBrowserInstall(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('Local AI Relay — ChatGPT browser live probe');
+  const descriptor = findBrowserProvider(parseProvider(process.argv.slice(2)));
+  console.log(`Local AI Relay — ${descriptor.label} browser live probe`);
   console.log(`OS: ${await distroName()}`);
   console.log(`Node: ${process.version}`);
 
@@ -75,22 +83,22 @@ async function main(): Promise<void> {
   }
   if (!systemBrowser && !hasRelayBrowser) await runBrowserInstall();
 
-  const driver = new ChatGptPlaywrightDriver({ headless: false });
+  const driver = descriptor.factory();
   try {
-    console.log('Opening the dedicated profile. Sign in normally if ChatGPT asks.');
+    console.log(`Opening the dedicated ${descriptor.label} profile. Sign in normally if asked.`);
     console.log('The probe will continue automatically when the composer becomes available.');
     await driver.openForLogin();
     await driver.waitUntilReady();
     console.log('Composer detected. Sending one harmless verification message.');
     const result = await driver.send({
       prompt: `Reply with exactly these words and nothing else: ${EXPECTED}`,
-      sessionId: 'local-ai-relay-live-probe',
+      sessionId: `local-ai-relay-live-probe-${descriptor.name}`,
       resetSession: true,
     });
     if (!result.text.toUpperCase().includes(EXPECTED)) {
       throw new Error(`A response was extracted, but it did not contain the expected marker. Received: ${result.text.slice(0, 160)}`);
     }
-    console.log('PASS: ChatGPT submission, completion detection, and response extraction worked.');
+    console.log(`PASS: ${descriptor.label} submission, completion detection, and response extraction worked.`);
     console.log(`Conversation: ${result.conversationUrl ?? 'URL unavailable'}`);
   } finally {
     await driver.close();

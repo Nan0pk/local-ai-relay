@@ -37,3 +37,23 @@ test('updates its entry without deleting other providers or settings', () => {
   assert.equal(providers[1]?.base_url, 'http://127.0.0.1:8789/v1');
   assert.deepEqual(providers[1]?.extra_body, { keep: true });
 });
+
+test('registers additional models alongside the default without duplicating it', () => {
+  const config = upsertHermesRelayConfig({}, 'http://127.0.0.1:8790/v1', ['browser-claude-free']);
+  const provider = (config.custom_providers as Array<Record<string, unknown>>)[0]!;
+  assert.equal(provider.model, 'browser-chatgpt-free');
+  const models = provider.models as Record<string, unknown>;
+  assert.deepEqual(Object.keys(models), ['browser-chatgpt-free', 'browser-claude-free']);
+  assert.equal((config.model as Record<string, unknown>).default, 'browser-chatgpt-free');
+});
+
+test('additional model ids are de-duplicated and never replace the default', () => {
+  const config = upsertHermesRelayConfig({}, 'http://127.0.0.1:8791/v1', [
+    'browser-chatgpt-free',
+    'browser-claude-free',
+    'browser-claude-free',
+  ]);
+  const provider = (config.custom_providers as Array<Record<string, unknown>>)[0]!;
+  const models = provider.models as Record<string, unknown>;
+  assert.deepEqual(Object.keys(models), ['browser-chatgpt-free', 'browser-claude-free']);
+});
