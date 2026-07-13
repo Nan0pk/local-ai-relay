@@ -8,6 +8,14 @@ cd "$ROOT_DIR"
 # caches. The directory is already covered by .gitignore via .relay-browser/.
 export NPM_CONFIG_CACHE="$ROOT_DIR/.relay-browser/npm-cache"
 
+# Self-update: pull latest before doing anything else so a stale clone can
+# never block setup. Non-fatal if offline, diverged, or not a git repo.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "==> Pulling latest from origin/main"
+  git pull --ff-only >/dev/null 2>&1 || \
+    echo "    (pull skipped — offline, diverged, or no upstream; continuing with current tree)"
+fi
+
 NO_BROWSER=0
 if [[ "${1:-}" == "--no-browser" ]]; then
   NO_BROWSER=1

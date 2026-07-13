@@ -38,7 +38,13 @@ not true upstream token streaming.
 
 ## Install or update
 
-### Linux
+> **Already cloned before?** Both setup scripts self-update with
+> `git pull --ff-only` at startup, so just re-run the script for your
+> platform. If a file is missing (e.g. `setup-windows.ps1` on a clone from
+> before it existed), run `git pull --ff-only` once manually, then re-run
+> the script — it will keep itself current from then on.
+
+### Linux / macOS (bash)
 
 ```bash
 if [ -d "$HOME/local-ai-relay/.git" ]; then
@@ -50,11 +56,11 @@ cd "$HOME/local-ai-relay"
 ./setup-linux.sh
 ```
 
-`setup-linux.sh` performs a clean dependency check, tests, an occupied-port
-startup smoke test, visible ChatGPT login/probe, systemd user-service
-installation, and Hermes configuration. Login remains a normal browser
-action: the relay never asks for passwords, cookies, session tokens, API
-keys, or GitHub tokens.
+`setup-linux.sh` self-pulls the latest `main`, then performs a clean
+dependency check, tests, an occupied-port startup smoke test, visible
+ChatGPT login/probe, systemd user-service installation, and Hermes
+configuration. Login remains a normal browser action: the relay never asks
+for passwords, cookies, session tokens, API keys, or GitHub tokens.
 
 To validate code without opening a browser:
 
@@ -71,11 +77,12 @@ cd local-ai-relay
 .\setup-windows.ps1
 ```
 
-`setup-windows.ps1` performs the same stages as `setup-linux.sh`: dependency
-check, tests, occupied-port startup smoke, visible ChatGPT login/probe, and
-Hermes configuration. It self-bypasses the PowerShell execution policy for
-its own process (no admin, no permanent change) and uses `npm.cmd` so it
-works even when `npm.ps1` is blocked.
+`setup-windows.ps1` self-pulls the latest `main`, self-bypasses the
+PowerShell execution policy for its own process (no admin, no permanent
+change), then performs the same stages as `setup-linux.sh`: dependency
+check, tests, occupied-port startup smoke, visible ChatGPT login/probe,
+and Hermes configuration. It uses `npm.cmd` (a batch file) so it works
+even when `npm.ps1` is blocked.
 
 If your org's GPO blocks `Set-ExecutionPolicy` entirely, run this one-liner
 first, then the script above:
