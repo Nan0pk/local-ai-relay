@@ -38,7 +38,8 @@ if not exist "%~dp0setup-windows.ps1" (
 
 REM Launch PowerShell with execution policy bypassed for this process only.
 REM -NoProfile avoids any user profile scripts that might interfere.
-REM We set OutputEncoding and read the .ps1 with -Command + Invoke-Expression
-REM as UTF-8 to avoid the ANSI codepage mangling non-ASCII chars.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '%~dp0setup-windows.ps1' %*"
+REM Use -File (not -Command) so positional args pass through cleanly to the
+REM .ps1 script's param() block. The .ps1 is saved as UTF-8 with BOM so
+REM Windows PowerShell reads it as UTF-8 regardless of system codepage.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup-windows.ps1" %*
 exit /b %errorlevel%

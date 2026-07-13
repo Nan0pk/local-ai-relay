@@ -1,4 +1,4 @@
-# setup-windows.ps1 - Windows equivalent of setup-linux.sh
+﻿# setup-windows.ps1 - Windows equivalent of setup-linux.sh
 #
 # Self-elevates its own execution policy so the user does not have to run
 # Set-ExecutionPolicy manually. Uses `npm.cmd` (batch file, not subject to
@@ -48,7 +48,7 @@ try {
 }
 
 function Invoke-Npm {
-  param([Parameter(Mandatory=$true, Position=0)][string[]]$NpmArgs)
+  param([Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)][string[]]$NpmArgs)
   # Prefer npm.cmd (batch file, no execution-policy restriction) over npm.ps1.
   $npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
   if ($npmCmd) {

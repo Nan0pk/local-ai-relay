@@ -1,4 +1,4 @@
-# bootstrap.ps1 - one-liner entry point for Windows.
+﻿# bootstrap.ps1 - one-liner entry point for Windows.
 #
 # Invoke from anywhere (even a machine with nothing cloned):
 #
