@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bootstrap.sh — one-liner entry point for Linux / macOS.
+# bootstrap.sh - one-liner entry point for Linux / macOS.
 #
 # Invoke from anywhere (even a machine with nothing cloned):
 #
@@ -11,9 +11,9 @@
 #   bash bootstrap.sh
 #
 # This script handles every state of ~/local-ai-relay:
-#   - does not exist      → clone, then run setup
-#   - exists, healthy     → pull, then run setup
-#   - exists, broken      → wipe, clone, then run setup
+#   - does not exist      -> clone, then run setup
+#   - exists, healthy     -> pull, then run setup
+#   - exists, broken      -> wipe, clone, then run setup
 #
 # It never asks the user to manually git pull, rm -rf, or git clone.
 # Pass --no-browser to skip the browser probe stage; --fresh to force wipe.
@@ -45,7 +45,7 @@ if [[ -d "$DIR" ]]; then
     rm -rf "$DIR"
     ACTION='clone'
   elif [[ ! -d "$DIR/.git" ]]; then
-    say "$DIR exists but is not a git repo — wiping and re-cloning"
+    say "$DIR exists but is not a git repo - wiping and re-cloning"
     rm -rf "$DIR"
     ACTION='clone'
   else
@@ -54,7 +54,7 @@ if [[ -d "$DIR" ]]; then
       ACTION='setup'
       ok 'pull succeeded'
     else
-      warn 'pull failed — wiping and re-cloning for a clean start'
+      warn 'pull failed - wiping and re-cloning for a clean start'
       rm -rf "$DIR"
       ACTION='clone'
     fi
@@ -73,7 +73,7 @@ cd "$DIR"
 
 # Make sure setup-linux.sh exists; if not, pull once more (belt + suspenders).
 if [[ ! -f setup-linux.sh ]]; then
-  say 'setup-linux.sh missing — pulling latest'
+  say 'setup-linux.sh missing - pulling latest'
   git pull --ff-only >/dev/null 2>&1 || true
 fi
 

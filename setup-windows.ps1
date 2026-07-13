@@ -1,4 +1,4 @@
-# setup-windows.ps1 — Windows equivalent of setup-linux.sh
+# setup-windows.ps1 - Windows equivalent of setup-linux.sh
 #
 # Self-elevates its own execution policy so the user does not have to run
 # Set-ExecutionPolicy manually. Uses `npm.cmd` (batch file, not subject to
@@ -24,15 +24,15 @@ Set-Location $Root
 # Self-update: pull latest before doing anything else so a stale clone can
 # never block setup. Non-fatal if offline, diverged, or not a git repo.
 # This is what makes `.\setup-windows.ps1` work even on a clone from before
-# this script existed — as long as the script is present, it pulls the rest.
+# this script existed - as long as the script is present, it pulls the rest.
 try {
   Write-Host "==> Pulling latest from origin/main"
   git pull --ff-only 2>&1 | Out-Null
   if ($LASTEXITCODE -ne 0) {
-    Write-Host "    (pull skipped — offline, diverged, or no upstream; continuing with current tree)"
+    Write-Host "    (pull skipped - offline, diverged, or no upstream; continuing with current tree)"
   }
 } catch {
-  Write-Host "    (pull skipped — git not available or not a git repo; continuing with current tree)"
+  Write-Host "    (pull skipped - git not available or not a git repo; continuing with current tree)"
 }
 
 # Self-bypass execution policy for THIS process only. No admin, no permanent

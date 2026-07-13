@@ -13,7 +13,7 @@ export NPM_CONFIG_CACHE="$ROOT_DIR/.relay-browser/npm-cache"
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "==> Pulling latest from origin/main"
   git pull --ff-only >/dev/null 2>&1 || \
-    echo "    (pull skipped — offline, diverged, or no upstream; continuing with current tree)"
+    echo "    (pull skipped - offline, diverged, or no upstream; continuing with current tree)"
 fi
 
 NO_BROWSER=0

@@ -1,4 +1,4 @@
-# bootstrap.ps1 — one-liner entry point for Windows.
+# bootstrap.ps1 - one-liner entry point for Windows.
 #
 # Invoke from anywhere (even a machine with nothing cloned):
 #
@@ -10,9 +10,9 @@
 #   powershell -ExecutionPolicy Bypass -File bootstrap.ps1
 #
 # This script handles every state of ~/local-ai-relay:
-#   - does not exist      → clone, then run setup
-#   - exists, healthy     → pull, then run setup
-#   - exists, broken      → wipe, clone, then run setup
+#   - does not exist      -> clone, then run setup
+#   - exists, healthy     -> pull, then run setup
+#   - exists, broken      -> wipe, clone, then run setup
 #
 # It never asks the user to manually git pull, Remove-Item, or git clone.
 # It passes all args through to setup-windows.cmd.
@@ -43,7 +43,7 @@ if (Test-Path $Dir) {
     Remove-Item -Recurse -Force $Dir
     $action = 'clone'
   } elseif (-not $isGitRepo) {
-    Write-Step "$Dir exists but is not a git repo — wiping and re-cloning"
+    Write-Step "$Dir exists but is not a git repo - wiping and re-cloning"
     Remove-Item -Recurse -Force $Dir
     $action = 'clone'
   } else {
@@ -56,13 +56,13 @@ if (Test-Path $Dir) {
         $action = 'setup'
         Write-Ok "pull succeeded"
       } else {
-        Write-Warn "pull failed — wiping and re-cloning for a clean start"
+        Write-Warn "pull failed - wiping and re-cloning for a clean start"
         Pop-Location
         Remove-Item -Recurse -Force $Dir
         $action = 'clone'
       }
     } catch {
-      Write-Warn "pull errored — wiping and re-cloning for a clean start"
+      Write-Warn "pull errored - wiping and re-cloning for a clean start"
       Pop-Location
       Remove-Item -Recurse -Force $Dir
       $action = 'clone'
@@ -82,7 +82,7 @@ Set-Location $Dir
 
 # Make sure setup-windows.cmd exists; if not, pull once more (belt + suspenders).
 if (-not (Test-Path 'setup-windows.cmd')) {
-  Write-Step "setup-windows.cmd missing — pulling latest"
+  Write-Step "setup-windows.cmd missing - pulling latest"
   git pull --ff-only 2>&1 | Out-Null
 }
 

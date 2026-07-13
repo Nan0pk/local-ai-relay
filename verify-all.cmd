@@ -1,5 +1,5 @@
 @echo off
-REM verify-all.cmd — one command to verify every browser provider.
+REM verify-all.cmd - one command to verify every browser provider.
 REM
 REM   verify-all.cmd
 REM
@@ -21,7 +21,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ============================================================
-echo  local-ai-relay — full verification (9 providers)
+echo  local-ai-relay - full verification (9 providers)
 echo ============================================================
 echo.
 
@@ -71,7 +71,7 @@ for %%P in (%PROVIDERS%) do (
     set /a FAILED+=1
     set "RESULTS=!RESULTS!%%P FAIL^|"
     echo.
-    echo [%%P] FAIL — see error above. Continuing to next provider.
+    echo [%%P] FAIL - see error above. Continuing to next provider.
   )
   echo.
 )

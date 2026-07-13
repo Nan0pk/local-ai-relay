@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify-all.sh — one command to verify every browser provider.
+# verify-all.sh - one command to verify every browser provider.
 #
 #   ./verify-all.sh
 #
@@ -21,7 +21,7 @@ set -Eeuo pipefail
 cd "$(dirname "$0")"
 
 printf '============================================================\n'
-printf ' local-ai-relay — full verification (9 providers)\n'
+printf ' local-ai-relay - full verification (9 providers)\n'
 printf '============================================================\n\n'
 
 # Stage 1: code verification (no browser).
@@ -67,7 +67,7 @@ for provider in "${PROVIDERS[@]}"; do
   else
     FAILED=$((FAILED + 1))
     RESULTS+=("$provider FAIL")
-    printf '\n[%s] FAIL — see error above. Continuing to next provider.\n' "$provider"
+    printf '\n[%s] FAIL - see error above. Continuing to next provider.\n' "$provider"
   fi
   printf '\n'
 done
