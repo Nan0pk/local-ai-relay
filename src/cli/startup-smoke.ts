@@ -30,7 +30,16 @@ async function stopChild(relay: ReturnType<typeof spawn>): Promise<void> {
 
 async function main(): Promise<void> {
   const preferredPort = 20_000 + Math.floor(Math.random() * 20_000);
-  const blocker = createServer();
+  const blocker = createServer((socket) => {
+    // Port selection deliberately probes the occupied port first. Windows can
+    // surface the probe disconnect as ECONNRESET on this accepted socket.
+    socket.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ECONNRESET' && error.code !== 'EPIPE') {
+        console.error(`Occupied-port blocker socket error: ${error.message}`);
+      }
+    });
+    socket.destroy();
+  });
   await new Promise<void>((resolve, reject) => {
     blocker.once('error', reject);
     blocker.listen(preferredPort, '127.0.0.1', resolve);
