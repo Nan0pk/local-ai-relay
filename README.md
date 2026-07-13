@@ -34,7 +34,9 @@ sticky browser conversations, and SSE compatibility for clients that request
 `stream: true`. Browser output is returned after the website finishes; it is
 not true upstream token streaming.
 
-## Install or update on Linux
+## Install or update
+
+### Linux
 
 ```bash
 if [ -d "$HOME/local-ai-relay/.git" ]; then
@@ -46,16 +48,40 @@ cd "$HOME/local-ai-relay"
 ./setup-linux.sh
 ```
 
-The setup performs a clean dependency check, tests, an occupied-port startup
-smoke test, visible ChatGPT login/probe, systemd user-service installation,
-and Hermes configuration. Login remains a normal browser action: the relay
-never asks for passwords, cookies, session tokens, API keys, or GitHub tokens.
+`setup-linux.sh` performs a clean dependency check, tests, an occupied-port
+startup smoke test, visible ChatGPT login/probe, systemd user-service
+installation, and Hermes configuration. Login remains a normal browser
+action: the relay never asks for passwords, cookies, session tokens, API
+keys, or GitHub tokens.
 
 To validate code without opening a browser:
 
 ```bash
 ./setup-linux.sh --no-browser
 ```
+
+### Windows (PowerShell)
+
+There is no `setup-windows.ps1` yet. Set up manually — these are the
+same stages as `setup-linux.sh` minus the systemd service:
+
+```powershell
+cd $HOME
+git clone https://github.com/Nan0pk/local-ai-relay.git
+cd local-ai-relay
+npm install
+copy .env.example .env
+npm run browser:install
+npm run typecheck
+npm test
+npm run build
+npm run smoke:startup
+```
+
+The systemd service stage does not apply on Windows. The browser login,
+probe, and driver-smoke commands below all work on Windows. Login remains
+a normal browser action: the relay never asks for passwords, cookies,
+session tokens, API keys, or GitHub tokens.
 
 ## Verify a browser provider
 
@@ -64,10 +90,29 @@ Each browser provider ships behind a dedicated isolated profile under
 once before it is usable. Run these on a machine with a visible graphical
 browser session.
 
+### Linux / macOS (bash)
+
 ```bash
 cd ~/local-ai-relay
 git pull --ff-only
 npm ci
+
+# 1. Open the dedicated profile and sign in normally in the visible window.
+#    Do not paste cookies or tokens into the relay. When the provider's
+#    composer is visible, return here and press Ctrl+C.
+npm run login:<provider>
+
+# 2. Run the live probe. It waits for the composer, sends one harmless
+#    marker prompt, and prints PASS + the conversation URL.
+npm run probe:<provider>
+```
+
+### Windows (PowerShell)
+
+```powershell
+cd $HOME\local-ai-relay
+git pull --ff-only
+npm install
 
 # 1. Open the dedicated profile and sign in normally in the visible window.
 #    Do not paste cookies or tokens into the relay. When the provider's
@@ -115,13 +160,24 @@ configuration. To re-register after a provider lands or changes, rerun
 
 ## Operations
 
+### Linux (systemd service)
+
 ```bash
 systemctl --user status local-ai-relay
 journalctl --user -u local-ai-relay -f
+```
 
-# Per-provider login + live probe (visible browser required):
-npm run login:chatgpt    &&  npm run probe:chatgpt
-npm run login:claude     &&  npm run probe:claude
+### All platforms (browser login, probe, smoke)
+
+```bash
+# Per-provider login + live probe (visible browser required).
+# Run login first, sign in normally, Ctrl+C when the composer is visible,
+# then run the probe:
+npm run login:chatgpt
+npm run probe:chatgpt
+
+npm run login:claude
+npm run probe:claude
 
 # Headless driver-plumbing smoke (no login required; verifies the driver
 # loads the live site and detects the unauthenticated state):
