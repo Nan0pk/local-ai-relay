@@ -58,7 +58,14 @@ curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstra
 ### Windows (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1 | iex
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1)))
+```
+
+If `irm` is blocked by your org's policy, download-and-run works too:
+
+```powershell
+curl.exe -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1 -o bootstrap.ps1
+powershell -ExecutionPolicy Bypass -File bootstrap.ps1
 ```
 
 That's it. The bootstrap clones (or pulls, or wipes-and-reclones) as needed,
