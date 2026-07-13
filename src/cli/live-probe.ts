@@ -1,6 +1,5 @@
 import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { findBrowserProvider } from '../browser/driver-registry.js';
 import { browserBinariesDir, findSystemBrowser } from '../browser/paths.js';
 
@@ -33,24 +32,6 @@ async function distroName(): Promise<string> {
   }
 }
 
-async function runBrowserInstall(): Promise<void> {
-  console.log('No relay Chromium installation was found; installing it now.');
-  const child = spawn(process.execPath, ['--import', 'tsx', 'src/cli/browser-install.ts'], {
-    cwd: process.cwd(),
-    stdio: 'inherit',
-    env: process.env,
-  });
-  const code = await new Promise<number>((resolve, reject) => {
-    child.once('error', reject);
-    child.once('exit', (value) => resolve(value ?? 1));
-  });
-  if (code !== 0) {
-    throw new Error(
-      'Chromium installation failed. On Debian/Ubuntu, run `npx patchright install-deps chromium` once, then retry.',
-    );
-  }
-}
-
 async function main(): Promise<void> {
   const descriptor = findBrowserProvider(parseProvider(process.argv.slice(2)));
   console.log(`Local AI Relay — ${descriptor.label} browser live probe`);
@@ -70,7 +51,6 @@ async function main(): Promise<void> {
 
   const systemBrowser = await findSystemBrowser();
   if (systemBrowser) {
-    process.env.RELAY_BROWSER_EXECUTABLE = systemBrowser;
     console.log(`Browser: using installed ${systemBrowser} with the isolated relay profile`);
   }
   let hasRelayBrowser = false;
@@ -81,7 +61,11 @@ async function main(): Promise<void> {
   } catch {
     hasRelayBrowser = false;
   }
-  if (!systemBrowser && !hasRelayBrowser) await runBrowserInstall();
+  if (!systemBrowser && !hasRelayBrowser) {
+    throw new Error(
+      'No installed Chrome/Chromium was found. Install Google Chrome (recommended), set RELAY_BROWSER_EXECUTABLE, or explicitly run `npm run browser:install` for the optional managed Chromium download.',
+    );
+  }
 
   const driver = descriptor.factory();
   try {

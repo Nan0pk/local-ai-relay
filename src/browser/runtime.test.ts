@@ -6,6 +6,12 @@ test('uses Patchright Chrome channel for an auto-detected Chrome install', () =>
   assert.deepEqual(browserLaunchTarget(undefined, '/usr/bin/google-chrome-stable'), {
     channel: 'chrome',
   });
+  assert.deepEqual(browserLaunchTarget(undefined, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'), {
+    channel: 'chrome',
+  });
+  assert.deepEqual(browserLaunchTarget(undefined, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'), {
+    channel: 'chrome',
+  });
 });
 
 test('honors an explicit executable instead of replacing it with a channel', () => {

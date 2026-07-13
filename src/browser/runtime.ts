@@ -21,7 +21,12 @@ export function browserLaunchTarget(
   discoveredExecutable: string | undefined,
 ): BrowserLaunchTarget {
   if (explicitExecutable) return { executablePath: explicitExecutable };
-  if (discoveredExecutable?.includes('google-chrome')) return { channel: 'chrome' };
+  const normalized = discoveredExecutable?.replaceAll('\\', '/').toLowerCase();
+  if (
+    normalized?.includes('google-chrome')
+    || normalized?.includes('/google/chrome/')
+    || normalized?.includes('/google chrome.app/')
+  ) return { channel: 'chrome' };
   if (discoveredExecutable) return { executablePath: discoveredExecutable };
   return {};
 }

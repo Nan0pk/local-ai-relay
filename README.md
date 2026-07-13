@@ -47,7 +47,8 @@ not true upstream token streaming.
 ## Install — one command
 
 From anywhere, even a fresh machine with nothing cloned. The bootstrap
-handles every state: no clone, healthy clone, stale clone, broken clone.
+handles every repository state: no clone, healthy clone, stale clone, broken
+clone. Node.js 22+, Git, and Google Chrome must already be installed.
 
 ### Linux / macOS
 
@@ -73,6 +74,11 @@ then runs setup: dependency check, tests, occupied-port startup smoke,
 visible ChatGPT login/probe, systemd service (Linux only), and Hermes
 configuration. Login remains a normal browser action: the relay never asks
 for passwords, cookies, session tokens, API keys, or GitHub tokens.
+
+Setup uses the Chrome already installed on Windows, macOS, or Linux with an
+isolated relay profile; it does not download the roughly 168 MB managed
+Chromium build. For machines without Chrome, the managed fallback is explicit:
+`npm run browser:install`.
 
 ## Verify all providers — one command
 

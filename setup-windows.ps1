@@ -92,9 +92,6 @@ if (-not (Test-Path .env)) {
   Write-Host "Keeping existing .env"
 }
 
-Section 'Installing Playwright Chromium (isolated, not your daily Chrome)'
-Invoke-Npm run browser:install
-
 Section 'Type-check'
 Invoke-Npm run typecheck
 
@@ -114,7 +111,7 @@ if ($NoBrowser) {
 }
 
 Section 'ChatGPT browser authentication and live probe'
-Write-Host 'A visible Chromium window will open with the dedicated relay profile.'
+Write-Host 'A visible installed Chrome/Chromium window will open with the dedicated relay profile.'
 Write-Host 'Sign in to https://chatgpt.com normally. The probe continues automatically'
 Write-Host 'when the composer is available. Never paste cookies or tokens into the relay.'
 Invoke-Npm run probe:chatgpt
