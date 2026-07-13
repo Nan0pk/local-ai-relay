@@ -62,6 +62,6 @@ async function main(): Promise<void> {
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`HERMES SETUP FAILED: ${message}`);
-  console.error('The relay remains installed and healthy; Hermes configuration was not reported as complete.');
+  console.error('Hermes configuration was left unchanged. Confirm the background relay is healthy, then retry.');
   process.exitCode = 1;
 });

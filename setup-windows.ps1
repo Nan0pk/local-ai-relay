@@ -116,6 +116,9 @@ Write-Host 'Sign in to https://chatgpt.com normally. The probe continues automat
 Write-Host 'when the composer is available. Never paste cookies or tokens into the relay.'
 Invoke-Npm run probe:chatgpt
 
+Section 'Starting background relay'
+Invoke-Npm run service:start:windows
+
 Section 'Configuring Hermes (if installed)'
 $hermes = Get-Command hermes -ErrorAction SilentlyContinue
 if ($hermes) {

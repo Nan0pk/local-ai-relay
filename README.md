@@ -71,8 +71,9 @@ powershell -ExecutionPolicy Bypass -File bootstrap.ps1
 
 That's it. The bootstrap clones (or pulls, or wipes-and-reclones) as needed,
 then runs setup: dependency check, tests, occupied-port startup smoke,
-visible ChatGPT login/probe, systemd service (Linux only), and Hermes
-configuration. Login remains a normal browser action: the relay never asks
+visible ChatGPT login/probe, a background relay (systemd on Linux; detached
+local process on Windows), and Hermes configuration. Login remains a normal
+browser action: the relay never asks
 for passwords, cookies, session tokens, API keys, or GitHub tokens.
 
 Setup uses the Chrome already installed on Windows, macOS, or Linux with an
@@ -149,6 +150,12 @@ configuration. To re-register after a provider lands or changes, rerun
 systemctl --user status local-ai-relay
 journalctl --user -u local-ai-relay -f
 ```
+
+### Windows (background relay)
+
+Setup starts the built relay as a hidden detached process and records its PID,
+active port, and log under `.relay-browser/`. Rerunning setup safely replaces
+the process with the current build.
 
 ### All platforms
 
