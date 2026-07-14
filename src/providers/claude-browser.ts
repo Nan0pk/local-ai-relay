@@ -7,7 +7,7 @@ import type {
 } from '../types/openai.js';
 import type { Provider, ProviderRequestContext } from './types.js';
 import { ConversationPlanner } from './conversation-planner.js';
-import { parseBrowserResponse, toolInstructions } from './tool-bridge.js';
+import { createToolBridgeContext, parseBrowserResponse, toolInstructions } from './tool-bridge.js';
 
 const MODEL_ID = 'browser-claude-free';
 
@@ -52,15 +52,15 @@ export class ClaudeBrowserProvider implements Provider {
     context: ProviderRequestContext = {},
   ): Promise<ChatCompletionResponse> {
     const plan = this.planner.plan(req.messages, context.sessionId);
-    const isContinuation = plan.prompt.startsWith('CONTINUE BATCH MISSION');
-    const prompt = plan.prompt + (isContinuation ? '' : toolInstructions(req.tools));
+    const toolBridge = createToolBridgeContext(req.tools, req.tool_choice);
+    const prompt = plan.prompt + toolInstructions(toolBridge);
     const result = await this.driver.send({
       prompt,
       resetSession: plan.resetSession,
       sessionId: plan.sessionId,
       ...(context.signal ? { signal: context.signal } : {}),
     });
-    const parsed = parseBrowserResponse(result.text);
+    const parsed = parseBrowserResponse(result.text, toolBridge);
     const assistantMessage = {
       role: 'assistant' as const,
       content: parsed.content,

@@ -3,7 +3,7 @@ import { MinimaxPlaywrightDriver } from '../browser/minimax-driver.js';
 import type { ChatCompletionRequest, ChatCompletionResponse, ModelCard } from '../types/openai.js';
 import type { Provider, ProviderRequestContext } from './types.js';
 import { ConversationPlanner } from './conversation-planner.js';
-import { parseBrowserResponse, toolInstructions } from './tool-bridge.js';
+import { createToolBridgeContext, parseBrowserResponse, toolInstructions } from './tool-bridge.js';
 
 const MODEL_ID = 'browser-minimax-m3';
 
@@ -22,10 +22,10 @@ export class MinimaxBrowserProvider implements Provider {
   }
   async complete(req: ChatCompletionRequest, model: string, context: ProviderRequestContext = {}): Promise<ChatCompletionResponse> {
     const plan = this.planner.plan(req.messages, context.sessionId);
-    const isContinuation = plan.prompt.startsWith('CONTINUE BATCH MISSION');
-    const prompt = plan.prompt + (isContinuation ? '' : toolInstructions(req.tools));
+    const toolBridge = createToolBridgeContext(req.tools, req.tool_choice);
+    const prompt = plan.prompt + toolInstructions(toolBridge);
     const result = await this.driver.send({ prompt, resetSession: plan.resetSession, sessionId: plan.sessionId, ...(context.signal ? { signal: context.signal } : {}) });
-    const parsed = parseBrowserResponse(result.text);
+    const parsed = parseBrowserResponse(result.text, toolBridge);
     const assistantMessage = { role: 'assistant' as const, content: parsed.content, ...(parsed.toolCalls ? { tool_calls: parsed.toolCalls } : {}) };
     plan.remember(assistantMessage);
     const promptTokens = estimateTokens(prompt);

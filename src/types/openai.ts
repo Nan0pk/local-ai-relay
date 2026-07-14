@@ -129,6 +129,7 @@ export const BROWSER_FAILURE_HTTP_MAP: Record<string, {
   empty_response:        { status: 422, type: 'unprocessable_entity',  code: 'empty_response' },
   timeout:               { status: 408, type: 'request_timeout',       code: 'browser_timeout' },
   cancelled:             { status: 499, type: 'client_closed_request', code: 'cancelled' },
+  invalid_tool_call:     { status: 422, type: 'invalid_request_error', code: 'invalid_tool_call' },
 };
 
 /** OpenAI error body for a BrowserFailureKind, or null if kind is unknown. */

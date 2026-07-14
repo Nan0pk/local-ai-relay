@@ -48,7 +48,8 @@ export type BrowserFailureKind =
   | 'layout_changed'
   | 'timeout'
   | 'cancelled'
-  | 'empty_response';
+  | 'empty_response'
+  | 'invalid_tool_call';
 
 export class BrowserFailure extends Error {
   readonly kind: BrowserFailureKind;

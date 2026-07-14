@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic:
+    name: ${{ matrix.os }} / Node 22
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run smoke:startup
+
+      - name: Check Bash entry points
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash -n bootstrap.sh setup-linux.sh verify-all.sh
+
+      - name: Parse PowerShell entry points
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in @('bootstrap.ps1', 'setup-windows.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "${file}: $_" }
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Check batch entry-point structure
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          findstr /b /c:"@echo off" setup-windows.cmd >nul
+          findstr /b /c:"@echo off" verify-all.cmd >nul

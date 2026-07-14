@@ -23,7 +23,8 @@ class FakeDriver implements BrowserChatDriver {
     if (this.error) throw this.error;
     const next = this.queue.shift();
     if (!next) return { text: 'Completed the whole batch.' };
-    return next;
+    const nonce = request.prompt.match(/<relay_tool_calls nonce="([^"]+)">/)?.[1];
+    return { ...next, text: nonce ? next.text.replaceAll('{{NONCE}}', nonce) : next.text };
   }
 
   async close(): Promise<void> { this.closed = true; }
@@ -33,6 +34,14 @@ function userMessage(content: string) { return { role: 'user' as const, content 
 function basicRequest(modelId: string, messages: ChatCompletionRequest['messages']): ChatCompletionRequest {
   return { model: modelId, messages };
 }
+const terminalTool = {
+  type: 'function' as const,
+  function: {
+    name: 'terminal',
+    description: 'Run a command',
+    parameters: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+  },
+};
 
 /**
  * Run the full 8-scenario test matrix against any browser provider
@@ -106,14 +115,10 @@ export function runBrowserProviderTestMatrix(
       assert.equal(second.choices[0]?.message.content, 'Completed the whole batch.');
     });
 
-    test('includes tool schema on first turn but omits it on continuation', async () => {
+    test('includes a freshly nonced tool schema on every turn', async () => {
       const driver = new FakeDriver();
       const provider = providerFactory(driver);
-      const tools = [{
-        type: 'function' as const,
-        function: { name: 'terminal', description: 'Run a command',
-          parameters: { type: 'object', properties: { command: { type: 'string' } } } },
-      }];
+      const tools = [terminalTool];
       const firstMessages = [userMessage('Inspect the repo.')];
       await provider.complete({ ...basicRequest(modelId, firstMessages), tools }, modelId, { sessionId: 'tools-1' });
       assert.match(driver.requests[0]!.prompt, /AVAILABLE HERMES TOOLS/);
@@ -123,16 +128,21 @@ export function runBrowserProviderTestMatrix(
         modelId, { sessionId: 'tools-1' },
       );
       assert.match(driver.requests[1]!.prompt, /^CONTINUE BATCH MISSION/);
-      assert.doesNotMatch(driver.requests[1]!.prompt, /AVAILABLE HERMES TOOLS/);
+      assert.match(driver.requests[1]!.prompt, /AVAILABLE HERMES TOOLS/);
+      assert.notEqual(
+        driver.requests[0]!.prompt.match(/nonce="([^"]+)"/)?.[1],
+        driver.requests[1]!.prompt.match(/nonce="([^"]+)"/)?.[1],
+        'every request must use a fresh anti-replay nonce',
+      );
     });
 
     test('translates the relay tool envelope into OpenAI tool_calls', async () => {
       const driver = new FakeDriver();
       driver.setResults([{
-        text: 'I will run pwd first.\n<relay_tool_calls>\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}]\n</relay_tool_calls>',
+        text: 'I will run pwd first.\n<relay_tool_calls nonce="{{NONCE}}">\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}]\n</relay_tool_calls>',
       }]);
       const provider = providerFactory(driver);
-      const response = await provider.complete(basicRequest(modelId, [userMessage('Print pwd.')]), modelId, { sessionId: 'toolcall-1' });
+      const response = await provider.complete({ ...basicRequest(modelId, [userMessage('Print pwd.')]), tools: [terminalTool] }, modelId, { sessionId: 'toolcall-1' });
       const choice = response.choices[0]!;
       assert.equal(choice.finish_reason, 'tool_calls');
       assert.deepEqual(choice.message.tool_calls, [{
@@ -144,10 +154,10 @@ export function runBrowserProviderTestMatrix(
     test('parses multiple tool calls in one envelope', async () => {
       const driver = new FakeDriver();
       driver.setResults([{
-        text: '<relay_tool_calls>\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}},{"id":"call_2","name":"terminal","arguments":{"command":"ls"}}]\n</relay_tool_calls>',
+        text: '<relay_tool_calls nonce="{{NONCE}}">\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}},{"id":"call_2","name":"terminal","arguments":{"command":"ls"}}]\n</relay_tool_calls>',
       }]);
       const provider = providerFactory(driver);
-      const response = await provider.complete(basicRequest(modelId, [userMessage('Run both.')]), modelId, { sessionId: 'multi-1' });
+      const response = await provider.complete({ ...basicRequest(modelId, [userMessage('Run both.')]), tools: [terminalTool] }, modelId, { sessionId: 'multi-1' });
       assert.equal(response.choices[0]?.message.tool_calls?.length, 2);
       assert.equal(response.choices[0]?.message.tool_calls?.[0]?.function.name, 'terminal');
       assert.equal(response.choices[0]?.message.tool_calls?.[1]?.function.name, 'terminal');
@@ -175,19 +185,19 @@ export function runBrowserProviderTestMatrix(
     test('continues a session after a tool result is supplied', async () => {
       const driver = new FakeDriver();
       driver.setResults([
-        { text: '<relay_tool_calls>\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}]\n</relay_tool_calls>' },
+        { text: '<relay_tool_calls nonce="{{NONCE}}">\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}]\n</relay_tool_calls>' },
         { text: 'The working directory is /home/z/local-ai-relay.' },
       ]);
       const provider = providerFactory(driver);
       const firstMessages = [userMessage('Print the working directory.')];
-      const first = await provider.complete(basicRequest(modelId, firstMessages), modelId, { sessionId: 'recover-1' });
+      const first = await provider.complete({ ...basicRequest(modelId, firstMessages), tools: [terminalTool] }, modelId, { sessionId: 'recover-1' });
       assert.equal(first.choices[0]?.finish_reason, 'tool_calls');
       const second = await provider.complete(
-        basicRequest(modelId, [
+        { ...basicRequest(modelId, [
           ...firstMessages,
           { role: 'assistant', content: null, tool_calls: first.choices[0]!.message.tool_calls },
           { role: 'tool', content: '/home/z/local-ai-relay', tool_call_id: 'call_1' },
-        ]),
+        ]), tools: [terminalTool] },
         modelId, { sessionId: 'recover-1' },
       );
       assert.equal(driver.requests.length, 2);

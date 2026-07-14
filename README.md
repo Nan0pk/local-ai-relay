@@ -69,12 +69,18 @@ curl.exe -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/boot
 powershell -ExecutionPolicy Bypass -File bootstrap.ps1
 ```
 
-That's it. The bootstrap clones (or pulls, or wipes-and-reclones) as needed,
+That's it. The bootstrap clones or fast-forwards a verified checkout as needed,
 then runs setup: dependency check, tests, occupied-port startup smoke,
 visible ChatGPT login/probe, a background relay (systemd on Linux; detached
 local process on Windows), and Hermes configuration. Login remains a normal
 browser action: the relay never asks
 for passwords, cookies, session tokens, API keys, or GitHub tokens.
+
+Bootstrap never deletes a checkout because a pull fails. Non-repository or
+unexpected-origin directories are renamed to
+`local-ai-relay.backup-<timestamp>` so `.env`, diagnostics, logs, and local
+patches survive. Intentional deletion requires `--fresh --yes` on Linux/macOS
+or `-Fresh -Yes` on Windows.
 
 Setup uses the Chrome already installed on Windows, macOS, or Linux with an
 isolated relay profile; it does not download the roughly 168 MB managed

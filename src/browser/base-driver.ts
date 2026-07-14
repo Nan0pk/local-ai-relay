@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { BrowserContext, Locator, Page } from 'patchright';
@@ -76,8 +76,43 @@ function defaultDiagnosticsDir(): string {
     ?? join(homedir(), '.local-ai-relay', 'diagnostics');
 }
 
-function layered(selectors: readonly string[]): string {
-  return selectors.join(', ');
+export interface ResolvedLocator {
+  locator: Locator;
+  selector: string;
+}
+
+/** Resolve selectors in configuration order, never DOM order. */
+export async function resolveVisibleSelector(
+  page: Page,
+  selectors: readonly string[],
+  requireEnabled = true,
+): Promise<ResolvedLocator | undefined> {
+  for (const selector of selectors) {
+    const matches = page.locator(selector);
+    const count = await matches.count().catch(() => 0);
+    for (let index = 0; index < count; index++) {
+      const locator = matches.nth(index);
+      if (!await locator.isVisible().catch(() => false)) continue;
+      if (requireEnabled && !await locator.isEnabled().catch(() => false)) continue;
+      return { locator, selector };
+    }
+  }
+  return undefined;
+}
+
+/** Correctly distinguish native inputs from contenteditable composers. */
+export async function isComposerUsable(composer: Locator): Promise<boolean> {
+  if (!await composer.isEnabled().catch(() => false)) return false;
+  if (await composer.getAttribute('aria-disabled').catch(() => null) === 'true') return false;
+  const state = await composer.evaluate((element) => ({
+    tagName: element.tagName.toLowerCase(),
+    readOnly: ['input', 'textarea'].includes(element.tagName.toLowerCase())
+      ? (element as unknown as { readOnly?: boolean }).readOnly === true
+      : false,
+    contentEditable: element.getAttribute('contenteditable'),
+  })).catch(() => undefined);
+  if (!state || state.readOnly) return false;
+  return state.contentEditable === null || state.contentEditable.toLowerCase() !== 'false';
 }
 
 export abstract class BaseBrowserDriver implements BrowserChatDriver {
@@ -85,6 +120,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
   private readonly queue = new SerialQueue();
   private context?: BrowserContext;
   private readonly pages = new Map<string, Page>();
+  private readonly selectedSelectors = new WeakMap<Page, Map<string, string>>();
 
   constructor(options: BaseDriverOptions = {}) {
     const cfg = this.config();
@@ -129,7 +165,13 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const context = await this.getContext();
     const page = context.pages().find((p) => p.url().startsWith(cfg.url));
     if (!page) throw new BrowserFailure('login_required', `The ${cfg.name} login page is not open.`);
-    await this.composer(page).waitFor({ state: 'visible', timeout: timeoutMs });
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const composer = await this.resolve(page, 'composer', cfg.composerSelectors, false);
+      if (composer && await isComposerUsable(composer)) return;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw new BrowserFailure('login_required', `The ${cfg.name} composer did not become ready before timeout.`);
   }
 
   async close(): Promise<void> {
@@ -187,49 +229,81 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     return page;
   }
 
-  protected composer(page: Page): Locator {
-    return page.locator(layered(this.config().composerSelectors)).first();
+  private recordSelector(page: Page, kind: string, selector: string): void {
+    const selected = this.selectedSelectors.get(page) ?? new Map<string, string>();
+    selected.set(kind, selector);
+    this.selectedSelectors.set(page, selected);
   }
 
-  protected sendButton(page: Page): Locator {
-    return page.locator(layered(this.config().sendButtonSelectors)).first();
+  private async resolve(
+    page: Page,
+    kind: string,
+    selectors: readonly string[],
+    requireEnabled = true,
+  ): Promise<Locator | undefined> {
+    const resolved = await resolveVisibleSelector(page, selectors, requireEnabled);
+    if (resolved) this.recordSelector(page, kind, resolved.selector);
+    return resolved?.locator;
   }
 
-  protected stopButton(page: Page): Locator {
-    return page.locator(layered(this.config().stopButtonSelectors)).first();
+  private async waitForResolved(
+    page: Page,
+    kind: string,
+    selectors: readonly string[],
+    timeoutMs: number,
+    requireEnabled = true,
+  ): Promise<Locator | undefined> {
+    const started = Date.now();
+    do {
+      const locator = await this.resolve(page, kind, selectors, requireEnabled);
+      if (locator) return locator;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    } while (Date.now() - started < timeoutMs);
+    return undefined;
   }
 
-  protected assistantMessages(page: Page): Locator {
-    return page.locator(layered(this.config().assistantMessageSelectors));
+  protected composer(page: Page): Promise<Locator | undefined> {
+    return this.resolve(page, 'composer', this.config().composerSelectors, false);
+  }
+
+  protected sendButton(page: Page): Promise<Locator | undefined> {
+    return this.resolve(page, 'sendButton', this.config().sendButtonSelectors);
+  }
+
+  protected stopButton(page: Page): Promise<Locator | undefined> {
+    return this.resolve(page, 'stopButton', this.config().stopButtonSelectors);
+  }
+
+  private async assistantMessageCounts(page: Page): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    for (const selector of this.config().assistantMessageSelectors) {
+      counts.set(selector, await page.locator(selector).count().catch(() => 0));
+    }
+    return counts;
   }
 
   private async sendOnPage(page: Page, request: BrowserChatRequest): Promise<BrowserChatResult> {
     const cfg = this.config();
     await this.assertNotBlocked(page);
-    const composer = this.composer(page);
-    try {
-      await composer.waitFor({ state: 'visible', timeout: 30_000 });
-    } catch {
+    const composer = await this.waitForResolved(page, 'composer', cfg.composerSelectors, 30_000, false);
+    if (!composer) {
       throw new BrowserFailure('layout_changed',
         `${cfg.name} composer was not found. The page layout may have changed, or the session is on a non-chat surface. ` +
         `Run \`npm run login:${cfg.name}\`, sign in normally, then retry.`);
     }
-    if (await composer.getAttribute('aria-disabled') === 'true'
-        || await composer.evaluate((el) => (el as { isContentEditable?: boolean }).isContentEditable === false).catch(() => false)) {
+    if (!await isComposerUsable(composer)) {
       throw new BrowserFailure('composer_disabled', `${cfg.name} composer is disabled. The account may be rate-limited or out of quota.`);
     }
 
-    const assistantMessages = this.assistantMessages(page);
-    const countBefore = await assistantMessages.count();
+    const assistantCountsBefore = await this.assistantMessageCounts(page);
     await composer.focus();
     await page.keyboard.press(`${SELECT_ALL_KEY}+A`);
     await page.keyboard.press('Backspace');
     await page.keyboard.insertText(request.prompt);
 
-    const sendButton = this.sendButton(page);
+    const sendButton = await this.waitForResolved(page, 'sendButton', cfg.sendButtonSelectors, 5_000);
     let clicked = false;
-    try {
-      await sendButton.waitFor({ state: 'visible', timeout: 5_000 });
+    if (sendButton) try {
       for (let i = 0; i < 30; i++) {
         if (request.signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
         const disabled = await sendButton.getAttribute('aria-disabled').then((v) => v === 'true').catch(() => false);
@@ -245,7 +319,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     }
     if (!clicked) await composer.press('Enter');
 
-    await this.waitForNewAssistantMessage(assistantMessages, countBefore, request.signal);
+    const assistantMessages = await this.waitForNewAssistantMessage(page, assistantCountsBefore, request.signal);
     const last = assistantMessages.last();
     const text = await this.waitUntilStable(page, last, request.signal);
     if (!text.trim()) throw new BrowserFailure('empty_response', `${cfg.name} returned an empty response.`);
@@ -282,12 +356,22 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     }
   }
 
-  private async waitForNewAssistantMessage(messages: Locator, countBefore: number, signal: AbortSignal | undefined): Promise<void> {
+  private async waitForNewAssistantMessage(
+    page: Page,
+    countsBefore: ReadonlyMap<string, number>,
+    signal: AbortSignal | undefined,
+  ): Promise<Locator> {
     const cfg = this.config();
     const started = Date.now();
     while (Date.now() - started < this.options.timeoutMs) {
       if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
-      if (await messages.count() > countBefore) return;
+      for (const selector of cfg.assistantMessageSelectors) {
+        const messages = page.locator(selector);
+        if (await messages.count().catch(() => 0) > (countsBefore.get(selector) ?? 0)) {
+          this.recordSelector(page, 'assistantMessages', selector);
+          return messages;
+        }
+      }
       await new Promise((r) => setTimeout(r, 250));
     }
     throw new BrowserFailure('timeout', `Timed out waiting for ${cfg.name} to begin its response.`);
@@ -298,12 +382,27 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const started = Date.now();
     let lastText = '';
     let stableSince = Date.now();
+    let sawStop = false;
     while (Date.now() - started < this.options.timeoutMs) {
       if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
       const text = await locator.innerText().catch(() => '');
       if (text !== lastText) { lastText = text; stableSince = Date.now(); }
-      const stopVisible = await this.stopButton(page).isVisible().catch(() => false);
+      const stopButton = await this.stopButton(page);
+      const stopVisible = stopButton ? await stopButton.isVisible().catch(() => false) : false;
+      if (stopVisible) sawStop = true;
+
+      // Fail fast on empty response after stop button appeared and disappeared
+      if (sawStop && !stopVisible && !lastText.trim() && Date.now() - stableSince >= this.options.stableMs) {
+        throw new BrowserFailure('empty_response', `${cfg.name} returned an empty response.`);
+      }
+
       if (lastText && !stopVisible && Date.now() - stableSince >= this.options.stableMs) {
+        if (sawStop && countWords(lastText) < 3) {
+          if (await hasPageInterruptionError(page)) {
+            throw new BrowserFailure('generation_interrupted',
+              `${cfg.name} appears to have stopped generating before producing a complete response. Retry the turn.`);
+          }
+        }
         return lastText;
       }
       await new Promise((r) => setTimeout(r, 300));
@@ -318,6 +417,29 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       await mkdir(this.options.diagnosticsDir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       await page.screenshot({ path: join(this.options.diagnosticsDir, `${cfg.name}-${stamp}.png`), fullPage: false });
+      const selectors = Object.fromEntries(this.selectedSelectors.get(page) ?? []);
+      await writeFile(
+        join(this.options.diagnosticsDir, `${cfg.name}-${stamp}.json`),
+        JSON.stringify({ capturedAt: new Date().toISOString(), url: page.url(), selectors }, null, 2),
+        { mode: 0o600 },
+      );
     } catch { /* diagnostics must never hide the original failure */ }
   }
 }
+
+function countWords(text: string): number {
+  return text.trim() ? text.trim().split(/\s+/).length : 0;
+}
+
+async function hasPageInterruptionError(page: Page): Promise<boolean> {
+  const errorLocator = page.locator('div[role="alert"], .error-message, .text-red-500:not(pre *, code *), .text-orange-500:not(pre *, code *)');
+  const count = await errorLocator.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const isVisible = await errorLocator.nth(i).isVisible().catch(() => false);
+    if (isVisible) return true;
+  }
+  const bodyText = await page.locator('body').innerText().catch(() => '');
+  const interruptionKeywords = /error occurred|something went wrong|failed to generate|violates.*policies|network error|unable to load|please try again/i;
+  return interruptionKeywords.test(bodyText);
+}
+
