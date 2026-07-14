@@ -14,15 +14,20 @@ async function main(): Promise<void> {
   console.log('Sign in normally. Do not paste cookies or tokens into the relay.');
   console.log(`When the ${descriptor.label} composer is visible, return here and press Ctrl+C.`);
 
+  await driver.openForLogin();
+  const keepAlive = setInterval(() => {}, 1000);
+  
   const shutdown = async () => {
+    clearInterval(keepAlive);
     await driver.close();
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown());
   process.on('SIGTERM', () => void shutdown());
-
-  await driver.openForLogin();
-  await new Promise(() => undefined);
 }
 
-void main();
+main().catch((err) => {
+  console.error('Login script error:', err);
+  process.exit(1);
+});
+

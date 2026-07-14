@@ -12,12 +12,14 @@
 import type { Provider } from './types.js';
 import { MockProvider } from './mock.js';
 import { ChatGptBrowserProvider } from './chatgpt-browser.js';
+import { GeminiBrowserProvider } from './gemini-browser.js';
 
 const mockProvider = new MockProvider();
 const chatGptBrowserProvider = new ChatGptBrowserProvider();
+const geminiBrowserProvider = new GeminiBrowserProvider();
 
 /** Registered providers, in registration order. */
-const providers: Provider[] = [mockProvider, chatGptBrowserProvider];
+const providers: Provider[] = [mockProvider, chatGptBrowserProvider, geminiBrowserProvider];
 
 /** Map from model id → provider. */
 const modelIndex = new Map<string, Provider>();

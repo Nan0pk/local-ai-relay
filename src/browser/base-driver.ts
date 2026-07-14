@@ -298,18 +298,12 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const started = Date.now();
     let lastText = '';
     let stableSince = Date.now();
-    let sawStop = false;
     while (Date.now() - started < this.options.timeoutMs) {
       if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
       const text = await locator.innerText().catch(() => '');
       if (text !== lastText) { lastText = text; stableSince = Date.now(); }
       const stopVisible = await this.stopButton(page).isVisible().catch(() => false);
-      if (stopVisible) sawStop = true;
       if (lastText && !stopVisible && Date.now() - stableSince >= this.options.stableMs) {
-        if (sawStop && countWords(lastText) < 3) {
-          throw new BrowserFailure('generation_interrupted',
-            `${cfg.name} appears to have stopped generating before producing a complete response. Retry the turn.`);
-        }
         return lastText;
       }
       await new Promise((r) => setTimeout(r, 300));
@@ -326,8 +320,4 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       await page.screenshot({ path: join(this.options.diagnosticsDir, `${cfg.name}-${stamp}.png`), fullPage: false });
     } catch { /* diagnostics must never hide the original failure */ }
   }
-}
-
-function countWords(text: string): number {
-  return text.trim() ? text.trim().split(/\s+/).length : 0;
 }

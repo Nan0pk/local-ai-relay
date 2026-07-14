@@ -276,7 +276,6 @@ export class ClaudePlaywrightDriver implements BrowserChatDriver {
     const started = Date.now();
     let lastText = '';
     let stableSince = Date.now();
-    let sawStopButton = false;
 
     while (Date.now() - started < this.options.timeoutMs) {
       if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
@@ -286,17 +285,7 @@ export class ClaudePlaywrightDriver implements BrowserChatDriver {
         stableSince = Date.now();
       }
       const stopVisible = await this.stopButton(page).isVisible().catch(() => false);
-      if (stopVisible) sawStopButton = true;
       if (lastText && !stopVisible && Date.now() - stableSince >= this.options.stableMs) {
-        // If generation started (stop button appeared) but the final text is
-        // suspiciously short, surface an interruption rather than returning
-        // what may be a truncated answer.
-        if (sawStopButton && countWords(lastText) < 3) {
-          throw new BrowserFailure(
-            'generation_interrupted',
-            'Claude appears to have stopped generating before producing a complete response. Retry the turn.',
-          );
-        }
         return lastText;
       }
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -317,8 +306,4 @@ export class ClaudePlaywrightDriver implements BrowserChatDriver {
       // Diagnostics must never hide the original browser failure.
     }
   }
-}
-
-function countWords(text: string): number {
-  return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
