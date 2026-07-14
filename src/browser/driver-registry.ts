@@ -14,48 +14,48 @@ export interface BrowserProviderDescriptor {
   readonly name: string;
   readonly label: string;
   readonly url: string;
-  factory(): BrowserLoginDriver;
+  factory(options?: any): BrowserLoginDriver;
 }
 
 const CHATGPT: BrowserProviderDescriptor = {
   name: 'chatgpt', label: 'ChatGPT', url: 'https://chatgpt.com/',
-  factory: () => new ChatGptPlaywrightDriver({ headless: false }),
+  factory: (opts) => new ChatGptPlaywrightDriver({ headless: false, ...opts }),
 };
 const CLAUDE: BrowserProviderDescriptor = {
   name: 'claude', label: 'Claude', url: 'https://claude.ai/',
-  factory: () => new ClaudePlaywrightDriver({ headless: false }),
+  factory: (opts) => new ClaudePlaywrightDriver({ headless: false, ...opts }),
 };
 const GEMINI: BrowserProviderDescriptor = {
   name: 'gemini', label: 'Gemini', url: 'https://gemini.google.com/app',
-  factory: () => new GeminiPlaywrightDriver({ headless: false }),
+  factory: (opts) => new GeminiPlaywrightDriver({ headless: false, ...opts }),
 };
 const DEEPSEEK: BrowserProviderDescriptor = {
   name: 'deepseek', label: 'DeepSeek', url: 'https://chat.deepseek.com/',
-  factory: () => new DeepSeekPlaywrightDriver({ headless: false }),
+  factory: (opts) => new DeepSeekPlaywrightDriver({ headless: false, ...opts }),
 };
 const ZAI: BrowserProviderDescriptor = {
   name: 'zai', label: 'Z.ai', url: 'https://chat.z.ai/',
-  factory: () => new ZaiPlaywrightDriver({ headless: false }),
+  factory: (opts) => new ZaiPlaywrightDriver({ headless: false, ...opts }),
 };
 const MINIMAX: BrowserProviderDescriptor = {
   name: 'minimax', label: 'MiniMax Agent', url: 'https://agent.minimax.io/',
-  factory: () => new MinimaxPlaywrightDriver({ headless: false }),
+  factory: (opts) => new MinimaxPlaywrightDriver({ headless: false, ...opts }),
 };
 const KIMI: BrowserProviderDescriptor = {
   name: 'kimi', label: 'Kimi', url: 'https://kimi.com/',
-  factory: () => new KimiPlaywrightDriver({ headless: false }),
+  factory: (opts) => new KimiPlaywrightDriver({ headless: false, ...opts }),
 };
 const QWEN: BrowserProviderDescriptor = {
   name: 'qwen', label: 'Qwen Chat', url: 'https://chat.qwen.ai/',
-  factory: () => new QwenPlaywrightDriver({ headless: false }),
+  factory: (opts) => new QwenPlaywrightDriver({ headless: false, ...opts }),
 };
 const GROK: BrowserProviderDescriptor = {
   name: 'grok', label: 'Grok', url: 'https://grok.com/',
-  factory: () => new GrokPlaywrightDriver({ headless: false }),
+  factory: (opts) => new GrokPlaywrightDriver({ headless: false, ...opts }),
 };
 const MISTRAL: BrowserProviderDescriptor = {
   name: 'mistral', label: 'Mistral Le Chat', url: 'https://chat.mistral.ai/',
-  factory: () => new MistralPlaywrightDriver({ headless: false }),
+  factory: (opts) => new MistralPlaywrightDriver({ headless: false, ...opts }),
 };
 
 /**
