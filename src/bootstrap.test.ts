@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 const bootstrapSource = new URL('../bootstrap.sh', import.meta.url);
+const bashTest = process.platform === 'win32' ? test.skip : test;
 
 async function harness(options: { gitRepo?: boolean; origin?: string; pullFails?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'relay-bootstrap-'));
@@ -39,7 +40,7 @@ exit 1
   return { root, target, run };
 }
 
-test('pull failure preserves the checkout and local environment', async () => {
+bashTest('pull failure preserves the checkout and local environment', async () => {
   const { target, run } = await harness({ gitRepo: true, pullFails: true });
   const result = run();
   assert.equal(result.status, 0, result.stderr);
@@ -47,7 +48,7 @@ test('pull failure preserves the checkout and local environment', async () => {
   assert.equal(await readFile(join(target, '.env'), 'utf8'), 'SECRET=preserve-me\n');
 });
 
-test('non-git target is renamed to a timestamped backup before cloning', async () => {
+bashTest('non-git target is renamed to a timestamped backup before cloning', async () => {
   const { root, target, run } = await harness();
   const result = run();
   assert.equal(result.status, 0, result.stderr);
@@ -57,7 +58,7 @@ test('non-git target is renamed to a timestamped backup before cloning', async (
   assert.ok((await readFile(join(root, 'local-ai-relay', 'setup-linux.sh'), 'utf8')).includes('exit 0'));
 });
 
-test('--fresh refuses deletion unless --yes is also supplied', async () => {
+bashTest('--fresh refuses deletion unless --yes is also supplied', async () => {
   const { target, run } = await harness({ gitRepo: true });
   const result = run(['--fresh']);
   assert.equal(result.status, 2);
@@ -65,7 +66,7 @@ test('--fresh refuses deletion unless --yes is also supplied', async () => {
   assert.equal(await readFile(join(target, '.env'), 'utf8'), 'SECRET=preserve-me\n');
 });
 
-test('--fresh --yes is the only path that deletes instead of backing up', async () => {
+bashTest('--fresh --yes is the only path that deletes instead of backing up', async () => {
   const { root, run } = await harness({ gitRepo: true });
   const result = run(['--fresh', '--yes']);
   assert.equal(result.status, 0, result.stderr);
@@ -73,7 +74,7 @@ test('--fresh --yes is the only path that deletes instead of backing up', async 
   assert.equal((await readdir(root)).some((name) => name.startsWith('local-ai-relay.backup-')), false);
 });
 
-test('unexpected origin is preserved and never pulled', async () => {
+bashTest('unexpected origin is preserved and never pulled', async () => {
   const { target, run } = await harness({ gitRepo: true, origin: 'https://github.com/attacker/lookalike.git' });
   const result = run();
   assert.equal(result.status, 0, result.stderr);
