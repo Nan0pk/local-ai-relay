@@ -7,10 +7,10 @@ REM Usage:
 REM   setup-windows.cmd               full setup, including ChatGPT probe
 REM   setup-windows.cmd -NoBrowser    skip browser probe, service, Hermes
 REM
-REM Note: --fresh (wipe and re-clone) is handled by bootstrap.ps1 before
+REM Note: -Fresh -Yes (explicit wipe and re-clone) is handled by bootstrap.ps1 before
 REM this script is invoked. Do NOT add rmdir logic here: a .cmd file cannot
 REM delete the directory it is running from because Windows holds an
-REM exclusive lock on it. bootstrap.ps1 handles --fresh at the parent
+REM exclusive lock on it. bootstrap.ps1 handles the explicit fresh operation at the parent
 REM directory level where the lock does not apply.
 
 setlocal enabledelayedexpansion
