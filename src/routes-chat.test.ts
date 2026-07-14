@@ -67,11 +67,11 @@ function registerChatRoutesWithOverride(app: FastifyInstance, config: AppConfig,
 
 // --- HIGH-2: BrowserFailure → HTTP error mapping ---
 
-test('BROWSER_FAILURE_HTTP_MAP covers all 10 BrowserFailureKinds', () => {
+test('BROWSER_FAILURE_HTTP_MAP covers all BrowserFailureKinds', () => {
   const expectedKinds = [
     'login_required', 'captcha', 'rate_limit', 'quota_exhausted',
     'composer_disabled', 'generation_interrupted', 'layout_changed',
-    'timeout', 'cancelled', 'empty_response',
+    'timeout', 'cancelled', 'empty_response', 'invalid_tool_call',
   ];
   for (const kind of expectedKinds) {
     assert.ok(kind in BROWSER_FAILURE_HTTP_MAP, `missing mapping for ${kind}`);
@@ -132,6 +132,13 @@ test('browserFailureErrorBody returns 409 for composer_disabled', () => {
 test('browserFailureErrorBody returns 409 for generation_interrupted', () => {
   const result = browserFailureErrorBody('generation_interrupted', 'Generation stopped.');
   assert.equal(result!.status, 409);
+});
+
+test('browserFailureErrorBody returns typed 422 for invalid_tool_call', () => {
+  const result = browserFailureErrorBody('invalid_tool_call', 'Unoffered tool.');
+  assert.equal(result!.status, 422);
+  assert.equal(result!.body.error.code, 'invalid_tool_call');
+  assert.equal(result!.body.error.type, 'invalid_request_error');
 });
 
 test('browserFailureErrorBody returns 499 for cancelled', () => {

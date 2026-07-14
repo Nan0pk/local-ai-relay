@@ -12,7 +12,7 @@
 # This script handles every state of ~/local-ai-relay:
 #   - does not exist      -> clone, then run setup
 #   - exists, healthy     -> pull, then run setup
-#   - exists, broken      -> wipe, clone, then run setup
+#   - exists, broken      -> preserve as a timestamped backup, then clone
 #
 # It never asks the user to manually git pull, Remove-Item, or git clone.
 # It passes all args through to setup-windows.cmd.
@@ -20,6 +20,7 @@
 [CmdletBinding()]
 param(
   [switch]$Fresh,
+  [switch]$Yes,
   [string]$Repo = 'https://github.com/Nan0pk/local-ai-relay.git',
   [string]$Dir
 )
@@ -34,38 +35,56 @@ function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "    $msg" -ForegroundColor Green }
 function Write-Warn($msg) { Write-Host "    $msg" -ForegroundColor Yellow }
 
+function Get-CanonicalRepository([string]$value) {
+  return (($value -replace '^git@github\.com:', 'github.com/' -replace '^(https?://)?(www\.)?github\.com/', '' -replace '\.git/?$', '' -replace '/$', '').ToLowerInvariant())
+}
+
+$expectedRepository = if ($env:RELAY_EXPECTED_REPOSITORY) { $env:RELAY_EXPECTED_REPOSITORY } else { 'Nan0pk/local-ai-relay' }
+if ((Get-CanonicalRepository $Repo) -ne (Get-CanonicalRepository $expectedRepository)) {
+  throw "Repository '$Repo' does not match expected GitHub repository '$expectedRepository'."
+}
+if ($Fresh -and -not $Yes) {
+  throw '--Fresh deletes the target directory and therefore also requires --Yes.'
+}
+
+function Move-ToBackup([string]$path) {
+  $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
+  $backup = "$path.backup-$stamp"
+  $suffix = 1
+  while (Test-Path $backup) { $backup = "$path.backup-$stamp-$suffix"; $suffix++ }
+  Write-Step "Preserving existing directory as $backup"
+  Move-Item -LiteralPath $path -Destination $backup
+  Write-Ok 'local environment, diagnostics, logs, and patches preserved'
+}
+
 # Decide what to do with the target directory.
 $action = 'clone'
 if (Test-Path $Dir) {
   $isGitRepo = Test-Path (Join-Path $Dir '.git')
-  if ($Fresh) {
-    Write-Step "--fresh requested: wiping $Dir"
+  if ($Fresh -and $Yes) {
+    Write-Step "--Fresh --Yes requested: deleting $Dir"
     Remove-Item -Recurse -Force $Dir
     $action = 'clone'
   } elseif (-not $isGitRepo) {
-    Write-Step "$Dir exists but is not a git repo - wiping and re-cloning"
-    Remove-Item -Recurse -Force $Dir
+    Write-Warn "$Dir exists but is not a Git repository"
+    Move-ToBackup $Dir
     $action = 'clone'
   } else {
-    # Try a pull. If it fails (diverged, conflicts, broken), wipe and re-clone.
-    Write-Step "Pulling latest in $Dir"
-    Push-Location $Dir
-    try {
-      git pull --ff-only 2>&1 | Out-Null
-      if ($LASTEXITCODE -eq 0) {
-        $action = 'setup'
-        Write-Ok "pull succeeded"
-      } else {
-        Write-Warn "pull failed - wiping and re-cloning for a clean start"
-        Pop-Location
-        Remove-Item -Recurse -Force $Dir
-        $action = 'clone'
-      }
-    } catch {
-      Write-Warn "pull errored - wiping and re-cloning for a clean start"
-      Pop-Location
-      Remove-Item -Recurse -Force $Dir
+    $origin = (& git -C $Dir remote get-url origin 2>$null)
+    if ($LASTEXITCODE -ne 0 -or (Get-CanonicalRepository $origin) -ne (Get-CanonicalRepository $expectedRepository)) {
+      Write-Warn "$Dir has unexpected origin '$origin'; it will not be updated"
+      Move-ToBackup $Dir
       $action = 'clone'
+    } else {
+      Write-Step "Pulling latest in $Dir"
+      & git -C $Dir pull --ff-only 2>&1 | Out-Null
+      if ($LASTEXITCODE -eq 0) {
+        Write-Ok 'pull succeeded'
+      } else {
+        Write-Warn 'pull failed; preserving the current checkout and continuing without updating'
+        Write-Warn 'This can mean offline access, local changes/commits, or a temporary Git failure.'
+      }
+      $action = 'setup'
     }
   }
 }
@@ -93,10 +112,9 @@ if (-not (Test-Path 'setup-windows.cmd')) {
 # Hand off to setup-windows.cmd, passing through all remaining args.
 Write-Step "Running setup-windows.cmd"
 $argsPassThrough = @()
-if ($Fresh) { $argsPassThrough += '--fresh' }
 # Collect extra bound parameters the user passed (except our own -Fresh/-Repo/-Dir)
 foreach ($key in $PSBoundParameters.Keys) {
-  if ($key -notin 'Fresh','Repo','Dir') {
+  if ($key -notin 'Fresh','Yes','Repo','Dir') {
     $argsPassThrough += "-$key"
   }
 }

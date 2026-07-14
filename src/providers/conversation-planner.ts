@@ -23,9 +23,15 @@ function beginsWith(messages: ChatRoleMessage[], prefix: ChatRoleMessage[]): boo
   return prefix.length <= messages.length && prefix.every((message, index) => sameMessage(message, messages[index]!));
 }
 
+function sameSystemInstructions(current: ChatRoleMessage[], previous: ChatRoleMessage[]): boolean {
+  const currentSystem = current.filter((message) => message.role === 'system');
+  const previousSystem = previous.filter((message) => message.role === 'system');
+  return currentSystem.length === previousSystem.length
+    && currentSystem.every((message, index) => sameMessage(message, previousSystem[index]!));
+}
+
 function renderMessages(messages: ChatRoleMessage[]): string {
   return messages
-    .filter((m) => m.role !== 'system')
     .map((message, index) => {
       const label = message.name ? `${message.role}:${message.name}` : message.role;
       const parts = [`### ${index + 1}. ${label.toUpperCase()}`, message.content ?? ''];
@@ -37,11 +43,18 @@ function renderMessages(messages: ChatRoleMessage[]): string {
 
 function batchPacket(messages: ChatRoleMessage[], continuation: boolean): string {
   const heading = continuation ? 'CONTINUE BATCH MISSION' : 'BATCH MISSION';
+  const systemMessages = messages.filter((message) => message.role === 'system');
+  const missionMessages = messages.filter((message) => message.role !== 'system');
+  const systemSection = systemMessages.length > 0
+    ? 'SYSTEM INSTRUCTIONS\n\nThese instructions govern the entire browser conversation. Follow them before all mission messages.\n\n'
+      + renderMessages(systemMessages) + '\n\n'
+    : '';
   return `${heading}\n\n` +
+    systemSection +
     'Work through the related instructions below as one substantial unit of work. ' +
     'Respect their order and dependencies. Return one complete response with decisions, results, ' +
     'and any blockers. Do not ask for confirmation unless an instruction is genuinely unsafe or impossible.\n\n' +
-    renderMessages(messages);
+    renderMessages(missionMessages);
 }
 
 export class ConversationPlanner {
@@ -59,7 +72,9 @@ export class ConversationPlanner {
       : this.findContinuation(messages);
     const resolvedSessionId = matched?.[0] ?? sessionId ?? `auto-${crypto.randomUUID()}`;
     const previous = matched?.[1];
-    const canContinue = previous !== undefined && beginsWith(messages, previous.messages);
+    const canContinue = previous !== undefined
+      && beginsWith(messages, previous.messages)
+      && sameSystemInstructions(messages, previous.messages);
     const selected = canContinue ? messages.slice(previous.messages.length) : messages;
     const prompt = batchPacket(selected.length > 0 ? selected : messages.slice(-1), canContinue);
 

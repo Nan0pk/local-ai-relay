@@ -10,9 +10,48 @@ test('batchPacket combines related instructions into one mission', () => {
   ], false);
 
   assert.match(packet, /^BATCH MISSION/);
-  assert.doesNotMatch(packet, /Work carefully/);
+  assert.match(packet, /SYSTEM INSTRUCTIONS/);
+  assert.match(packet, /Work carefully/);
   assert.match(packet, /Inspect the repository/);
   assert.match(packet, /Then implement the fix/);
+});
+
+test('planner resets and re-primes when system instructions change', () => {
+  const planner = new ConversationPlanner();
+  const firstMessages = [
+    { role: 'system' as const, content: 'Return JSON only.' },
+    { role: 'user' as const, content: 'Inspect it.' },
+  ];
+  const first = planner.plan(firstMessages, 'policy-session');
+  first.remember({ role: 'assistant', content: '{"ok":true}' });
+
+  const changed = planner.plan([
+    { role: 'system', content: 'Return concise Markdown.' },
+    { role: 'user', content: 'Continue.' },
+  ], 'policy-session');
+  assert.equal(changed.resetSession, true);
+  assert.match(changed.prompt, /^BATCH MISSION/);
+  assert.match(changed.prompt, /Return concise Markdown/);
+  assert.doesNotMatch(changed.prompt, /Return JSON only/);
+});
+
+test('planner also resets when a later system instruction is appended', () => {
+  const planner = new ConversationPlanner();
+  const initial = [
+    { role: 'system' as const, content: 'Use the approved policy.' },
+    { role: 'user' as const, content: 'Start.' },
+  ];
+  const first = planner.plan(initial, 'appended-policy');
+  first.remember({ role: 'assistant', content: 'Started.' });
+  const changed = planner.plan([
+    ...initial,
+    { role: 'assistant', content: 'Started.' },
+    { role: 'system', content: 'New policy: return XML.' },
+    { role: 'user', content: 'Continue.' },
+  ], 'appended-policy');
+  assert.equal(changed.resetSession, true);
+  assert.match(changed.prompt, /^BATCH MISSION/);
+  assert.match(changed.prompt, /New policy: return XML/);
 });
 
 test('planner sends only the delta when a sticky session continues', () => {
