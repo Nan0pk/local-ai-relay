@@ -22,7 +22,7 @@ a normal browser action, not relay work.
 |---|---|---|
 | `browser-chatgpt-free` | ChatGPT webchat | E2E verified |
 | `browser-claude-free` | Claude webchat | Implemented, pending live E2E |
-| `browser-gemini-free` | Gemini webchat | Implemented, pending live E2E |
+| `browser-gemini-free` | Gemini webchat | E2E verified |
 | `browser-deepseek-free` | DeepSeek webchat | Implemented, pending live E2E |
 | `browser-zai-glm-5.2` | Z.ai webchat | Implemented, pending live E2E |
 | `browser-minimax-m3` | MiniMax Agent webchat | Implemented, pending live E2E |
@@ -243,6 +243,67 @@ This is local UI automation, not an official provider API. It does not bypass
 login, CAPTCHA, usage limits, access controls, or safety systems. Webchat
 selectors can change without notice, and each adapter must remain isolated and
 independently testable. See [SECURITY.md](SECURITY.md).
+
+## Gemini Integration Guide
+
+### 1. Gemini Login
+To launch the browser interface and log into Gemini:
+```bash
+npm run login:gemini
+```
+This opens the browser pointing to Gemini. Log in normally and then press Ctrl+C in your terminal to close the browser safely and save the session.
+
+### 2. Gemini Live Probe
+To verify the state and availability of the Gemini provider:
+```bash
+npm run probe:gemini
+```
+
+Or to run the probe across all providers and show their classification status:
+```bash
+npm run probe:all
+```
+
+### 3. Run Gemini through the Relay
+Once logged in, the local background service will automatically serve Gemini requests. You can submit requests directly using `curl`:
+
+**Non-streaming completion:**
+```bash
+curl -s http://127.0.0.1:8788/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"browser-gemini-free","messages":[{"role":"user","content":"Count to 3."}]}'
+```
+
+**Streaming completion:**
+```bash
+curl -s http://127.0.0.1:8788/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"browser-gemini-free","stream":true,"messages":[{"role":"user","content":"Count to 3."}]}'
+```
+
+### 4. Configure Hermes for Gemini
+To configure Hermes to advertise and route requests to `browser-gemini-free`:
+```bash
+npm run hermes:configure
+```
+
+### 5. Perform Real Hermes Verification
+To verify the entire loop using the Hermes client:
+```bash
+hermes -z "Reply with exactly: BANANA" --provider "custom:local-ai-relay" --model "browser-gemini-free" --accept-hooks --yolo
+```
+
+### 6. Inspecting systemd Logs
+To monitor requests, errors, or startup logs for the local-ai-relay service:
+```bash
+journalctl --user -u local-ai-relay -f
+```
+
+### 7. Resetting the Gemini Profile Safely
+If you need to clear the Gemini state, cookies, or profile cache to restart clean:
+```bash
+rm -rf ~/.local-ai-relay/browser-profiles/gemini
+```
 
 ## License
 

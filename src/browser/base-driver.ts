@@ -390,10 +390,18 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       const stopButton = await this.stopButton(page);
       const stopVisible = stopButton ? await stopButton.isVisible().catch(() => false) : false;
       if (stopVisible) sawStop = true;
+
+      // Fail fast on empty response after stop button appeared and disappeared
+      if (sawStop && !stopVisible && !lastText.trim() && Date.now() - stableSince >= this.options.stableMs) {
+        throw new BrowserFailure('empty_response', `${cfg.name} returned an empty response.`);
+      }
+
       if (lastText && !stopVisible && Date.now() - stableSince >= this.options.stableMs) {
         if (sawStop && countWords(lastText) < 3) {
-          throw new BrowserFailure('generation_interrupted',
-            `${cfg.name} appears to have stopped generating before producing a complete response. Retry the turn.`);
+          if (await hasPageInterruptionError(page)) {
+            throw new BrowserFailure('generation_interrupted',
+              `${cfg.name} appears to have stopped generating before producing a complete response. Retry the turn.`);
+          }
         }
         return lastText;
       }
@@ -422,3 +430,16 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
 function countWords(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
+
+async function hasPageInterruptionError(page: Page): Promise<boolean> {
+  const errorLocator = page.locator('div[role="alert"], .error-message, .text-red-500:not(pre *, code *), .text-orange-500:not(pre *, code *)');
+  const count = await errorLocator.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const isVisible = await errorLocator.nth(i).isVisible().catch(() => false);
+    if (isVisible) return true;
+  }
+  const bodyText = await page.locator('body').innerText().catch(() => '');
+  const interruptionKeywords = /error occurred|something went wrong|failed to generate|violates.*policies|network error|unable to load|please try again/i;
+  return interruptionKeywords.test(bodyText);
+}
+
