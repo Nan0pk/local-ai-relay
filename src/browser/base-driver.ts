@@ -115,6 +115,18 @@ export async function isComposerUsable(composer: Locator): Promise<boolean> {
   return state.contentEditable === null || state.contentEditable.toLowerCase() !== 'false';
 }
 
+/** A generic sign-in label is authoritative only when no usable composer exists. */
+export async function isLoggedOutLanding(page: Page, cfg: SiteConfig): Promise<boolean> {
+  if (cfg.signInButtonLabels.length === 0) return false;
+  const labelPattern = cfg.signInButtonLabels
+    .map((label) => `a:has-text("${label}"), button:has-text("${label}")`)
+    .join(', ');
+  const signInVisible = await page.locator(labelPattern).first().isVisible().catch(() => false);
+  if (!signInVisible) return false;
+  const composer = (await resolveVisibleSelector(page, cfg.composerSelectors, false))?.locator;
+  return !composer || !await isComposerUsable(composer);
+}
+
 export abstract class BaseBrowserDriver implements BrowserChatDriver {
   protected readonly options: Required<BaseDriverOptions>;
   private readonly queue = new SerialQueue();
@@ -336,13 +348,10 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     if (await page.locator('iframe[title*="captcha" i], [data-testid*="captcha" i], .cf-turnstile, #captcha').first().isVisible().catch(() => false)) {
       throw new BrowserFailure('captcha', `${cfg.name} is showing a CAPTCHA or challenge. Solve it normally in the browser, then retry.`);
     }
-    if (cfg.signInButtonLabels.length > 0) {
-      const labelPattern = cfg.signInButtonLabels.map((l) => `a:has-text("${l}"), button:has-text("${l}")`).join(', ');
-      const signInVisible = await page.locator(labelPattern).first().isVisible().catch(() => false);
-      if (signInVisible) {
-        throw new BrowserFailure('login_required',
-          `${cfg.name} is showing its landing page with a sign-in button. Run \`npm run login:${cfg.name}\` and sign in normally.`);
-      }
+    if (await isLoggedOutLanding(page, cfg)) {
+      throw new BrowserFailure('login_required',
+        `${cfg.name} is showing its landing page with a sign-in button and no usable composer. ` +
+        `Run \`npm run login:${cfg.name}\` and sign in normally.`);
     }
     const body = await page.locator('body').innerText().catch(() => '');
     if (cfg.captchaTextPattern?.test(body)) {

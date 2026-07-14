@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Locator, Page } from 'patchright';
-import { isComposerUsable, resolveVisibleSelector } from './base-driver.js';
+import { isComposerUsable, isLoggedOutLanding, resolveVisibleSelector } from './base-driver.js';
+import type { SiteConfig } from './base-driver.js';
 
 class FixtureLocator {
   constructor(readonly html: string, readonly id = html) {}
@@ -32,10 +33,25 @@ function fixturePage(entries: Record<string, FixtureLocator[]>): Page {
       return {
         count: async () => matches.length,
         nth: (index: number) => matches[index],
+        first: () => matches[0] ?? new FixtureLocator('<button hidden></button>'),
       };
     },
   } as unknown as Page;
 }
+
+const authFixtureConfig: SiteConfig = {
+  name: 'fixture',
+  url: 'https://example.test/',
+  profileEnvVar: 'FIXTURE_PROFILE',
+  composerSelectors: ['#composer'],
+  sendButtonSelectors: ['#send'],
+  stopButtonSelectors: ['#stop'],
+  assistantMessageSelectors: ['#assistant'],
+  loginUrlPattern: /\/login/,
+  signInButtonLabels: ['Sign in'],
+};
+
+const signInSelector = 'a:has-text("Sign in"), button:has-text("Sign in")';
 
 for (const [name, html] of [
   ['textarea', '<textarea id="prompt"></textarea>'],
@@ -81,4 +97,27 @@ test('selector resolution skips disabled matches before using a fallback', async
   });
   const result = await resolveVisibleSelector(page, ['#preferred', '.fallback']);
   assert.equal(result?.selector, '.fallback');
+});
+
+test('visible sign-in chrome does not override a usable composer', async () => {
+  const page = fixturePage({
+    [signInSelector]: [new FixtureLocator('<button>Sign in</button>')],
+    '#composer': [new FixtureLocator('<textarea></textarea>')],
+  });
+  assert.equal(await isLoggedOutLanding(page, authFixtureConfig), false);
+});
+
+test('visible sign-in chrome still means logged out when no usable composer exists', async () => {
+  const page = fixturePage({
+    [signInSelector]: [new FixtureLocator('<button>Sign in</button>')],
+  });
+  assert.equal(await isLoggedOutLanding(page, authFixtureConfig), true);
+});
+
+test('disabled composer does not mask a logged-out landing page', async () => {
+  const page = fixturePage({
+    [signInSelector]: [new FixtureLocator('<button>Sign in</button>')],
+    '#composer': [new FixtureLocator('<textarea disabled></textarea>')],
+  });
+  assert.equal(await isLoggedOutLanding(page, authFixtureConfig), true);
 });
