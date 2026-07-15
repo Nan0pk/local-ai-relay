@@ -14,11 +14,27 @@ import { MockProvider } from './mock.js';
 import { ChatGptBrowserProvider } from './chatgpt-browser.js';
 import { GeminiBrowserProvider } from './gemini-browser.js';
 import { ArenaBrowserProvider } from './arena-browser.js';
+import { DeepSeekBrowserProvider } from './deepseek-browser.js';
+import { ZaiBrowserProvider } from './zai-browser.js';
+import { MinimaxBrowserProvider } from './minimax-browser.js';
+import { KimiBrowserProvider } from './kimi-browser.js';
+import { QwenBrowserProvider } from './qwen-browser.js';
+import { GrokBrowserProvider } from './grok-browser.js';
+import { MistralBrowserProvider } from './mistral-browser.js';
+import { ClaudeBrowserProvider } from './claude-browser.js';
 
 const mockProvider = new MockProvider();
 const chatGptBrowserProvider = new ChatGptBrowserProvider();
 const geminiBrowserProvider = new GeminiBrowserProvider();
 const arenaBrowserProvider = new ArenaBrowserProvider();
+const deepSeekBrowserProvider = new DeepSeekBrowserProvider();
+const zaiBrowserProvider = new ZaiBrowserProvider();
+const minimaxBrowserProvider = new MinimaxBrowserProvider();
+const kimiBrowserProvider = new KimiBrowserProvider();
+const qwenBrowserProvider = new QwenBrowserProvider();
+const grokBrowserProvider = new GrokBrowserProvider();
+const mistralBrowserProvider = new MistralBrowserProvider();
+const claudeBrowserProvider = new ClaudeBrowserProvider();
 
 /** Registered providers, in registration order. */
 const providers: Provider[] = [
@@ -26,6 +42,14 @@ const providers: Provider[] = [
   chatGptBrowserProvider,
   geminiBrowserProvider,
   arenaBrowserProvider,
+  deepSeekBrowserProvider,
+  zaiBrowserProvider,
+  minimaxBrowserProvider,
+  kimiBrowserProvider,
+  qwenBrowserProvider,
+  grokBrowserProvider,
+  mistralBrowserProvider,
+  claudeBrowserProvider,
 ];
 
 /** Map from model id → provider. */
@@ -48,4 +72,16 @@ export async function closeProviders(): Promise<void> {
   await Promise.all(providers.map((provider) => provider.close?.()));
 }
 
-export { mockProvider, chatGptBrowserProvider, arenaBrowserProvider };
+export {
+  mockProvider,
+  chatGptBrowserProvider,
+  arenaBrowserProvider,
+  deepSeekBrowserProvider,
+  zaiBrowserProvider,
+  minimaxBrowserProvider,
+  kimiBrowserProvider,
+  qwenBrowserProvider,
+  grokBrowserProvider,
+  mistralBrowserProvider,
+  claudeBrowserProvider,
+};

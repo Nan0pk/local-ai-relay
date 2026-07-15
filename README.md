@@ -3,10 +3,10 @@
 Local-first bridge from OpenAI-compatible clients such as Hermes to API,
 local-model, and user-authenticated webchat providers.
 
-> **Status:** `browser-chatgpt-free` is working and Fedora-verified.
-> Nine more webchats (Claude, Gemini, DeepSeek, Z.ai, MiniMax, Kimi,
-> Qwen, Grok, Mistral) are implemented and unit-tested; each is pending
-> its own live authenticated E2E before it enters `/v1/models` and Hermes.
+> **Status:** `browser-chatgpt-free` and `browser-gemini-free` are E2E verified.
+> All remaining webchats (Claude, DeepSeek, Z.ai, MiniMax, Kimi, Qwen,
+> Grok, Mistral) are implemented, unit-tested, and registered in `/v1/models`.
+> Live authenticated E2E verification is still pending for each individually.
 
 ## Ethos
 
@@ -21,15 +21,15 @@ a normal browser action, not relay work.
 | Model ID | Backend | State |
 |---|---|---|
 | `browser-chatgpt-free` | ChatGPT webchat | E2E verified |
-| `browser-claude-free` | Claude webchat | Implemented, pending live E2E |
+| `browser-claude-free` | Claude webchat | Registered |
 | `browser-gemini-free` | Gemini webchat | E2E verified |
-| `browser-deepseek-free` | DeepSeek webchat | Implemented, pending live E2E |
-| `browser-zai-glm-5.2` | Z.ai webchat | Implemented, pending live E2E |
-| `browser-minimax-m3` | MiniMax Agent webchat | Implemented, pending live E2E |
-| `browser-kimi-free` | Kimi webchat | Implemented, pending live E2E |
-| `browser-qwen-free` | Qwen Chat webchat | Implemented, pending live E2E |
-| `browser-grok-free` | Grok webchat | Implemented, pending live E2E |
-| `browser-mistral-free` | Mistral Le Chat | Implemented, pending live E2E |
+| `browser-deepseek-free` | DeepSeek webchat | Registered |
+| `browser-zai-glm-5.2` | Z.ai webchat | Registered |
+| `browser-minimax-m3` | MiniMax Agent webchat | Registered |
+| `browser-kimi-free` | Kimi webchat | Registered |
+| `browser-qwen-free` | Qwen Chat webchat | Registered |
+| `browser-grok-free` | Grok webchat | Registered |
+| `browser-mistral-free` | Mistral Le Chat | Registered |
 | `mock-gpt-4o-mini` | Deterministic local mock | Test-only |
 
 "Implemented, pending live E2E" means the driver, adapter, unit tests, and
