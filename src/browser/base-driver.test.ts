@@ -269,4 +269,114 @@ test('empty generation throws empty_response fast', async () => {
   );
 });
 
+test('BrowserContextManager singleton behavior', async () => {
+  const { BrowserContextManager } = await import('./context-manager.js');
+  const instance1 = BrowserContextManager.getInstance();
+  const instance2 = BrowserContextManager.getInstance();
+  assert.equal(instance1, instance2);
+
+  // Set mock browser env
+  const originalMock = process.env.RELAY_MOCK_BROWSER;
+  process.env.RELAY_MOCK_BROWSER = 'true';
+  try {
+    const context1 = await instance1.getContext();
+    const context2 = await instance2.getContext();
+    assert.equal(context1, context2);
+    await instance1.close();
+  } finally {
+    process.env.RELAY_MOCK_BROWSER = originalMock;
+  }
+});
+
+test('handleSsoLogin logic triggers correctly on login page', async () => {
+  const driver = new TestDriver();
+  
+  // Test non-login URL
+  const mockPage1 = {
+    url: () => 'https://test.com/chat',
+    locator: () => ({
+      first: () => ({
+        isVisible: async () => false,
+        isEnabled: async () => false,
+      }),
+    }),
+  } as unknown as Page;
+  const result1 = await driver.handleSsoLogin(mockPage1);
+  assert.equal(result1, false);
+
+  // Test login page with visible selector
+  let clicked = false;
+  const mockPage2 = {
+    url: () => 'https://test.com/login',
+    locator: (selector: string) => {
+      return {
+        first: () => ({
+          isVisible: async () => selector === 'button:has-text("Sign in with Google")',
+          isEnabled: async () => selector === 'button:has-text("Sign in with Google")',
+          click: async () => { clicked = true; },
+        }),
+      };
+    },
+  } as unknown as Page;
+  const result2 = await driver.handleSsoLogin(mockPage2);
+  assert.equal(result2, true);
+  assert.equal(clicked, true);
+});
+
+test('handleSsoLogin logic triggers correctly on accounts.google.com page', async () => {
+  const driver = new TestDriver();
+  
+  let clicked = false;
+  const mockPage = {
+    url: () => 'https://accounts.google.com/signin/v2/identifier',
+    locator: (selector: string) => {
+      return {
+        first: () => ({
+          isVisible: async () => selector === '[data-authuser="0"]',
+          isEnabled: async () => selector === '[data-authuser="0"]',
+          click: async () => { clicked = true; },
+        }),
+      };
+    },
+  } as unknown as Page;
+  const result = await driver.handleSsoLogin(mockPage);
+  assert.equal(result, true);
+  assert.equal(clicked, true);
+});
+
+test('assertNotBlocked attempts SSO auto-login and succeeds if page transitions away', async () => {
+  const driver = new TestDriver();
+  let ssoCalled = false;
+  let pageUrl = 'https://test.com/login';
+  
+  // Custom driver subclass method override
+  const originalHandleSso = driver.handleSsoLogin;
+  driver.handleSsoLogin = async (_page: Page) => {
+    ssoCalled = true;
+    pageUrl = 'https://test.com/chat';
+    return true;
+  };
+  
+  const mockPage = {
+    url: () => pageUrl,
+    locator: (_selector: string) => {
+      // Mock no captcha elements
+      return {
+        first: () => ({
+          isVisible: async () => false,
+        }),
+        innerText: async () => '',
+      };
+    },
+  } as unknown as Page;
+  
+  try {
+    await driver['assertNotBlocked'](mockPage);
+    assert.equal(ssoCalled, true);
+  } finally {
+    driver.handleSsoLogin = originalHandleSso;
+  }
+});
+
+
 

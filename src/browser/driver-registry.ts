@@ -9,6 +9,7 @@ import { KimiPlaywrightDriver } from './kimi-driver.js';
 import { QwenPlaywrightDriver } from './qwen-driver.js';
 import { GrokPlaywrightDriver } from './grok-driver.js';
 import { MistralPlaywrightDriver } from './mistral-driver.js';
+import { ArenaPlaywrightDriver } from './arena-driver.js';
 
 export interface BrowserProviderDescriptor {
   readonly name: string;
@@ -57,6 +58,10 @@ const MISTRAL: BrowserProviderDescriptor = {
   name: 'mistral', label: 'Mistral Le Chat', url: 'https://chat.mistral.ai/',
   factory: (opts) => new MistralPlaywrightDriver({ headless: false, ...opts }),
 };
+const ARENA: BrowserProviderDescriptor = {
+  name: 'arena', label: 'LMSYS Chatbot Arena', url: 'https://chat.lmsys.org/',
+  factory: (opts) => new ArenaPlaywrightDriver({ headless: false, ...opts }),
+};
 
 /**
  * Known browser drivers for the login and probe CLIs.
@@ -67,7 +72,7 @@ const MISTRAL: BrowserProviderDescriptor = {
  * `registry.ts` lists it, which only happens after live E2E passes.
  */
 const PROVIDERS: readonly BrowserProviderDescriptor[] = [
-  CHATGPT, CLAUDE, GEMINI, DEEPSEEK, ZAI, MINIMAX, KIMI, QWEN, GROK, MISTRAL,
+  CHATGPT, CLAUDE, GEMINI, DEEPSEEK, ZAI, MINIMAX, KIMI, QWEN, GROK, MISTRAL, ARENA,
 ];
 
 export function listBrowserProviderNames(): string[] {

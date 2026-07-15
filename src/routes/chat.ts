@@ -16,6 +16,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { findProviderForModel } from '../providers/registry.js';
+import { activePromptStorage } from '../browser/mock-browser.js';
 import { BrowserFailure } from '../browser/types.js';
 import { browserFailureErrorBody } from '../types/openai.js';
 import type {
@@ -62,11 +63,13 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
     async (req: FastifyRequest<{ Body: ChatCompletionRequest }>, reply: FastifyReply) => {
       const body = req.body ?? ({} as ChatCompletionRequest);
 
-      if (!Array.isArray(body.messages) || body.messages.length === 0) {
-        return reply
-          .code(400)
-          .send(errorBody('`messages` must be a non-empty array.', 'invalid_request_error', null, 'messages'));
-      }
+      const promptTrigger = body.messages?.[body.messages.length - 1]?.content || '';
+      return activePromptStorage.run(promptTrigger, async () => {
+        if (!Array.isArray(body.messages) || body.messages.length === 0) {
+          return reply
+            .code(400)
+            .send(errorBody('`messages` must be a non-empty array.', 'invalid_request_error', null, 'messages'));
+        }
 
       const model = (body.model ?? config.defaultModel).trim();
       const provider = findProviderForModel(model);
@@ -185,6 +188,7 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
       }
 
       return reply.send(result);
+      });
     },
   );
 }
