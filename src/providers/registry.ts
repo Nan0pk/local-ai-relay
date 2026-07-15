@@ -13,13 +13,20 @@ import type { Provider } from './types.js';
 import { MockProvider } from './mock.js';
 import { ChatGptBrowserProvider } from './chatgpt-browser.js';
 import { GeminiBrowserProvider } from './gemini-browser.js';
+import { ArenaBrowserProvider } from './arena-browser.js';
 
 const mockProvider = new MockProvider();
 const chatGptBrowserProvider = new ChatGptBrowserProvider();
 const geminiBrowserProvider = new GeminiBrowserProvider();
+const arenaBrowserProvider = new ArenaBrowserProvider();
 
 /** Registered providers, in registration order. */
-const providers: Provider[] = [mockProvider, chatGptBrowserProvider, geminiBrowserProvider];
+const providers: Provider[] = [
+  mockProvider,
+  chatGptBrowserProvider,
+  geminiBrowserProvider,
+  arenaBrowserProvider,
+];
 
 /** Map from model id → provider. */
 const modelIndex = new Map<string, Provider>();
@@ -41,4 +48,4 @@ export async function closeProviders(): Promise<void> {
   await Promise.all(providers.map((provider) => provider.close?.()));
 }
 
-export { mockProvider, chatGptBrowserProvider };
+export { mockProvider, chatGptBrowserProvider, arenaBrowserProvider };

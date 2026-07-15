@@ -5,7 +5,7 @@ import type { BrowserContext, Locator, Page } from 'patchright';
 import type { BrowserChatDriver, BrowserChatRequest, BrowserChatResult } from './types.js';
 import { BrowserFailure } from './types.js';
 import { SerialQueue } from './serial-queue.js';
-import { launchPersistentRelayContext } from './runtime.js';
+import { BrowserContextManager } from './context-manager.js';
 
 const SELECT_ALL_KEY = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -158,6 +158,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const page = existing ?? await context.newPage();
     await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
     await page.bringToFront();
+    await this.handleSsoLogin(page).catch(() => {});
   }
 
   async waitUntilReady(timeoutMs = 10 * 60_000): Promise<void> {
@@ -167,6 +168,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     if (!page) throw new BrowserFailure('login_required', `The ${cfg.name} login page is not open.`);
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
+      await this.handleSsoLogin(page).catch(() => {});
       const composer = await this.resolve(page, 'composer', cfg.composerSelectors, false);
       if (composer && await isComposerUsable(composer)) return;
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -180,20 +182,82 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     this.context = undefined;
   }
 
+  async handleSsoLogin(page: Page): Promise<boolean> {
+    try {
+      if (!page || typeof page.url !== 'function') return false;
+      const url = page.url() || '';
+      const cfg = this.config();
+      const isLoginPage = cfg.loginUrlPattern.test(url) || 
+        cfg.signInButtonLabels.some(l => url.toLowerCase().includes(l.toLowerCase()));
+
+      if (isLoginPage) {
+        const ssoSelectors = [
+          'button:has-text("Sign in with Google")',
+          'button:has-text("Continue with Google")',
+          'a:has-text("Sign in with Google")',
+          'a:has-text("Continue with Google")',
+          'div[role="button"]:has-text("Sign in with Google")',
+          'div[role="button"]:has-text("Continue with Google")',
+          'button:has-text("Google")',
+          'a:has-text("Google")',
+          '[data-provider="google"]',
+        ];
+        for (const selector of ssoSelectors) {
+          const btn = page.locator(selector).first();
+          if (await btn.isVisible().catch(() => false) && await btn.isEnabled().catch(() => false)) {
+            await btn.click().catch(() => {});
+            return true;
+          }
+        }
+      }
+
+      if (url.includes('accounts.google.com')) {
+        const accountSelectors = [
+          '[data-authuser="0"]',
+          '.authclass',
+          'div[role="link"]',
+          'a[role="link"]',
+          'li[role="link"]',
+          'div[data-email]',
+          'button:has-text("@gmail.com")',
+          'div:has-text("@gmail.com")',
+        ];
+        for (const selector of accountSelectors) {
+          const acc = page.locator(selector).first();
+          if (await acc.isVisible().catch(() => false) && await acc.isEnabled().catch(() => false)) {
+            await acc.click().catch(() => {});
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   private async getContext(): Promise<BrowserContext> {
     if (this.context) return this.context;
     const cfg = this.config();
-    await mkdir(this.options.profileDir, { recursive: true });
     try {
-      this.context = await launchPersistentRelayContext(this.options.profileDir, {
+      this.context = await BrowserContextManager.getInstance({
+        profileDir: this.options.profileDir,
         headless: this.options.headless,
-        viewport: { width: 1440, height: 960 },
+      }).getContext();
+      
+      this.context.on('close', () => {
+        this.context = undefined;
+        this.pages.clear();
+      });
+
+      this.context.on('page', (p) => {
+        p.on('framenavigated', async (frame) => {
+          if (frame === p.mainFrame()) {
+            await this.handleSsoLogin(p).catch(() => {});
+          }
+        });
       });
     } catch (error) {
-      // Browser launch failures are common in headless/CI environments
-      // without a display or an installed browser. Map them to a typed
-      // BrowserFailure so the HTTP layer returns a structured error instead
-      // of a generic 500.
       const message = error instanceof Error ? error.message : String(error);
       if (/executable doesn.?t exist|playwright was just installed|browserType\.launch/i.test(message)) {
         throw new BrowserFailure('layout_changed',
@@ -208,7 +272,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       throw new BrowserFailure('layout_changed',
         `${cfg.name} browser failed to launch: ${message.split('\n')[0]}`);
     }
-    this.context.on('close', () => { this.context = undefined; this.pages.clear(); });
     return this.context;
   }
 
@@ -330,6 +393,13 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const cfg = this.config();
     const url = page.url();
     if (cfg.loginUrlPattern.test(url)) {
+      const didSso = await this.handleSsoLogin(page).catch(() => false);
+      if (didSso) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (!cfg.loginUrlPattern.test(page.url())) {
+          return;
+        }
+      }
       throw new BrowserFailure('login_required',
         `${cfg.name} is showing a login page. Run \`npm run login:${cfg.name}\` and sign in normally.`);
     }
@@ -340,6 +410,14 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       const labelPattern = cfg.signInButtonLabels.map((l) => `a:has-text("${l}"), button:has-text("${l}")`).join(', ');
       const signInVisible = await page.locator(labelPattern).first().isVisible().catch(() => false);
       if (signInVisible) {
+        const didSso = await this.handleSsoLogin(page).catch(() => false);
+        if (didSso) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          const stillVisible = await page.locator(labelPattern).first().isVisible().catch(() => false);
+          if (!stillVisible) {
+            return;
+          }
+        }
         throw new BrowserFailure('login_required',
           `${cfg.name} is showing its landing page with a sign-in button. Run \`npm run login:${cfg.name}\` and sign in normally.`);
       }

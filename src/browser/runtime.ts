@@ -35,6 +35,10 @@ export async function launchPersistentRelayContext(
   userDataDir: string,
   options: PersistentContextOptions,
 ): Promise<BrowserContext> {
+  if (process.env.RELAY_MOCK_BROWSER === 'true') {
+    const { MockBrowserContext } = await import('./mock-browser.js');
+    return new MockBrowserContext() as unknown as BrowserContext;
+  }
   const explicitExecutable = process.env.RELAY_BROWSER_EXECUTABLE;
   const discoveredExecutable = await findSystemBrowser();
   if (!discoveredExecutable) {

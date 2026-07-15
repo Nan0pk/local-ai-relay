@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --import tsx --test src/*.test.ts src/**/*.test.ts",
+    "test:e2e": "node --import tsx --test tests/e2e/e2e.test.ts",
     "start": "node --env-file-if-exists=.env dist/index.js",
     "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
     "browser:install": "node --import tsx src/cli/browser-install.ts",
