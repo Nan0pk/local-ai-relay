@@ -289,7 +289,6 @@ export class MockPage extends EventEmitter {
       activePrompt.toLowerCase().includes('tools') ||
       activePrompt.toLowerCase().includes('command') ||
       activePrompt.toLowerCase().includes('fallback') ||
-      activePrompt.toLowerCase().includes('prompt b') ||
       activePrompt.toLowerCase().includes('find bug')
     )) {
       const toolCallResponse = `I will run the command.\n<relay_tool_calls nonce="${nonce}">\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}]\n</relay_tool_calls>`;
