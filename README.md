@@ -3,9 +3,11 @@
 Local-first bridge from OpenAI-compatible clients such as Hermes to API,
 local-model, and user-authenticated webchat providers.
 
-> **Status:** `browser-chatgpt-free` and `browser-gemini-free` are E2E verified.
+> **Status:** `browser-chatgpt-free`, `browser-gemini-free`, and
+> `browser-meta-free` are E2E verified.
 > All remaining webchats (Claude, DeepSeek, Z.ai, MiniMax, Kimi, Qwen,
-> Grok, Mistral) are implemented, unit-tested, and registered in `/v1/models`.
+> Grok, Mistral) are implemented, unit-tested, and registered in
+> `/v1/models`.
 > Live authenticated E2E verification is still pending for each individually.
 
 ## Ethos
@@ -30,6 +32,7 @@ a normal browser action, not relay work.
 | `browser-qwen-free` | Qwen Chat webchat | Registered |
 | `browser-grok-free` | Grok webchat | Registered |
 | `browser-mistral-free` | Mistral Le Chat | Registered |
+| `browser-meta-free` | Meta AI webchat | E2E verified |
 | `mock-gpt-4o-mini` | Deterministic local mock | Test-only |
 
 "Implemented, pending live E2E" means the driver, adapter, unit tests, and
@@ -90,7 +93,7 @@ Chromium build. For machines without Chrome, the managed fallback is explicit:
 ## Verify all providers — one command
 
 After install, verify every unverified provider in one shot. The script
-runs setup, then for each of the 9 providers: opens the login window,
+runs setup, then for each of the 10 providers: opens the login window,
 waits for you to sign in normally and press a key, runs the live probe,
 and records PASS/FAIL. At the end it prints a summary table.
 
@@ -123,7 +126,7 @@ npm run smoke:claude-driver   # headless driver-plumbing smoke (no login)
 ```
 
 Known `<provider>` values: `chatgpt`, `claude`, `gemini`, `deepseek`,
-`zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`.
+`zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`, `meta`.
 
 If a probe fails, the driver throws a typed `BrowserFailure` with one of:
 `login_required`, `captcha`, `rate_limit`, `quota_exhausted`,
@@ -201,7 +204,7 @@ local-ai-relay/
 ├── src/
 │   ├── browser/      Patchright transport, profiles, queue, per-site drivers
 │   │                 (chatgpt, claude, gemini, deepseek, zai, minimax,
-│   │                  kimi, qwen, grok, mistral) + shared base-driver
+│   │                  kimi, qwen, grok, mistral, meta) + shared base-driver
 │   ├── cli/          setup, login, probe, service, and Hermes commands
 │   ├── hermes/       non-destructive Hermes configuration (multi-model)
 │   ├── providers/    registry, provider adapters, planning, tool bridge
@@ -214,7 +217,7 @@ local-ai-relay/
 │   └── index.ts      process entrypoint
 ├── scripts/          driver-plumbing smoke scripts
 ├── docs/
-│   ├── providers.md  selected top-10 provider fleet
+│   ├── providers.md  selected provider fleet
 │   ├── e2e/          per-provider sanitized E2E evidence
 │   ├── architecture.md
 │   ├── roadmap.md

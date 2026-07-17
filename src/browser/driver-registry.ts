@@ -10,6 +10,7 @@ import { QwenPlaywrightDriver } from './qwen-driver.js';
 import { GrokPlaywrightDriver } from './grok-driver.js';
 import { MistralPlaywrightDriver } from './mistral-driver.js';
 import { ArenaPlaywrightDriver } from './arena-driver.js';
+import { MetaPlaywrightDriver } from './meta-driver.js';
 
 export interface BrowserProviderDescriptor {
   readonly name: string;
@@ -62,6 +63,10 @@ const ARENA: BrowserProviderDescriptor = {
   name: 'arena', label: 'LMSYS Chatbot Arena', url: 'https://chat.lmsys.org/',
   factory: (opts) => new ArenaPlaywrightDriver({ headless: false, ...opts }),
 };
+const META: BrowserProviderDescriptor = {
+  name: 'meta', label: 'Meta AI', url: 'https://www.meta.ai/',
+  factory: (opts) => new MetaPlaywrightDriver({ headless: false, ...opts }),
+};
 
 /**
  * Known browser drivers for the login and probe CLIs.
@@ -72,7 +77,7 @@ const ARENA: BrowserProviderDescriptor = {
  * `registry.ts` lists it, which only happens after live E2E passes.
  */
 const PROVIDERS: readonly BrowserProviderDescriptor[] = [
-  CHATGPT, CLAUDE, GEMINI, DEEPSEEK, ZAI, MINIMAX, KIMI, QWEN, GROK, MISTRAL, ARENA,
+  CHATGPT, CLAUDE, GEMINI, DEEPSEEK, ZAI, MINIMAX, KIMI, QWEN, GROK, MISTRAL, META, ARENA,
 ];
 
 export function listBrowserProviderNames(): string[] {

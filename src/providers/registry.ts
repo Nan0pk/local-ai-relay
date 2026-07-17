@@ -22,6 +22,7 @@ import { QwenBrowserProvider } from './qwen-browser.js';
 import { GrokBrowserProvider } from './grok-browser.js';
 import { MistralBrowserProvider } from './mistral-browser.js';
 import { ClaudeBrowserProvider } from './claude-browser.js';
+import { MetaBrowserProvider } from './meta-browser.js';
 
 const mockProvider = new MockProvider();
 const chatGptBrowserProvider = new ChatGptBrowserProvider();
@@ -35,6 +36,7 @@ const qwenBrowserProvider = new QwenBrowserProvider();
 const grokBrowserProvider = new GrokBrowserProvider();
 const mistralBrowserProvider = new MistralBrowserProvider();
 const claudeBrowserProvider = new ClaudeBrowserProvider();
+const metaBrowserProvider = new MetaBrowserProvider();
 
 /** Registered providers, in registration order. */
 const providers: Provider[] = [
@@ -50,6 +52,7 @@ const providers: Provider[] = [
   grokBrowserProvider,
   mistralBrowserProvider,
   claudeBrowserProvider,
+  metaBrowserProvider,
 ];
 
 /** Map from model id → provider. */
@@ -84,4 +87,5 @@ export {
   grokBrowserProvider,
   mistralBrowserProvider,
   claudeBrowserProvider,
+  metaBrowserProvider,
 };

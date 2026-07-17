@@ -5,10 +5,10 @@
 The relay prioritizes direct first-party webchats with strong models, useful
 free or existing-subscription access, international availability, and a UI
 that can plausibly be maintained as an isolated adapter. Aggregators are
-deliberately excluded from the first ten because they duplicate models and add
+deliberately excluded from the initial fleet because they duplicate models and add
 another dependency layer.
 
-## Top 10
+## Provider fleet
 
 | Priority | Relay model ID | Webchat | Why it earns a slot | Status |
 |---:|---|---|---|---|
@@ -22,6 +22,7 @@ another dependency layer.
 | 8 | `browser-qwen-free` | Qwen Chat | Broad open-weight model family and multilingual ability | Selected |
 | 9 | `browser-grok-free` | Grok | Distinct frontier model family and live-information strength | Selected |
 | 10 | `browser-mistral-free` | Mistral Le Chat | Fast EU-hosted alternative and open-weight ecosystem | Selected |
+| 11 | `browser-meta-free` | Meta AI | First-party Llama-family assistant and Meta ecosystem integration | E2E verified |
 
 “Selected” means planned, not usable. A model ID enters `/v1/models` only
 after its adapter passes unit tests and a real authenticated end-to-end run.
@@ -40,6 +41,7 @@ after its adapter passes unit tests and a real authenticated end-to-end run.
 | Qwen Chat | <https://chat.qwen.ai> |
 | Grok | <https://grok.com> |
 | Mistral Le Chat | <https://chat.mistral.ai> |
+| Meta AI | <https://www.meta.ai> |
 
 ## Adapter contract
 
@@ -60,5 +62,5 @@ Every new browser provider must have:
 
 Claude and Gemini come next because they add the largest capability and
 subscription value. DeepSeek, Z.ai, and MiniMax follow as the highest-value
-free alternatives. Kimi, Qwen, Grok, and Mistral complete model and regional
-diversity.
+free alternatives. Kimi, Qwen, Grok, Mistral, and Meta AI complete model,
+ecosystem, and regional diversity.

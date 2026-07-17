@@ -327,13 +327,22 @@ describe('local-ai-relay E2E Test Suite (60 Cases)', () => {
       assert.match(data.choices[0].message.content, /Prompt for Arena/);
     });
 
-    test('44. Advertises ChatGPT, Gemini, and Arena in models endpoint', async () => {
+    test('44. Advertises ChatGPT, Gemini, Meta AI, and Arena and routes Meta AI', async () => {
       const res = await fetch(`${baseUrl}/v1/models`);
       const data = await res.json() as any;
       const ids = data.data.map((m: any) => m.id);
       assert.ok(ids.includes('browser-chatgpt-free'));
       assert.ok(ids.includes('browser-gemini-free'));
+      assert.ok(ids.includes('browser-meta-free'));
       assert.ok(ids.includes('browser-arena-free'));
+
+      const completion = await sendCompletion({
+        model: 'browser-meta-free',
+        messages: [{ role: 'user', content: 'Meta AI route check' }]
+      });
+      assert.equal(completion.status, 200);
+      const completionData = await completion.json() as any;
+      assert.match(completionData.choices[0].message.content, /Meta AI route check/);
     });
 
     test('45. Server initializes and listens without throwing exceptions', () => {

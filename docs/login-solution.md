@@ -28,6 +28,7 @@ environment variable:
 | Qwen | `RELAY_BROWSER_PROFILE_QWEN` |
 | Grok | `RELAY_BROWSER_PROFILE_GROK` |
 | Mistral | `RELAY_BROWSER_PROFILE_MISTRAL` |
+| Meta AI | `RELAY_BROWSER_PROFILE_META` |
 | Arena | `RELAY_BROWSER_PROFILE_ARENA` |
 
 To force every provider into the shared profile, export the variables
@@ -70,6 +71,7 @@ Google SSO include:
 - **DeepSeek** — yes
 - **Grok** — yes (X / Google options)
 - **Mistral** — yes
+- **Meta AI** — Meta/Facebook/Instagram account flow
 - **Z.ai** — varies by region
 - **MiniMax** — typically phone/email
 - **Kimi** — typically phone/email

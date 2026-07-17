@@ -5,8 +5,8 @@
 #
 # What it does:
 #   1. Installs deps + browser + tests + build + smoke (setup-linux --no-browser).
-#   2. For each of the 9 unverified providers (claude, gemini, deepseek, zai,
-#      minimax, kimi, qwen, grok, mistral):
+#   2. For each of the 10 unverified providers (claude, gemini, deepseek, zai,
+#      minimax, kimi, qwen, grok, mistral, meta):
 #        a. Opens the dedicated profile (login:<name>).
 #        b. Waits for the user to sign in normally and press a key.
 #        c. Runs the live probe (probe:<name>).
@@ -21,7 +21,7 @@ set -Eeuo pipefail
 cd "$(dirname "$0")"
 
 printf '============================================================\n'
-printf ' local-ai-relay - full verification (9 providers)\n'
+printf ' local-ai-relay - full verification (10 providers)\n'
 printf '============================================================\n\n'
 
 # Stage 1: code verification (no browser).
@@ -36,7 +36,7 @@ tail -20 /tmp/relay-setup.log
 printf '\n[1/2] Code verification PASS.\n\n'
 
 # Stage 2: per-provider login + probe.
-PROVIDERS=(claude gemini deepseek zai minimax kimi qwen grok mistral)
+PROVIDERS=(claude gemini deepseek zai minimax kimi qwen grok mistral meta)
 TOTAL=${#PROVIDERS[@]}
 PASSED=0
 FAILED=0

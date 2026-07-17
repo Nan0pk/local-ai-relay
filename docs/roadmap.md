@@ -32,6 +32,7 @@ authenticated E2E pass.
 - [ ] Qwen (`browser-qwen-free`)
 - [ ] Grok (`browser-grok-free`)
 - [ ] Mistral Le Chat (`browser-mistral-free`)
+- [x] Meta AI (`browser-meta-free`)
 
 For every checkbox: isolated driver, login/probe command, unit tests, sanitized
 fixture where feasible, live E2E report, and only then registry/Hermes exposure.

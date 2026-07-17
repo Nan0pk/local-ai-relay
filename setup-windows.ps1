@@ -132,4 +132,4 @@ Write-Host ""
 Write-Host "SETUP COMPLETE" -ForegroundColor Green
 Write-Host "Relay default model: browser-chatgpt-free"
 Write-Host "Verify other providers with: npm.cmd run login:<provider> ; npm.cmd run probe:<provider>"
-Write-Host "Known providers: chatgpt, claude, gemini, deepseek, zai, minimax, kimi, qwen, grok, mistral"
+Write-Host "Known providers: chatgpt, claude, gemini, deepseek, zai, minimax, kimi, qwen, grok, mistral, meta"

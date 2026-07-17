@@ -5,8 +5,8 @@ REM   verify-all.cmd
 REM
 REM What it does:
 REM   1. Installs deps + browser + tests + build + smoke (setup-windows -NoBrowser).
-REM   2. For each of the 9 unverified providers (claude, gemini, deepseek, zai,
-REM      minimax, kimi, qwen, grok, mistral):
+REM   2. For each of the 10 unverified providers (claude, gemini, deepseek, zai,
+REM      minimax, kimi, qwen, grok, mistral, meta):
 REM        a. Opens the dedicated profile (login:<name>).
 REM        b. Waits for the user to sign in normally and press a key.
 REM        c. Runs the live probe (probe:<name>).
@@ -21,7 +21,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ============================================================
-echo  local-ai-relay - full verification (9 providers)
+echo  local-ai-relay - full verification (10 providers)
 echo ============================================================
 echo.
 
@@ -38,20 +38,20 @@ echo [1/2] Code verification PASS.
 echo.
 
 REM Stage 2: per-provider login + probe.
-set "PROVIDERS=claude gemini deepseek zai minimax kimi qwen grok mistral"
+set "PROVIDERS=claude gemini deepseek zai minimax kimi qwen grok mistral meta"
 set /a TOTAL=0
 set /a PASSED=0
 set /a FAILED=0
 set "RESULTS="
 
-echo [2/2] Verifying 9 providers. A browser window will open for each.
+echo [2/2] Verifying 10 providers. A browser window will open for each.
 echo       Sign in normally, then come back here and press any key.
 echo.
 
 for %%P in (%PROVIDERS%) do (
   set /a TOTAL+=1
   echo ------------------------------------------------------------
-  echo  [!TOTAL!/9] Provider: %%P
+  echo  [!TOTAL!/10] Provider: %%P
   echo ------------------------------------------------------------
   echo Opening %%P login window ...
   call npm.cmd run login:%%P
