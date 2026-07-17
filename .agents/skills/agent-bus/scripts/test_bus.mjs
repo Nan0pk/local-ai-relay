@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -102,9 +102,15 @@ test("CLI enforces claim, exact-commit verification, and generated status end to
   result = run("validate", "--check-status");
   assert.equal(result.status, 0, result.stderr);
 
+  const statusPath = path.join(ledgerDir, "STATUS.md");
+  const lfStatus = await readFile(statusPath, "utf8");
+  await writeFile(statusPath, lfStatus.replace(/\n/g, "\r\n"), "utf8");
+  result = run("validate", "--check-status");
+  assert.equal(result.status, 0, result.stderr);
+
   const state = JSON.parse(await readFile(path.join(ledgerDir, "state.json"), "utf8"));
   assert.equal(state.tasks.find((task) => task.id === "P0-01").status, "done");
   assert.equal(state.tasks.find((task) => task.id === "P1-01").status, "backlog");
-  const status = await readFile(path.join(ledgerDir, "STATUS.md"), "utf8");
+  const status = await readFile(statusPath, "utf8");
   assert.match(status, new RegExp(`1/${state.tasks.length} tasks complete`));
 });

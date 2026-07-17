@@ -251,6 +251,10 @@ function markdownTable(headers, rows) {
   ].join("\n");
 }
 
+function normalizeLineEndings(text) {
+  return text.replace(/\r\n/g, "\n");
+}
+
 export function renderStatus(state) {
   const copy = structuredClone(state);
   updateReadiness(copy);
@@ -368,7 +372,9 @@ async function commandValidate(flags) {
     } catch (error) {
       errors.push(`cannot read generated STATUS.md: ${error.message}`);
     }
-    if (current && current !== renderStatus(state)) errors.push("STATUS.md is stale; run: npm run agent:status -- --write");
+    if (current && normalizeLineEndings(current) !== renderStatus(state)) {
+      errors.push("STATUS.md is stale; run: npm run agent:status -- --write");
+    }
   }
   if (errors.length > 0) fail(`validation failed:\n- ${errors.join("\n- ")}`);
   console.log(`Agent bus valid: ${state.tasks.length} tasks, ${actionableTasks(state).length} ready.`);
