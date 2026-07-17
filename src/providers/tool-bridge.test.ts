@@ -100,9 +100,9 @@ test('named tool_choice rejects a different offered tool', () => {
 
 test('echo adversarial test: echoes the instruction template with tool_name', () => {
   const context = createToolBridgeContext([terminal], 'auto');
-  const text = envelope(context.nonce, '[{"id":"call_unique","name":"tool_name","arguments":{}}]');
+  const text = `AVAILABLE HERMES TOOLS ... ` + envelope(context.nonce, '[{"id":"call_unique","name":"tool_name","arguments":{}}]');
   const parsed = parseBrowserResponse(text, context);
-  assert.deepEqual(parsed, { content: text });
+  assert.equal(parsed.toolCalls, undefined);
 });
 
 test('quote adversarial test: envelope inside markdown json code blocks is extracted correctly', () => {
@@ -156,4 +156,26 @@ test('destructive tool test: unoffered destructive tool is blocked with invalid_
     context.nonce,
     '[{"id":"call_1","name":"system_format","arguments":{}}]'
   ), context));
+});
+
+test('instruction leak test: prompt instructions are stripped from assistant content', () => {
+  const context = createToolBridgeContext([terminal], 'auto');
+  const text = `I will run a command. AVAILABLE HERMES TOOLS: [{"name":"terminal"}]...`;
+  const parsed = parseBrowserResponse(text, context);
+  assert.equal(parsed.content, 'I will run a command.');
+  assert.equal(parsed.toolCalls, undefined);
+});
+
+test('quoted tag test: tag enclosed in backticks is ignored', () => {
+  const context = createToolBridgeContext([terminal], 'auto');
+  const text = `Do not copy this: \`<relay_tool_calls nonce="${context.nonce}">[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}]</relay_tool_calls>\``;
+  const parsed = parseBrowserResponse(text, context);
+  assert.equal(parsed.toolCalls, undefined);
+  assert.equal(parsed.content, 'Do not copy this: \`<relay_tool_calls nonce="' + context.nonce + '">[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}]</relay_tool_calls>\`');
+});
+
+test('echoed template with required choice must fail', () => {
+  const context = createToolBridgeContext([terminal], 'required');
+  const echoedResponse = `AVAILABLE HERMES TOOLS [{"name":"terminal"}]... <relay_tool_calls nonce="${context.nonce}">[{"id":"call_unique","name":"tool_name","arguments":{}}]</relay_tool_calls>`;
+  assertInvalid(() => parseBrowserResponse(echoedResponse, context));
 });

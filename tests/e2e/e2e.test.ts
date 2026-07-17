@@ -715,7 +715,7 @@ describe('local-ai-relay E2E Test Suite (60 Cases)', () => {
       // Divergent turn with tool calling
       const res = await sendCompletion({
         model: 'browser-chatgpt-free',
-        messages: [{ role: 'user', content: 'Prompt B' }],
+        messages: [{ role: 'user', content: 'run Prompt B' }],
         tools
       }, 'session-combo-4');
       assert.equal(res.status, 200);

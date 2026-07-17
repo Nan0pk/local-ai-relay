@@ -121,24 +121,49 @@ export interface ParsedBrowserResponse {
 }
 
 export function parseBrowserResponse(text: string, context: ToolBridgeContext): ParsedBrowserResponse {
+  // 1. Identify and strip echoed instruction blocks to avoid content leaks
+  let cleanText = text;
+  const instructionIndex = text.indexOf('AVAILABLE HERMES TOOLS');
+  if (instructionIndex >= 0) {
+    cleanText = text.slice(0, instructionIndex).trim();
+  }
+
   const openTag = `<${TAG_NAME} nonce="${context.nonce}">`;
   const closeTag = `</${TAG_NAME}>`;
-  const start = text.indexOf(openTag);
-  const end = text.indexOf(closeTag, start + openTag.length);
+  
+  // 2. Search for the tags inside the cleaned text
+  const start = cleanText.indexOf(openTag);
+  const end = cleanText.indexOf(closeTag, start + openTag.length);
   const requiredName = selectedToolName(context.toolChoice);
   const requiresTool = context.toolChoice === 'required' || requiredName !== undefined;
 
   if (start >= 0 && end < 0) {
     invalidToolCall('Browser model returned an incomplete request-specific tool-call envelope.');
   }
-  if (start < 0) {
-    if (requiresTool) invalidToolCall('Browser model did not return the tool call required by tool_choice.');
-    return { content: text };
-  }
-  if (context.toolChoice === 'none') invalidToolCall('Browser model returned a tool call while tool_choice was none.');
-  if (context.tools.length === 0) invalidToolCall('Browser model returned a tool call although no tools were offered.');
+  
+  // Check if the open tag is quoted (e.g. wrapped in backticks or markdown quote prefix)
+  const isQuoted = start >= 0 && (
+    (start > 0 && cleanText[start - 1] === '`') ||
+    (start > 2 && cleanText.slice(start - 3, start) === '```') ||
+    (start > 0 && cleanText[start - 1] === '"') ||
+    (start > 0 && cleanText[start - 1] === "'")
+  );
 
-  const raw = text.slice(start + openTag.length, end).trim()
+  if (start < 0 || isQuoted) {
+    if (requiresTool) {
+      invalidToolCall('Browser model did not return the tool call required by tool_choice.');
+    }
+    return { content: cleanText || null };
+  }
+  if (context.toolChoice === 'none') {
+    invalidToolCall('Browser model returned a tool call while tool_choice was none.');
+  }
+  if (context.tools.length === 0) {
+    invalidToolCall('Browser model returned a tool call although no tools were offered.');
+  }
+
+  // 3. Extract the raw JSON
+  const raw = cleanText.slice(start + openTag.length, end).trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '');
   let parsed: unknown;
@@ -149,11 +174,6 @@ export function parseBrowserResponse(text: string, context: ToolBridgeContext): 
   }
   if (!Array.isArray(parsed) || parsed.length === 0) {
     invalidToolCall('Browser model returned an empty or invalid tool-call envelope.');
-  }
-
-  const hasExample = Array.isArray(parsed) && parsed.some(candidate => candidate && candidate.name === 'tool_name');
-  if (hasExample) {
-    return { content: text };
   }
 
   const offered = new Map(context.tools.map((tool) => [tool.function.name, tool]));
@@ -194,6 +214,7 @@ export function parseBrowserResponse(text: string, context: ToolBridgeContext): 
       function: { name: candidate.name, arguments: JSON.stringify(args) },
     };
   });
-  const content = `${text.slice(0, start)}${text.slice(end + closeTag.length)}`.trim();
+  
+  const content = `${cleanText.slice(0, start)}${cleanText.slice(end + closeTag.length)}`.trim();
   return { content: content || null, toolCalls };
 }
