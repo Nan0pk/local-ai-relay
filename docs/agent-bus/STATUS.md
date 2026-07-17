@@ -1,9 +1,9 @@
 # Agent Bus Status
 
 **Project:** local-ai-relay  
-**Updated:** 2026-07-17T19:31:57Z  
+**Updated:** 2026-07-17T00:00:00Z  
 **Progress:** 0/33 tasks complete  
-**Next:** P0-02 — Make provider capability discovery truthful
+**Next:** P0-01 — Repair E2E and tool-proposal safety
 
 This file is generated from `state.json`. Do not edit it manually.
 
@@ -11,7 +11,7 @@ This file is generated from `state.json`. Do not edit it manually.
 
 | Phase | Done | Total | Active | Blocked |
 | --- | --- | --- | --- | --- |
-| 0 | 0 | 6 | 1 | 0 |
+| 0 | 0 | 6 | 0 | 0 |
 | 1 | 0 | 6 | 0 | 0 |
 | 2 | 0 | 8 | 0 | 0 |
 | 3 | 0 | 6 | 0 | 0 |
@@ -22,6 +22,7 @@ This file is generated from `state.json`. Do not edit it manually.
 
 | Task | Priority | Tier | Risk | Effort | Title |
 | --- | --- | --- | --- | --- | --- |
+| P0-01 | 1 | standard | high | M | Repair E2E and tool-proposal safety |
 | P0-02 | 2 | standard | medium | M | Make provider capability discovery truthful |
 | P0-03 | 3 | standard | high | M | Harden authentication and account selection |
 | P0-04 | 4 | economy | owner | M | Reconcile project truth and owner decisions |
@@ -30,9 +31,7 @@ This file is generated from `state.json`. Do not edit it manually.
 
 ## Active or awaiting review
 
-| Task | State | Agent | Branch | Lease / commit |
-| --- | --- | --- | --- | --- |
-| P0-01 | review | arena-agent | task/P0-01-repair-e2e-safety | 37b6032660010dbd7366dd94b00d7ca19e933b65 |
+_None._
 
 ## Blocked
 
