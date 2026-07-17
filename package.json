@@ -8,6 +8,10 @@
     "node": ">=22"
   },
   "scripts": {
+    "agent:next": "node .agents/skills/agent-bus/scripts/bus.mjs next",
+    "agent:prompt": "node .agents/skills/agent-bus/scripts/bus.mjs prompt",
+    "agent:status": "node .agents/skills/agent-bus/scripts/bus.mjs status",
+    "agent:check": "node .agents/skills/agent-bus/scripts/bus.mjs validate --check-status && node --test .agents/skills/agent-bus/scripts/test_bus.mjs",
     "build": "tsc -p tsconfig.json",
     "test": "node --import tsx --test src/*.test.ts src/**/*.test.ts",
     "test:e2e": "node --import tsx --test tests/e2e/e2e.test.ts",
