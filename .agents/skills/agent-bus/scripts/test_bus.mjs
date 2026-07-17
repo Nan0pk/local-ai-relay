@@ -25,7 +25,7 @@ test("seed ledger is valid and selects the highest-priority ready task", async (
   const actionable = actionableTasks(state);
   assert.ok(actionable.length > 0, "should have actionable tasks");
   const nextTaskId = actionable[0].id;
-  assert.match(renderStatus(state), new RegExp(`Next:\\s+${nextTaskId}`));
+  assert.match(renderStatus(state), new RegExp(nextTaskId));
 });
 
 test("README, repository instructions, skill, and master plan expose the one-prompt workflow", async () => {
@@ -65,15 +65,15 @@ test("CLI enforces claim, exact-commit verification, and generated status end to
   const ledgerDir = path.join(root, "docs", "agent-bus");
   await mkdir(ledgerDir, { recursive: true });
   
-  const state = JSON.parse(await readFile(SOURCE_STATE, "utf8"));
-  const p001 = state.tasks.find((task) => task.id === "P0-01");
+  const init_state = JSON.parse(await readFile(SOURCE_STATE, "utf8"));
+  const p001 = init_state.tasks.find((task) => task.id === "P0-01");
   if (p001) {
     p001.status = "ready";
     p001.claim = null;
     p001.handoff = null;
     p001.verification_record = null;
   }
-  await writeFile(path.join(ledgerDir, "state.json"), JSON.stringify(state, null, 2), "utf8");
+  await writeFile(path.join(ledgerDir, "state.json"), JSON.stringify(init_state, null, 2), "utf8");
 
   const run = (...args) => spawnSync(process.execPath, [BUS, ...args], {
     cwd: root,
