@@ -62,5 +62,39 @@ Every new browser provider must have:
 
 Claude and Gemini come next because they add the largest capability and
 subscription value. DeepSeek, Z.ai, and MiniMax follow as the highest-value
-free alternatives. Kimi, Qwen, Grok, Mistral, and Meta AI complete model,
-ecosystem, and regional diversity.
+free alternatives. Kimi, Qwen, Grok, Mistral, and Meta AI complete model,\necosystem, and regional diversity.
+
+## Capability tracking
+
+The relay tracks provider readiness through a capability tracker so that
+`/v1/models` advertises only genuinely usable models. A provider is not
+ready merely because its adapter compiles; it must have runtime evidence
+of usability.
+
+### Capability states
+
+| State | Meaning | Advertised in `/v1/models`? |
+|---|---|---|
+| `installed` | Adapter code exists; never verified at runtime | No |
+| `authenticated` | Login succeeded; reachability not confirmed | No |
+| `reachable` | Network-level contact confirmed | No |
+| `ready` | Full end-to-end capability verified with evidence | **Yes** |
+| `degraded` | Partially working (quota nearing limit, intermittent) | **Yes** |
+| `disabled` | Administratively turned off by the operator | No |
+
+### Discovery endpoints
+
+- `GET /v1/models` — lists only models from `ready` or `degraded` providers.
+  This is the default and what OpenAI-compatible clients should use.
+- `GET /v1/models?include=all` — lists every registered model with
+  `x_relay.capability_status` metadata for diagnostic use.
+- `GET /v1/providers/status` — exposes the full capability state of every
+  provider, including evidence references and expiration timestamps.
+
+### Evidence lifecycle
+
+When a provider passes a live probe or authenticated E2E run, the tracker
+records a reference to the evidence (test ID, commit SHA, probe result)
+with a timestamp. Evidence can expire, prompting re-verification. A
+provider with stale evidence remains `ready` but the diagnostic endpoint
+reports `evidence_expired: true` so operators can trigger a refresh.
