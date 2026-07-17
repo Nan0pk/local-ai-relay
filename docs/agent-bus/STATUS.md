@@ -1,7 +1,7 @@
 # Agent Bus Status
 
 **Project:** local-ai-relay  
-**Updated:** 2026-07-17T19:15:02Z  
+**Updated:** 2026-07-17T19:31:57Z  
 **Progress:** 0/33 tasks complete  
 **Next:** P0-02 — Make provider capability discovery truthful
 
@@ -32,7 +32,7 @@ This file is generated from `state.json`. Do not edit it manually.
 
 | Task | State | Agent | Branch | Lease / commit |
 | --- | --- | --- | --- | --- |
-| P0-01 | claimed | arena-agent | task/P0-01-repair-e2e-safety | 2026-07-17T23:15:02Z |
+| P0-01 | review | arena-agent | task/P0-01-repair-e2e-safety | 37b6032660010dbd7366dd94b00d7ca19e933b65 |
 
 ## Blocked
 
