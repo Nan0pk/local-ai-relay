@@ -1,5 +1,11 @@
 # Project: local-ai-relay
 
+> **Historical v1 implementation snapshot.** The executable v2 architecture,
+> risk gates, and dependency graph now live in
+> [`docs/plans/v2-master-plan.md`](docs/plans/v2-master-plan.md). Current task
+> state is generated in [`docs/agent-bus/STATUS.md`](docs/agent-bus/STATUS.md).
+> Do not use the milestone table below to claim current provider readiness.
+
 ## Architecture
 - **API Routing Layer (`src/routes/`)**: Receives OpenAI-compatible POST requests at `/v1/chat/completions` and routes them to the correct provider adapter.
 - **Provider Adapter Layer (`src/providers/`)**: Translates OpenAI request payloads (messages, tools, options) into browser chat prompts using `ConversationPlanner` and `ToolBridge`, then parses the output.

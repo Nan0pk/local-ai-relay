@@ -1,314 +1,272 @@
 # local-ai-relay
 
-Local-first bridge from OpenAI-compatible clients such as Hermes to API,
-local-model, and user-authenticated webchat providers.
+Local, multi-backend compatibility gateway for OpenAI-style clients and agent
+harnesses.
 
-> **Status:** `browser-chatgpt-free`, `browser-gemini-free`, and
-> `browser-meta-free` are E2E verified.
-> All remaining webchats (Claude, DeepSeek, Z.ai, MiniMax, Kimi, Qwen,
-> Grok, Mistral) are implemented, unit-tested, and registered in
-> `/v1/models`.
-> Live authenticated E2E verification is still pending for each individually.
+The project is evolving from a Patchright-only browser relay into **v2 Hybrid**:
 
-## Ethos
+- official API and local-model servers as stable backends;
+- a visible Manifest V3 browser extension as the preferred experimental
+  webchat transport;
+- Patchright retained as a compatibility and recovery transport;
+- OpenAI Chat Completions and Responses-style APIs for model traffic;
+- MCP as an optional control and delegation plane.
 
-One command to install. One command to verify everything. Anything that
-can be automated, is. The user never manually `git pull`s, `Remove-Item`s,
-`git clone`s, or runs ten separate `npm run` pairs. Sign-in is the only
-manual step, because only a human can sign in to a website — and that's
-a normal browser action, not relay work.
+> **Current state:** v2 is planned, not implemented. On current `main`
+> (`3241e93`) plus this planning branch, typecheck, build, all 207 unit tests,
+> all 5 agent-bus tests, and startup smoke pass. The mock-backed E2E suite
+> remains at 55/60 and still contains a tool-envelope safety
+> defect plus stale expectations. Provider readiness claims and documentation
+> also need reconciliation. Follow the [master plan](docs/plans/v2-master-plan.md)
+> and live [agent-bus status](docs/agent-bus/STATUS.md), not old milestone prose.
 
-## Provider status
+## What v2 is trying to achieve
 
-| Model ID | Backend | State |
+| Backend | Intended support level | Connection |
 |---|---|---|
-| `browser-chatgpt-free` | ChatGPT webchat | E2E verified |
-| `browser-claude-free` | Claude webchat | Registered |
-| `browser-gemini-free` | Gemini webchat | E2E verified |
-| `browser-deepseek-free` | DeepSeek webchat | Registered |
-| `browser-zai-glm-5.2` | Z.ai webchat | Registered |
-| `browser-minimax-m3` | MiniMax Agent webchat | Registered |
-| `browser-kimi-free` | Kimi webchat | Registered |
-| `browser-qwen-free` | Qwen Chat webchat | Registered |
-| `browser-grok-free` | Grok webchat | Registered |
-| `browser-mistral-free` | Mistral Le Chat | Registered |
-| `browser-meta-free` | Meta AI webchat | E2E verified |
-| `mock-gpt-4o-mini` | Deterministic local mock | Test-only |
+| Official API | Stable | Explicit configured upstream |
+| Local model server | Stable when configured | OpenAI/Anthropic-compatible adapter |
+| Visible browser tab | Experimental and user-authorized | MV3 extension + Native Messaging |
+| Managed browser | Experimental fallback | Existing Patchright transport |
 
-"Implemented, pending live E2E" means the driver, adapter, unit tests, and
-CLI commands pass `npm test` / `npm run build` / `npm run smoke:startup`,
-but the provider is NOT registered in `/v1/models` or Hermes until a real
-authenticated probe + Hermes tool round trip passes. See
-[Provider fleet](docs/providers.md) and per-provider evidence under
-`docs/e2e/<provider>.md`.
+The extension reuses an explicitly approved visible browser session, but the
+relay does not bypass login, CAPTCHA, rate limits, access controls, or provider
+safeguards. Login and account selection remain manual.
 
-The relay supports OpenAI-style model discovery, chat completions, tool calls,
-sticky browser conversations, and SSE compatibility for clients that request
-`stream: true`. Browser output is returned after the website finishes; it is
-not true upstream token streaming.
-
-## Install — one command
-
-From anywhere, even a fresh machine with nothing cloned. The bootstrap
-handles every repository state: no clone, healthy clone, stale clone, broken
-clone. Node.js 22+, Git, and Google Chrome must already be installed.
-
-### Linux / macOS
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh | bash
-```
-
-### Windows (PowerShell)
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1)))
-```
-
-If `irm` is blocked by your org's policy, download-and-run works too:
-
-```powershell
-curl.exe -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1 -o bootstrap.ps1
-powershell -ExecutionPolicy Bypass -File bootstrap.ps1
-```
-
-That's it. The bootstrap clones or fast-forwards a verified checkout as needed,
-then runs setup: dependency check, tests, occupied-port startup smoke,
-visible ChatGPT login/probe, a background relay (systemd on Linux; detached
-local process on Windows), and Hermes configuration. Login remains a normal
-browser action: the relay never asks
-for passwords, cookies, session tokens, API keys, or GitHub tokens.
-
-Bootstrap never deletes a checkout because a pull fails. Non-repository or
-unexpected-origin directories are renamed to
-`local-ai-relay.backup-<timestamp>` so `.env`, diagnostics, logs, and local
-patches survive. Intentional deletion requires `--fresh --yes` on Linux/macOS
-or `-Fresh -Yes` on Windows.
-
-Setup uses the Chrome already installed on Windows, macOS, or Linux with an
-isolated relay profile; it does not download the roughly 168 MB managed
-Chromium build. For machines without Chrome, the managed fallback is explicit:
-`npm run browser:install`.
-
-## Verify all providers — one command
-
-After install, verify every unverified provider in one shot. The script
-runs setup, then for each of the 10 providers: opens the login window,
-waits for you to sign in normally and press a key, runs the live probe,
-and records PASS/FAIL. At the end it prints a summary table.
-
-### Linux / macOS
-
-```bash
-cd ~/local-ai-relay && ./verify-all.sh
-```
-
-### Windows (PowerShell)
-
-```powershell
-cd $HOME\local-ai-relay; .\verify-all.cmd
-```
-
-Paste the final SUMMARY block back. For any FAIL, also paste that
-provider's error output. Sign-in is the only manual step — a browser
-window opens for each provider, you sign in normally, press a key, and
-the probe runs automatically.
-
-## Per-provider commands (optional)
-
-The bootstrap and verify-all scripts cover everything. These are here for
-ad-hoc use or debugging a single provider.
-
-```bash
-npm run login:<provider>      # open the dedicated profile, sign in, Ctrl+C
-npm run probe:<provider>      # live probe: sends marker prompt, prints PASS/URL
-npm run smoke:claude-driver   # headless driver-plumbing smoke (no login)
-```
-
-Known `<provider>` values: `chatgpt`, `claude`, `gemini`, `deepseek`,
-`zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`, `meta`.
-
-If a probe fails, the driver throws a typed `BrowserFailure` with one of:
-`login_required`, `captcha`, `rate_limit`, `quota_exhausted`,
-`composer_disabled`, `generation_interrupted`, `layout_changed`, `timeout`.
-The relay never bypasses CAPTCHA, authentication, rate limits, or safety
-systems. A local screenshot is saved under
-`~/.local-ai-relay/diagnostics/` (set `RELAY_DIAGNOSTICS=0` to disable).
-
-## Hermes
-
-Setup registers the `local-ai-relay` named provider and every model the
-running relay advertises in `/v1/models`:
+## Architecture
 
 ```text
-provider:  custom:local-ai-relay
-default:   browser-chatgpt-free
-selector:  custom:local-ai-relay:<model-id>
+IDE / harness ── Chat Completions + Responses ─┐
+MCP host ─────── MCP adapter process ──────────┤
+                                               ▼
+                                        local daemon
+                              capabilities + scheduler + state
+                           /                |                 \
+                 MV3 extension          Patchright       API/local server
+                 Native Messaging        fallback          adapter
+                         |
+                  user-approved tab
 ```
 
-Existing Hermes settings and custom providers are preserved, and the config
-is backed up before modification. Start a new Hermes session after
-configuration. To re-register after a provider lands or changes, rerun
-`npm run hermes:configure`.
+Important contracts:
 
-## Operations
+- Native Messaging and MCP use separate process modes because both frame
+  `stdio` differently.
+- Bridge frames are versioned, sequenced, hashed, quota-bound, and multipart
+  from day one. The target frame size is at most 256 KiB including JSON
+  overhead, safely below the browser boundary.
+- The daemon is the request source of truth. A restarted service worker resumes
+  observation and never blindly resubmits a prompt.
+- Streaming is reconciled from volatile DOM snapshots using append, replace,
+  snapshot, and final events. It is reported as UI-observed streaming, not
+  upstream token streaming.
+- Browser-derived tool calls are untrusted proposals. Structural DOM boundaries
+  may help parsing but do not authorize execution.
+- Remote executable extension/WASM logic, silent model fallback, automatic
+  account choice, embedded inference, and default semantic caching are outside
+  the v2 design.
 
-### Linux (systemd service)
+The complete decisions, task graph, gates, and deferred work are in
+[docs/plans/v2-master-plan.md](docs/plans/v2-master-plan.md).
+
+## One-prompt project execution
+
+Repository-aware coding agents should load `AGENTS.md` automatically. For any
+capable model, this single prompt is enough to select and execute the next safe
+unit of work:
+
+```text
+Continue local-ai-relay v2. Follow AGENTS.md and the repo-local agent-bus skill.
+Select the highest-priority dependency-ready task, claim it, read only its bounded
+context, implement the smallest complete change, run its acceptance checks,
+update the bus, and prepare a draft pull request. Use the least expensive capable
+model tier and escalate only with a compact failure packet. Do not ask me for
+implementation choices the repository can resolve; stop only for an owner-only
+decision or a concrete safety blocker. Never merge.
+```
+
+For systems that do not automatically discover repository instructions:
 
 ```bash
-systemctl --user status local-ai-relay
-journalctl --user -u local-ai-relay -f
+npm run agent:prompt
 ```
 
-### Windows (background relay)
+That prints a self-contained prompt for the current highest-priority ready task.
 
-Setup starts the built relay as a hidden detached process and records its PID,
-active port, and log under `.relay-browser/`. Rerunning setup safely replaces
-the process with the current build.
-
-### All platforms
+Useful project-agent commands:
 
 ```bash
-./verify-all.sh        # Linux/macOS — verify every provider in one shot
-.\verify-all.cmd       # Windows     — same
+npm run agent:next       # show the next task, context, scope, and checks
+npm run agent:prompt     # emit a copy/paste task prompt
+npm run agent:status     # render current human-readable status
+npm run agent:check      # validate ledger, generated status, and bus behavior
 ```
 
-The relay prefers `127.0.0.1:8787`. If occupied, it reuses an existing healthy
-relay or selects the next free port through `8796`.
+The improved agent bus is deliberately economical:
 
-## API
+- one builder by default, not an automatic agent swarm;
+- 33 dependency-aware, pull-request-sized tasks;
+- model tiers are cost ceilings: economy, standard, or frontier;
+- independent verification only for security, release, installer, tool, native
+  bridge, or live-provider claims;
+- task-specific context and write scopes prevent whole-repository rereads;
+- leases prevent duplicate paid work;
+- a single task record replaces routine plan/handoff/verdict document triplets;
+- status is generated deterministically from the machine-readable ledger.
+
+See [AGENTS.md](AGENTS.md), the
+[agent-bus skill](.agents/skills/agent-bus/SKILL.md), and
+[state.json](docs/agent-bus/state.json).
+
+## Delivery phases
+
+| Phase | Outcome |
+|---|---|
+| 0 — Truth and hazards | Green E2E, safe tool proposals, truthful discovery, user-controlled login, authenticated loopback |
+| 1 — Transport foundation | BrowserTransport, bridge protocol, chunking, durable generations, reconciled streaming, cancellation |
+| 2 — Extension proof | WXT MV3 extension, Native Messaging, worker rebind, mock E2E, one authorized live adapter |
+| 3 — Gateway interfaces | Explicit backend selection, Responses API, official/local adapters, MCP control plane, observability |
+| 4 — Release | Provider conformance, individual rollout, signed artifacts, 24-hour soak, scoped beta |
+| 5 — Measure first | Benchmark TypeScript; consider Rust only if written thresholds fail |
+
+The current critical path is Phase 0. Run `npm run agent:next` for the exact
+highest-priority task rather than choosing from this summary manually.
+
+## Current developer setup
+
+This is a development repository and does not yet have the signed, versioned v2
+installer described in the plan.
+
+Requirements:
+
+- Node.js 22 or newer
+- Git
+- Google Chrome only for current Patchright browser-provider work
+
+```bash
+git clone https://github.com/Nan0pk/local-ai-relay.git
+cd local-ai-relay
+npm ci
+npm run typecheck
+npm test
+npm run build
+npm run smoke:startup
+```
+
+Do not treat `curl | bash` from mutable `main` as the final distribution model.
+Versioned artifacts, signature verification, rollback, and native-host setup are
+tracked in Phase 0 and Phase 4.
+
+## Current v1 operation
+
+The existing implementation exposes a Fastify API and uses Patchright browser
+drivers. These commands remain development tools while v2 is built:
+
+```bash
+npm run browser:login             # visible login flow
+npm run login:<provider>          # provider-specific login
+npm run probe:<provider>          # explicit live probe
+npm run probe:all                 # classify configured providers
+npm run dev                       # development server
+npm start                         # built server
+```
+
+Known browser-provider keys are `chatgpt`, `claude`, `gemini`, `deepseek`,
+`zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`, and `meta`.
+
+Implementation or registration does not establish live readiness. Consult the
+per-provider evidence under `docs/e2e/`; Phase P0-02 will make runtime model
+discovery enforce that rule.
+
+## Current API
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/health` | Liveness |
-| `GET` | `/v1/models` | Registered, usable models |
-| `POST` | `/v1/chat/completions` | OpenAI-compatible completion/SSE |
+| `GET` | `/v1/models` | Current registered models; truthfulness hardening is pending |
+| `POST` | `/v1/chat/completions` | OpenAI-compatible completion and buffered compatibility SSE |
+
+Example against the deterministic mock:
 
 ```bash
 curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -H 'X-Relay-Session: demo' \
   -d '{
-    "model":"browser-chatgpt-free",
-    "messages":[{"role":"user","content":"Return three prioritized improvements."}]
+    "model":"mock-gpt-4o-mini",
+    "messages":[{"role":"user","content":"Return three improvements."}]
   }'
 ```
+
+Loopback bearer authentication is a Phase P0-03 requirement. Do not expose the
+current development server on an untrusted interface.
+
+## Verification
+
+```bash
+npm run agent:check
+npm run typecheck
+npm test
+npm run test:e2e
+npm run build
+npm run smoke:startup
+```
+
+Test categories have different meanings:
+
+- unit and deterministic integration tests prove local code behavior;
+- mock E2E proves the local pipeline without provider credentials;
+- live E2E proves one provider/environment at a recorded date and commit;
+- soak and chaos evidence is required for release reliability.
+
+Never convert one category into another in documentation.
 
 ## Repository map
 
 ```text
 local-ai-relay/
-├── bootstrap.sh / bootstrap.ps1   one-liner install entry points
-├── verify-all.sh / verify-all.cmd one-liner verify-all-providers entry points
-├── setup-linux.sh / setup-windows.cmd / setup-windows.ps1
-├── src/
-│   ├── browser/      Patchright transport, profiles, queue, per-site drivers
-│   │                 (chatgpt, claude, gemini, deepseek, zai, minimax,
-│   │                  kimi, qwen, grok, mistral, meta) + shared base-driver
-│   ├── cli/          setup, login, probe, service, and Hermes commands
-│   ├── hermes/       non-destructive Hermes configuration (multi-model)
-│   ├── providers/    registry, provider adapters, planning, tool bridge
-│   ├── routes/       health, models, and chat-completions endpoints
-│   ├── service/      systemd unit generation
-│   ├── startup/      port selection and startup checks
-│   ├── types/        OpenAI-compatible shared types
-│   ├── config.ts     environment configuration
-│   ├── server.ts     Fastify application factory
-│   └── index.ts      process entrypoint
-├── scripts/          driver-plumbing smoke scripts
+├── AGENTS.md                         repository instructions for agents
+├── .agents/skills/agent-bus/         economical coordination skill and CLI
+├── bootstrap.sh / bootstrap.ps1       current development bootstrap entry points
+├── verify-all.sh / verify-all.cmd     current provider verification helpers
 ├── docs/
-│   ├── providers.md  selected provider fleet
-│   ├── e2e/          per-provider sanitized E2E evidence
-│   ├── architecture.md
-│   ├── roadmap.md
-│   ├── north-star.md
-│   └── antigravity-e2e-report.md
+│   ├── agent-bus/                    machine state and generated status
+│   ├── plans/v2-master-plan.md       full architecture and execution graph
+│   ├── adr/                          accepted architectural decisions
+│   ├── e2e/                          sanitized live-provider evidence
+│   ├── architecture.md               current implementation architecture
+│   └── providers.md                  provider contracts and evidence policy
+├── src/
+│   ├── browser/                      current Patchright drivers and lifecycle,
+│   │                                 including the Meta AI adapter
+│   ├── providers/                    adapters, planner, registry, tool bridge
+│   ├── routes/                       health, models, chat completions
+│   ├── cli/                          login, probe, service, and setup commands
+│   └── types/                        current OpenAI-compatible types
+├── tests/e2e/                         deterministic opaque-box E2E suite
+├── .github/workflows/ci.yml           Linux and Windows deterministic CI
 ├── SECURITY.md
 └── package.json
 ```
 
-## Verification
+## Safety and product boundaries
 
-```bash
-npm ci
-npm test
-npm run build
-npm run smoke:startup
-```
+- Consumer-web adapters are experimental local UI automation, not official
+  provider APIs.
+- Use them only with explicit user authorization and after reviewing applicable
+  provider policies.
+- The relay does not request or commit passwords, cookies, browser profiles,
+  session tokens, API keys, prompts, or responses.
+- Diagnostics must be explicit, local, redacted, size-bounded, and expiring.
+- A challenge page pauses automation for manual handling; it is never bypassed.
+- Only the maintainer approves provider accounts, license, browser-store
+  publication, release wording, merges, and stable-release claims.
 
-The authenticated Fedora evidence is recorded in
-[the E2E report](docs/antigravity-e2e-report.md) and per-provider under
-`docs/e2e/`.
-
-## Boundaries
-
-This is local UI automation, not an official provider API. It does not bypass
-login, CAPTCHA, usage limits, access controls, or safety systems. Webchat
-selectors can change without notice, and each adapter must remain isolated and
-independently testable. See [SECURITY.md](SECURITY.md).
-
-## Gemini Integration Guide
-
-### 1. Gemini Login
-To launch the browser interface and log into Gemini:
-```bash
-npm run login:gemini
-```
-This opens the browser pointing to Gemini. Log in normally and then press Ctrl+C in your terminal to close the browser safely and save the session.
-
-### 2. Gemini Live Probe
-To verify the state and availability of the Gemini provider:
-```bash
-npm run probe:gemini
-```
-
-Or to run the probe across all providers and show their classification status:
-```bash
-npm run probe:all
-```
-
-### 3. Run Gemini through the Relay
-Once logged in, the local background service will automatically serve Gemini requests. You can submit requests directly using `curl`:
-
-**Non-streaming completion:**
-```bash
-curl -s http://127.0.0.1:8788/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"browser-gemini-free","messages":[{"role":"user","content":"Count to 3."}]}'
-```
-
-**Streaming completion:**
-```bash
-curl -s http://127.0.0.1:8788/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"browser-gemini-free","stream":true,"messages":[{"role":"user","content":"Count to 3."}]}'
-```
-
-### 4. Configure Hermes for Gemini
-To configure Hermes to advertise and route requests to `browser-gemini-free`:
-```bash
-npm run hermes:configure
-```
-
-### 5. Perform Real Hermes Verification
-To verify the entire loop using the Hermes client:
-```bash
-hermes -z "Reply with exactly: BANANA" --provider "custom:local-ai-relay" --model "browser-gemini-free" --accept-hooks --yolo
-```
-
-### 6. Inspecting systemd Logs
-To monitor requests, errors, or startup logs for the local-ai-relay service:
-```bash
-journalctl --user -u local-ai-relay -f
-```
-
-### 7. Resetting the Gemini Profile Safely
-If you need to clear the Gemini state, cookies, or profile cache to restart clean:
-```bash
-rm -rf ~/.local-ai-relay/browser-profiles/gemini
-```
+See [SECURITY.md](SECURITY.md) for current security reporting and the master
+plan for the v2 threat model and release gates.
 
 ## License
 
-No license has been selected yet. Treat the repository as source-available,
-not open source, until a `LICENSE` file is added.
+No license has been selected. Treat the repository as source-available, not
+open source, until the maintainer chooses and adds a `LICENSE` file. This is an
+explicit owner gate in task P0-04.
