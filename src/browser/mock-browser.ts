@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { BrowserFailure } from './types.js';
 
 export const activePromptStorage = new AsyncLocalStorage<string>();
 
@@ -243,6 +244,10 @@ export class MockPage extends EventEmitter {
       return;
     }
 
+    if (activePrompt.includes('trigger:timeout')) {
+      throw new BrowserFailure('timeout', 'Mock timeout');
+    }
+
     const nonceMatch = this.composerText.match(/<relay_tool_calls nonce="([^"]+)">/);
     const nonce = nonceMatch ? nonceMatch[1] : 'nonce123';
 
@@ -266,6 +271,11 @@ export class MockPage extends EventEmitter {
       return;
     }
 
+    if (activePrompt.includes('My name is Alice')) {
+      this.assistantMessages.push('Nice to meet you Alice.');
+      return;
+    }
+
     if (nonceMatch && activePrompt.toLowerCase().includes('multiple')) {
       const toolCallResponse = `I will run both commands.\n<relay_tool_calls nonce="${nonce}">\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}, {"id":"call_2","name":"terminal","arguments":{"command":"ls"}}]\n</relay_tool_calls>`;
       this.assistantMessages.push(toolCallResponse);
@@ -278,7 +288,9 @@ export class MockPage extends EventEmitter {
       activePrompt.toLowerCase().includes('execute') ||
       activePrompt.toLowerCase().includes('tools') ||
       activePrompt.toLowerCase().includes('command') ||
-      activePrompt.toLowerCase().includes('fallback')
+      activePrompt.toLowerCase().includes('fallback') ||
+      activePrompt.toLowerCase().includes('prompt b') ||
+      activePrompt.toLowerCase().includes('find bug')
     )) {
       const toolCallResponse = `I will run the command.\n<relay_tool_calls nonce="${nonce}">\n[{"id":"call_1","name":"terminal","arguments":{"command":"pwd"}}]\n</relay_tool_calls>`;
       this.assistantMessages.push(toolCallResponse);

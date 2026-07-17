@@ -643,7 +643,7 @@ describe('local-ai-relay E2E Test Suite (60 Cases)', () => {
       });
       assert.equal(res.status, 408);
       const data = await res.json() as any;
-      assert.equal(data.error.code, 'timeout');
+      assert.equal(data.error.code, 'browser_timeout');
     });
 
     test('50. Empty response triggers 422 empty_response', async () => {
