@@ -151,6 +151,11 @@ export function parseBrowserResponse(text: string, context: ToolBridgeContext): 
     invalidToolCall('Browser model returned an empty or invalid tool-call envelope.');
   }
 
+  const hasExample = Array.isArray(parsed) && parsed.some(candidate => candidate && candidate.name === 'tool_name');
+  if (hasExample) {
+    return { content: text };
+  }
+
   const offered = new Map(context.tools.map((tool) => [tool.function.name, tool]));
   const ids = new Set<string>();
   const toolCalls = parsed.map((candidate: RawToolCall, index): ChatToolCall => {
