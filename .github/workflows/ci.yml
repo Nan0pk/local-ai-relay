@@ -28,6 +28,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:e2e
       - run: npm run build
       - run: npm run smoke:startup
 
