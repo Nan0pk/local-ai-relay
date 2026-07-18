@@ -1,18 +1,25 @@
-# Current task: P0-05 — Secure bootstrap and dependency delivery
+# Current task: U0-01 — Fresh Fedora ChatGPT proof
 
-**Status:** Complete — draft PR open; local and CI acceptance passed
-**Deliverable:** One draft pull request against `main`; do not merge.
+**Status:** Open  
+**Priority:** unblock daily use before any further architecture or providers  
+**Estimate:** 0.5–1.5 focused engineering days  
+**Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Make installation and updates fail closed: users must install an explicit
-versioned release whose artifacts can be authenticated before execution, with a
-clear rollback path. Mutable `main` remains a development checkout, never a
-trusted distribution channel.
+Prove—or quickly falsify—the current real path:
 
-## Baseline first
+```text
+Hermes -> local-ai-relay -> current Patchright ChatGPT adapter -> Hermes
+```
 
-Before editing, run and record:
+Use the current Fedora/Node 22/stable Chrome environment and an explicitly
+authorized ChatGPT account. Do not add providers, start the extension, or work
+on unrelated roadmap tasks.
+
+## Baseline
+
+Run and record before editing:
 
 ```bash
 npm ci
@@ -21,70 +28,81 @@ npm test
 npm run test:e2e
 npm run build
 npm run smoke:startup
+npm run test:delivery
+node scripts/validate-release.mjs
 ```
 
-Inspect the current bootstrap/setup entry points and release workflows. Record
-any baseline failure exactly; do not weaken tests or silently broaden scope.
+Confirm the exact branch/commit and check GitHub for an existing U0-01 PR before
+starting. Stop immediately if the task is already complete elsewhere.
 
 ## Required work
 
-1. Define and implement one cross-platform release contract covering explicit
-   versions, artifact names, SHA-256 verification, signature or GitHub artifact
-   attestation verification, provenance, SBOM publication, supported-version
-   checks, update behavior, and rollback.
-2. Make Linux and Windows bootstrap paths download only an explicit release
-   version, authenticate metadata and artifacts before executing them, and fail
-   closed on missing, malformed, mismatched, tampered, or unsupported input.
-3. Keep installation user-level where the operating system permits. Preserve
-   existing configuration and diagnostics during failed installs and rollback.
-4. Add deterministic tests for valid installation plus tampered artifact,
-   checksum mismatch, invalid/missing authentication evidence, unsupported
-   version, interrupted update, and rollback behavior. Tests must not require
-   credentials or network access.
-5. Add release automation that builds the versioned artifacts and publishes the
-   checksum manifest, authentication evidence, provenance, and SBOM. Pin third-
-   party workflow actions to immutable commit SHAs.
-6. Document the exact supported install, verify, update, rollback, and recovery
-   flows. Do not advertise release readiness until the acceptance evidence
-   exists.
+1. Reproduce the documented development setup on Fedora with Node 22 and current
+   stable Chrome/Patchright. Preserve existing user configuration, diagnostics,
+   and dedicated browser profile.
+2. Run `npm run login:chatgpt` when authentication is required. Login, account
+   choice, 2FA, and challenge handling remain manual; never bypass them.
+3. Pass `npm run probe:chatgpt` on the exact commit and record sanitized live
+   evidence containing environment versions, timestamp, test ID, timings, and
+   failure class. Do not store prompt/response text, tokens, cookies, profiles,
+   or unredacted screenshots.
+4. Prove Hermes through the relay for:
+   - a normal single-turn response;
+   - compatibility streaming;
+   - a multi-turn continuation;
+   - a long prompt that exercises native insertion;
+   - compact tool schemas;
+   - one safe read-only tool proposal and round trip.
+5. Restart the relay service and browser context, then prove the next mission
+   succeeds without duplicate prompt submission, lost provider identity, or
+   duplicate tool execution.
+6. Add or repair the smallest repeatable ChatGPT canary needed to run five
+   consecutive sanitized missions. Reuse existing probe, driver, planner,
+   startup, and Hermes code instead of creating a second harness.
+7. Make runtime capability evidence truthful: ChatGPT must enter default model
+   discovery only after the current live proof, and logged-out, challenge,
+   quota, timeout, layout-change, and stale-evidence states must remain
+   actionable and non-ready as appropriate.
+8. Reconcile ChatGPT live-evidence documentation. Explicitly distinguish mock
+   E2E, this live Fedora result, and the still-unproven Windows path.
 
-## Parallel-safe work split
+## Fail-fast rule
 
-When `$parallel-task` is available, use at most three workers plus one
-coordinator. The coordinator first freezes the release manifest and verifier
-CLI contract, then assigns these non-overlapping lanes:
+For one external failure class, make at most three bounded attempts after
+capturing diagnostics. If login, policy, CAPTCHA, provider outage, or an
+unrecoverable layout blocks progress, stop with exact evidence and the smallest
+recommended next action. Do not redesign the architecture or weaken readiness
+rules to manufacture a pass.
 
-- **Linux lane:** `bootstrap.sh`, `setup-linux.sh`, and new Linux-only tests.
-- **Windows lane:** `bootstrap.ps1`, `setup-windows.ps1`,
-  `setup-windows.cmd`, and new Windows-only tests.
-- **Release lane:** new release workflow files, artifact/SBOM generation, and
-  workflow-specific tests or validation.
-- **Coordinator/integrator only:** shared verifier code, `package.json`, lock
-  files, `README.md`, `SECURITY.md`, release-policy/ADR documents, `TASK.md`,
-  and this task's final branch and pull request.
+## Parallel execution
 
-Workers must not edit coordinator-owned files. If the frozen contract changes,
-stop the affected lane and rebase/reassign it; do not let workers invent
-incompatible formats independently.
+Live login, browser probes, Hermes missions, and capability promotion are
+serialized and coordinator-owned. `$parallel-task` may use at most two workers
+only after a concrete failure is reproduced:
+
+- **Driver worker:** ChatGPT-specific driver/runtime fixtures and tests under
+  `src/browser/`.
+- **Harness/evidence worker:** repeatable canary tooling and sanitized evidence
+  documentation under `scripts/`, `src/cli/`, and `docs/e2e/`.
+
+Shared provider registry, capability tracker, package files, README, TASK.md,
+integration, remote branch, and draft PR remain coordinator-owned. Workers must
+not run simultaneous live missions against the same browser profile.
 
 ## Initial write scope
 
-- `bootstrap.sh`
-- `bootstrap.ps1`
-- `setup-linux.sh`
-- `setup-windows.ps1`
-- `setup-windows.cmd`
-- `.github/workflows/ci.yml`
-- new release workflow files under `.github/workflows/`
-- new delivery/verifier implementation and tests under `src/`, `scripts/`, or
-  `tests/` as justified by the existing layout
-- `package.json` and `package-lock.json`
-- `README.md`, `SECURITY.md`, and new release-policy/ADR documentation
+- ChatGPT-specific files under `src/browser/` and `src/providers/`
+- capability/evidence code and tests when required by reproduced behavior
+- relevant CLI/canary code under `src/cli/` and `scripts/`
+- deterministic fixtures/tests
+- `docs/e2e/chatgpt.md`, `docs/antigravity-e2e-report.md`, and README truth
+- package scripts only when required for the repeatable canary
 
-Expand beyond this list only when repository evidence requires it, and explain
-why in the pull request.
+Expand scope only with repository evidence and explain it in the PR.
 
-## Acceptance checks
+## Acceptance
+
+Deterministic:
 
 ```bash
 npm ci
@@ -93,47 +111,30 @@ npm test
 npm run test:e2e
 npm run build
 npm run smoke:startup
+npm run test:delivery
+node scripts/validate-release.mjs
 ```
 
-Also run every new delivery-security test on its supported operating systems.
-GitHub Actions must pass on Ubuntu and Windows. Tests must prove failure—not
-fallback—for tampered or unauthenticated artifacts.
+Live:
+
+- fresh `probe:chatgpt` pass on the final commit;
+- Hermes single-turn, streaming, continuation, long-prompt, compact-tool, and
+  safe read-only tool round-trip cases pass;
+- five consecutive canary missions pass after one cold relay/browser restart;
+- `/v1/models` and provider diagnostics reflect the live evidence truthfully;
+- GitHub CI passes on Ubuntu and Windows without credentials.
 
 ## Required handoff
 
-Report the remote branch, full commit SHA, draft PR URL, changed files, exact
-local and CI results, the release contract, security assumptions, unsupported
-platforms/versions, and remaining owner decisions. Do not merge.
+Report:
 
-## Execution record
+- remote branch, full commit SHA, and draft PR URL;
+- exact deterministic and live results;
+- Fedora, Node, Chrome/Patchright, Hermes, provider/model, timestamp, and evidence
+  path;
+- mission count, timings, failure classes, recovery actions, and remaining
+  blockers without prompt/response content;
+- security/privacy assumptions and every manual owner action;
+- whether U0-02 Windows proof is unblocked.
 
-- Baseline on `origin/main`: all six acceptance commands passed. The first
-  sandboxed `npm ci` attempt could not execute esbuild (`EPERM`); the required
-  unsandboxed rerun passed with 58 packages and 0 vulnerabilities. Baseline E2E
-  passed 62/62.
-- Frozen contract: exact stable `vX.Y.Z` releases; `linux-x64` tarball and
-  `windows-x64` ZIP; versioned manifest; SHA-256 sums; GitHub artifact
-  attestations bound to this repository and release workflow; SPDX JSON SBOM;
-  Node.js 22-24.
-- Parallel lanes: Linux bootstrap/setup/tests, Windows bootstrap/setup/tests,
-  and release workflow/artifact validation. Shared verifier, documentation,
-  package metadata, integration, and publication remained coordinator-owned.
-- Final local acceptance:
-  - `npm ci`: passed; 58 packages, 0 vulnerabilities.
-  - `npm run typecheck`: passed.
-  - `npm test`: passed; 274 tests, 264 passed, 10 Windows-only skipped.
-  - `npm run test:e2e`: passed; 62/62.
-  - `npm run build`: passed.
-  - `npm run smoke:startup`: passed; occupied-port startup, `/health`, and
-    `/v1/chat/completions`.
-  - `npm run test:delivery`: passed on Linux; 30 tests, 20 passed and 10
-    Windows-only skipped pending Windows CI.
-  - `node scripts/validate-release.mjs`: passed; 8 deterministic authenticated
-    assets validated.
-- Scope expanded to `src/cli/start-windows-service.ts` and its tests because
-  repository evidence showed version-local process state made authenticated
-  update and rollback unsafe. The obsolete mutable-`main` bootstrap test was
-  replaced by the delivery contract suites.
-- Draft PR: https://github.com/Nan0pk/local-ai-relay/pull/17
-- GitHub Actions run 38 passed on Ubuntu and Windows:
-  https://github.com/Nan0pk/local-ai-relay/actions/runs/29657970360
+Do not merge. Do not claim Windows or another provider from this Fedora result.
