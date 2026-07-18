@@ -59,6 +59,56 @@ async function activeIdentity(): Promise<ReleaseIdentity | undefined> {
   }
 }
 
+async function clearManagedState(): Promise<void> {
+  await Promise.all([
+    rm(pidPath, { force: true }),
+    rm(activePortPath, { force: true }),
+    rm(activeReleasePath, { force: true }),
+  ]);
+}
+
+type ProcessControl = {
+  kill(pid: number): void;
+  alive(pid: number): boolean;
+  wait(milliseconds: number): Promise<void>;
+};
+
+const processControl: ProcessControl = {
+  kill(pid) {
+    process.kill(pid, 'SIGTERM');
+  },
+  alive(pid) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;
+      throw error;
+    }
+  },
+  wait(milliseconds) {
+    return new Promise((resolveWait) => setTimeout(resolveWait, milliseconds));
+  },
+};
+
+export async function terminateRecordedProcess(
+  pid: number,
+  version: string,
+  control: ProcessControl = processControl,
+): Promise<void> {
+  try {
+    control.kill(pid);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return;
+    throw new Error(`Unable to stop previous managed relay ${version}.`, { cause: error });
+  }
+  const deadline = Date.now() + 5_000;
+  while (control.alive(pid) && Date.now() < deadline) {
+    await control.wait(100);
+  }
+  if (control.alive(pid)) throw new Error(`Previous managed relay ${version} did not stop.`);
+}
+
 async function readInteger(path: string): Promise<number | undefined> {
   try {
     const value = Number.parseInt((await readFile(path, 'utf8')).trim(), 10);
@@ -90,29 +140,8 @@ async function stopPreviousManagedRelay(): Promise<void> {
   if (!pid || !port || !identity) {
     throw new Error('Managed runtime state is incomplete; refusing to stop an unverified process.');
   }
-  if (!(await isHealthy(port))) {
-    await Promise.all([
-      rm(pidPath, { force: true }),
-      rm(activePortPath, { force: true }),
-      rm(activeReleasePath, { force: true }),
-    ]);
-    return;
-  }
-  try {
-    process.kill(pid, 'SIGTERM');
-  } catch {
-    throw new Error(`Unable to stop previous managed relay ${identity.version}.`);
-  }
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline && await isHealthy(port)) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  if (await isHealthy(port)) throw new Error(`Previous managed relay ${identity.version} did not stop.`);
-  await Promise.all([
-    rm(pidPath, { force: true }),
-    rm(activePortPath, { force: true }),
-    rm(activeReleasePath, { force: true }),
-  ]);
+  await terminateRecordedProcess(pid, identity.version);
+  await clearManagedState();
 }
 
 async function waitForHealth(port: number): Promise<void> {
@@ -131,9 +160,18 @@ async function main(): Promise<void> {
   if (!installRoot) {
     throw new Error('RELAY_INSTALL_ROOT is required for the authenticated Windows service.');
   }
+  const cliArgs = process.argv.slice(2);
+  if (cliArgs.some((argument) => argument !== '--stop')) {
+    throw new Error('Usage: start-windows-service.ts [--stop]');
+  }
+  const stopOnly = cliArgs.includes('--stop');
   const targetIdentity = await authenticatedIdentity();
   await mkdir(stateDir, { recursive: true });
   await stopPreviousManagedRelay();
+  if (stopOnly) {
+    console.log(`PASS: managed Windows relay stopped by authenticated release ${targetIdentity.version}`);
+    return;
+  }
 
   const requested = loadConfig();
   const selected = await selectPort(requested.host, requested.port);
@@ -142,39 +180,31 @@ async function main(): Promise<void> {
   }
 
   const log = await open(logPath, 'a');
-  const child = spawn(
-    process.execPath,
-    ['--env-file-if-exists=.env', 'dist/index.js'],
-    {
-      cwd: root,
-      detached: true,
-      windowsHide: true,
-      stdio: ['ignore', log.fd, log.fd],
-      env: { ...process.env, HOST: requested.host, PORT: String(selected.port) },
-    },
-  );
-  await new Promise<void>((resolve, reject) => {
-    child.once('spawn', resolve);
-    child.once('error', reject);
+  const child = spawn(process.execPath, ['--env-file-if-exists=.env', 'dist/index.js'], {
+    cwd: root,
+    detached: true,
+    windowsHide: true,
+    stdio: ['ignore', log.fd, log.fd],
+    env: { ...process.env, HOST: requested.host, PORT: String(selected.port) },
   });
-  child.unref();
-  await log.close();
-
-  if (!child.pid) throw new Error('Windows did not return a process id for the background relay.');
-  await Promise.all([
-    writeFile(pidPath, `${child.pid}\n`),
-    writeFile(activePortPath, `${selected.port}\n`),
-    writeFile(activeReleasePath, `${JSON.stringify(targetIdentity)}\n`),
-  ]);
   try {
+    await new Promise<void>((resolveSpawn, rejectSpawn) => {
+      child.once('spawn', resolveSpawn);
+      child.once('error', rejectSpawn);
+    });
+    child.unref();
+    await log.close();
+    if (!child.pid) throw new Error('Windows did not return a process id for the background relay.');
+    await writeFile(pidPath, `${child.pid}\n`);
+    await writeFile(activePortPath, `${selected.port}\n`);
+    await writeFile(activeReleasePath, `${JSON.stringify(targetIdentity)}\n`);
     await waitForHealth(selected.port);
   } catch (error) {
-    try { process.kill(child.pid, 'SIGTERM'); } catch { /* already exited */ }
-    await Promise.all([
-      rm(pidPath, { force: true }),
-      rm(activePortPath, { force: true }),
-      rm(activeReleasePath, { force: true }),
-    ]);
+    if (child.pid) {
+      await terminateRecordedProcess(child.pid, targetIdentity.version);
+    }
+    try { await log.close(); } catch { /* already closed */ }
+    await clearManagedState();
     throw error;
   }
   console.log(`PASS: background relay is healthy at http://127.0.0.1:${selected.port}`);

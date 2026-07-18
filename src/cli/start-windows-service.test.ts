@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
-import { authenticatedIdentity, windowsStateDirectory } from './start-windows-service.js';
+import {
+  authenticatedIdentity,
+  terminateRecordedProcess,
+  windowsStateDirectory,
+} from './start-windows-service.js';
 
 async function release(version = 'v1.2.3') {
   const installRoot = await mkdtemp(join(tmpdir(), 'relay-windows-service-'));
@@ -47,4 +51,24 @@ test('authenticated Windows service identity rejects a mismatched marker', async
     authenticatedIdentity(fixture.releaseRoot, fixture.installRoot),
     /outside RELAY_INSTALL_ROOT/i,
   );
+});
+
+test('recorded process termination reconciles an unavailable process without orphaning it', async () => {
+  const killed: number[] = [];
+  await terminateRecordedProcess(42, 'v1.2.3', {
+    kill(pid) { killed.push(pid); },
+    alive() { return false; },
+    async wait() {},
+  });
+  assert.deepEqual(killed, [42]);
+
+  await terminateRecordedProcess(43, 'v1.2.3', {
+    kill() {
+      const error = new Error('gone') as NodeJS.ErrnoException;
+      error.code = 'ESRCH';
+      throw error;
+    },
+    alive() { throw new Error('must not check a missing process'); },
+    async wait() {},
+  });
 });

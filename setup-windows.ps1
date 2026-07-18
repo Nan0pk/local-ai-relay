@@ -43,18 +43,25 @@ function Invoke-Npm {
 }
 
 function Set-Pointer([string]$Name, [string]$Value) {
+  if ($env:RELAY_TEST_DENY_POINTER_WRITE -eq $Name) {
+    throw "Injected denial writing $Name."
+  }
   $path = Join-Path $InstallRoot $Name
   $temporary = "$path.tmp-$([Guid]::NewGuid().ToString('N'))"
   Set-Content -LiteralPath $temporary -Value $Value -NoNewline
   Move-Item -LiteralPath $temporary -Destination $path -Force
 }
 
-function Invoke-ManagedService([string]$ReleasePath) {
+function Invoke-ManagedService([string]$ReleasePath, [switch]$Stop) {
   $oldInstallRoot = $env:RELAY_INSTALL_ROOT
   Push-Location $ReleasePath
   try {
     $env:RELAY_INSTALL_ROOT = $InstallRoot
-    Invoke-Npm run service:start:windows
+    if ($Stop) {
+      Invoke-Npm run service:start:windows -- --stop
+    } else {
+      Invoke-Npm run service:start:windows
+    }
   } finally {
     $env:RELAY_INSTALL_ROOT = $oldInstallRoot
     Pop-Location
@@ -89,6 +96,7 @@ if ($oldManaged -and ($oldManaged -notmatch $stableVersion -or $oldManaged -ne $
 $oldRelease = if ($oldCurrent) { Join-Path $versionsRoot $oldCurrent } else { $null }
 $targetCreated = $false
 $activationAttempted = $false
+$targetSafeToDelete = $true
 
 try {
   New-Item -ItemType Directory -Path $versionsRoot, $transactionRoot -Force | Out-Null
@@ -138,6 +146,7 @@ try {
   $targetCreated = $true
   if (-not $NoBrowser -or $oldManaged) {
     $activationAttempted = $true
+    $targetSafeToDelete = $false
     Push-Location $targetRelease
     try {
       if (-not $NoBrowser) { Invoke-Npm run probe:chatgpt }
@@ -153,10 +162,20 @@ try {
   Set-Pointer 'current-version' $Version
 } catch {
   $installError = $_
+  $runtimeRecoveryError = $null
   try {
-    if ($activationAttempted -and $oldManaged -and $oldRelease) {
-      Invoke-ManagedService $oldRelease
+    if ($activationAttempted) {
+      if ($oldManaged -and $oldRelease) {
+        Invoke-ManagedService $oldRelease
+      } elseif ($targetCreated) {
+        Invoke-ManagedService $targetRelease -Stop
+      }
+      $targetSafeToDelete = $true
     }
+  } catch {
+    $runtimeRecoveryError = $_
+  }
+  try {
     if ($oldManaged) {
       Set-Pointer 'managed-runtime' $oldManaged
     } elseif (Test-Path -LiteralPath $managedPath) {
@@ -173,11 +192,14 @@ try {
       Remove-Item -LiteralPath $currentPath -Force
     }
   } catch {
-    throw "Install failed and current runtime recovery also failed: $($_.Exception.Message)"
+    throw "Install failed and pointer recovery also failed: $($_.Exception.Message)"
   } finally {
-    if ($targetCreated) {
+    if ($targetCreated -and $targetSafeToDelete) {
       Remove-Item -LiteralPath $targetRelease -Recurse -Force -ErrorAction SilentlyContinue
     }
+  }
+  if ($runtimeRecoveryError) {
+    throw "Install failed and current runtime recovery also failed: $($runtimeRecoveryError.Exception.Message)"
   }
   throw $installError
 } finally {

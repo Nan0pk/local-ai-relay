@@ -135,7 +135,7 @@ test('Windows bootstrap rejects missing, malformed, and unsupported versions bef
   }
 });
 
-test('interrupted update preserves active install, configuration, and diagnostics; rollback swaps pointers only', { skip: !windows }, async () => {
+test('interrupted update preserves active install and unmanaged rollback swaps pointers only', { skip: !windows }, async () => {
   const first = await fixture('v1.2.3');
   assert.equal(run('v1.2.3', first).status, 0);
   await mkdir(join(first.install, 'diagnostics'));
@@ -168,21 +168,12 @@ test('interrupted update preserves active install, configuration, and diagnostic
   assert.equal(await readFile(join(first.install, 'current-version'), 'utf8'), 'v1.2.4');
   await writeFile(previousMarker, validMarker);
 
-  const failedRollback = run(undefined, second, ['-Rollback'], {
-    RELAY_FAIL_SERVICE_VERSION: 'v1.2.3',
-  }, false);
-  assert.notEqual(failedRollback.status, 0);
-  assert.equal(await readFile(join(first.install, 'current-version'), 'utf8'), 'v1.2.4');
-  assert.equal(await readFile(join(first.install, 'previous-version'), 'utf8'), 'v1.2.3');
-  const failedRollbackLog = await readFile(second.npmLog, 'utf8');
-  assert.match(failedRollbackLog, /v1\.2\.3\|run service:start:windows/);
-  assert.match(failedRollbackLog, /v1\.2\.4\|run service:start:windows/);
-
   const rollback = run(undefined, second, ['-Rollback'], {}, false);
   assert.equal(rollback.status, 0, rollback.stderr);
   assert.equal(await readFile(join(first.install, 'current-version'), 'utf8'), 'v1.2.3');
   assert.equal(await readFile(join(first.install, 'previous-version'), 'utf8'), 'v1.2.4');
-  assert.equal(await readFile(join(first.install, 'managed-runtime'), 'utf8'), 'v1.2.3');
+  await assert.rejects(readFile(join(first.install, 'managed-runtime')));
+  assert.doesNotMatch(await readFile(second.npmLog, 'utf8'), /service:start:windows/);
 });
 
 test('failed service activation restores the old runtime and leaves pointers unchanged', { skip: !windows }, async () => {
@@ -217,6 +208,44 @@ test('NoBrowser restarts an already managed runtime but leaves an unmanaged inst
   assert.match(updateLog, /v2\.0\.1\|run service:start:windows\|/);
   assert.match(updateLog, new RegExp(managed.install.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.doesNotMatch(updateLog, /probe:chatgpt/);
+});
+
+test('managed rollback restores its old runtime and marker when target activation fails', { skip: !windows }, async () => {
+  const first = await fixture('v3.0.0');
+  assert.equal(run('v3.0.0', first, [], {}, false).status, 0);
+  const second = await fixture('v3.0.1');
+  second.install = first.install;
+  assert.equal(run('v3.0.1', second).status, 0);
+
+  const failed = run(undefined, second, ['-Rollback'], {
+    RELAY_FAIL_SERVICE_VERSION: 'v3.0.0',
+  }, false);
+  assert.notEqual(failed.status, 0);
+  assert.equal(await readFile(join(first.install, 'current-version'), 'utf8'), 'v3.0.1');
+  assert.equal(await readFile(join(first.install, 'previous-version'), 'utf8'), 'v3.0.0');
+  assert.equal(await readFile(join(first.install, 'managed-runtime'), 'utf8'), 'v3.0.1');
+  const failedLog = await readFile(second.npmLog, 'utf8');
+  assert.match(failedLog, /v3\.0\.0\|run service:start:windows/);
+  assert.match(failedLog, /v3\.0\.1\|run service:start:windows/);
+
+  const rollback = run(undefined, second, ['-Rollback'], {}, false);
+  assert.equal(rollback.status, 0, rollback.stderr);
+  assert.equal(await readFile(join(first.install, 'current-version'), 'utf8'), 'v3.0.0');
+  assert.equal(await readFile(join(first.install, 'managed-runtime'), 'utf8'), 'v3.0.0');
+});
+
+test('initial managed-install finalization denial stops the service before deleting its release', { skip: !windows }, async () => {
+  const paths = await fixture('v4.0.0');
+  const denied = run('v4.0.0', paths, [], {
+    RELAY_TEST_DENY_POINTER_WRITE: 'managed-runtime',
+  }, false);
+  assert.notEqual(denied.status, 0);
+  await assert.rejects(readFile(join(paths.install, 'current-version')));
+  await assert.rejects(readFile(join(paths.install, 'managed-runtime')));
+  await assert.rejects(readFile(join(paths.install, 'versions', 'v4.0.0', 'package.json')));
+  const npmLog = await readFile(paths.npmLog, 'utf8');
+  assert.match(npmLog, /v4\.0\.0\|run service:start:windows\|/);
+  assert.match(npmLog, /v4\.0\.0\|run service:start:windows -- --stop\|/);
 });
 
 test('PowerShell entry points parse and the batch wrapper only launches verified setup', { skip: !windows }, async () => {

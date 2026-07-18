@@ -97,23 +97,31 @@ if ($Rollback) {
   Assert-AuthenticatedInstall $currentRelease $current
   Assert-AuthenticatedInstall $previousRelease $previous
   try {
-    Start-ManagedRuntime $previousRelease $previous
-    Set-ManagedRuntime $previous
+    if ($oldManaged) {
+      Start-ManagedRuntime $previousRelease $previous
+      Set-ManagedRuntime $previous
+    }
     Set-Pointer 'previous-version' $current
     Set-Pointer 'current-version' $previous
   } catch {
     $rollbackError = $_
+    $runtimeRecoveryError = $null
+    try {
+      if ($oldManaged) {
+        Start-ManagedRuntime $currentRelease $current
+      }
+    } catch {
+      $runtimeRecoveryError = $_
+    }
     try {
       Set-Pointer 'previous-version' $previous
       Set-Pointer 'current-version' $current
-      Start-ManagedRuntime $currentRelease $current
-      if ($oldManaged) {
-        Set-ManagedRuntime $oldManaged
-      } elseif (Test-Path -LiteralPath $managedPath) {
-        Remove-Item -LiteralPath $managedPath -Force
-      }
+      if ($oldManaged) { Set-ManagedRuntime $oldManaged }
     } catch {
-      throw "Rollback failed and current runtime recovery also failed: $($_.Exception.Message)"
+      throw "Rollback failed and pointer recovery also failed: $($_.Exception.Message)"
+    }
+    if ($runtimeRecoveryError) {
+      throw "Rollback failed and current runtime recovery also failed: $($runtimeRecoveryError.Exception.Message)"
     }
     throw $rollbackError
   }
