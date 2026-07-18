@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project": "local-ai-relay",
   "plan": "docs/plans/v2-master-plan.md",
-  "updated_at": "2026-07-17T20:47:48Z",
+  "updated_at": "2026-07-18T13:13:47Z",
   "tasks": [
     {
       "id": "P0-01",
@@ -69,7 +69,7 @@
       "title": "Make provider capability discovery truthful",
       "phase": 0,
       "priority": 2,
-      "status": "claimed",
+      "status": "done",
       "depends_on": [],
       "risk": "medium",
       "model_tier": "standard",
@@ -93,13 +93,19 @@
         "npm test",
         "npm run test:e2e"
       ],
-      "claim": {
+      "claim": null,
+      "handoff": {
         "agent": "arena-agent",
         "branch": "task/P0-02-truthful-capability-discovery",
-        "started_at": "2026-07-17T20:47:48Z",
-        "lease_until": "2026-07-18T00:47:48Z"
+        "commit": "36b06266b7e93a4ac03a4cdc2b73e5588047c613",
+        "at": "2026-07-18T13:13:43Z",
+        "evidence": [
+          "npm test: 240/240 pass",
+          "npm run test:e2e: 60/60 pass",
+          "npm run typecheck: clean",
+          "system browser paths now use getWritableHome fallback"
+        ]
       },
-      "handoff": null,
       "verification_record": null,
       "blocker": null,
       "history": [
@@ -108,6 +114,20 @@
           "action": "claim",
           "agent": "arena-agent",
           "note": "task/P0-02-truthful-capability-discovery"
+        },
+        {
+          "at": "2026-07-18T13:13:43Z",
+          "action": "handoff",
+          "agent": "arena-agent",
+          "note": "npm test: 240/240 pass; npm run test:e2e: 60/60 pass; npm run typecheck: clean; system browser paths now use getWritableHome fallback",
+          "commit": "36b06266b7e93a4ac03a4cdc2b73e5588047c613"
+        },
+        {
+          "at": "2026-07-18T13:13:47Z",
+          "action": "complete",
+          "agent": "arena-agent",
+          "note": "acceptance satisfied",
+          "commit": "36b06266b7e93a4ac03a4cdc2b73e5588047c613"
         }
       ]
     },
