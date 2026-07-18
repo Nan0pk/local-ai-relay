@@ -34,6 +34,10 @@ async function fixture(setupBody = '#!/usr/bin/env bash\nset -Eeuo pipefail\ntou
   await writeFile(join(payload, 'setup-linux.sh'), setupBody);
   await chmod(join(payload, 'setup-linux.sh'), 0o755);
   await writeFile(join(payload, 'package.json'), '{"name":"fixture"}\n');
+  await writeFile(join(payload, 'package-lock.json'), '{"lockfileVersion":3}\n');
+  await mkdir(join(payload, 'dist'));
+  await writeFile(join(payload, 'dist', 'index.js'), '/* built fixture */\n');
+  await writeFile(join(payload, '.env'), 'FIXTURE=1\n');
   const packed = spawnSync('tar', ['-czf', join(assets, artifact), '-C', payload, '.']);
   assert.equal(packed.status, 0, packed.stderr.toString());
   const checksum = createHash('sha256').update(await readFile(join(assets, artifact))).digest('hex');
@@ -91,6 +95,9 @@ function run(f: Fixture, args: string[], extra: Record<string, string> = {}) {
       ATTEST_LOG: join(f.root, 'attest.log'),
       POLICY_LOG: join(f.root, 'policy.log'),
       ROOT_MARKER: marker,
+      SERVICE_UNIT: join(f.home, '.config', 'systemd', 'user', 'local-ai-relay.service'),
+      SYSTEMCTL_LOG: join(f.root, 'systemctl.log'),
+      SERVICE_RUNTIME: join(f.root, 'service-runtime'),
       ...extra,
     },
   });
@@ -106,18 +113,31 @@ async function stubServiceNpm(f: Fixture) {
 set -Eeuo pipefail
 [[ "$*" == "run service:install" ]]
 version="\${PWD##*/}"
+mkdir -p "\${SERVICE_UNIT%/*}"
+printf 'unit for %s\n' "$version" > "$SERVICE_UNIT"
 printf '%s\n' "$version" > "$SERVICE_RUNTIME"
 [[ "$version" != "\${FAIL_SERVICE_VERSION:-}" ]]
 `);
-  await chmod(join(f.bin, 'npm'), 0o755);
+  await writeFile(join(f.bin, 'systemctl'), `#!/usr/bin/env bash
+set -Eeuo pipefail
+printf '%s\n' "$*" >> "$SYSTEMCTL_LOG"
+if [[ "$*" == "--user disable --now local-ai-relay.service" ]]; then
+  printf 'stopped\n' > "$SERVICE_RUNTIME"
+fi
+`);
+  await Promise.all([chmod(join(f.bin, 'npm'), 0o755), chmod(join(f.bin, 'systemctl'), 0o755)]);
 }
 
 async function seedVersion(install: string, version: string, authenticated = true) {
   const root = join(install, 'versions', version);
   await mkdir(root, { recursive: true });
   await writeFile(join(root, 'package.json'), '{"name":"installed"}\n');
+  await writeFile(join(root, 'package-lock.json'), '{"lockfileVersion":3}\n');
   await writeFile(join(root, 'setup-linux.sh'), '#!/usr/bin/env bash\n');
   await chmod(join(root, 'setup-linux.sh'), 0o755);
+  await mkdir(join(root, 'dist'));
+  await writeFile(join(root, 'dist', 'index.js'), '/* built */\n');
+  await writeFile(join(root, '.env'), 'INSTALLED=1\n');
   if (authenticated) await writeFile(join(root, '.authenticated-release'), `${version}\n`);
 }
 
@@ -130,6 +150,7 @@ linuxTest('installs only an explicit authenticated release and records all attes
   const result = run(f, ['--version', f.version, '--no-browser']);
   assert.equal(result.status, 0, result.output);
   assert.equal(await pointer(f, 'current'), f.version);
+  assert.equal(await readFile(join(f.data, 'local-ai-relay', 'versions', f.version, '.authenticated-release'), 'utf8'), `${f.version}\n`);
   assert.equal(await readFile(result.marker, 'utf8'), '');
   await assert.rejects(readFile(join(f.data, 'local-ai-relay', 'service-managed')));
   assert.deepEqual(
@@ -270,11 +291,11 @@ linuxTest('managed update switches runtime, and activation failure restores runt
     await stubServiceNpm(f);
     const install = join(f.data, 'local-ai-relay');
     const runtime = join(f.root, 'service-runtime');
-    await mkdir(join(install, 'versions', 'v1.0.0'), { recursive: true });
+    await seedVersion(install, 'v1.0.0');
     await mkdir(join(install, 'config'), { recursive: true });
     await mkdir(join(install, 'diagnostics'), { recursive: true });
     await writeFile(join(install, 'current'), 'v1.0.0\n');
-    await writeFile(join(install, 'service-managed'), '');
+    await writeFile(join(install, 'service-managed'), 'v1.0.0\n');
     await writeFile(join(install, 'config', 'settings.json'), 'keep-config');
     await writeFile(join(install, 'diagnostics', 'last.log'), 'keep-diagnostics');
     await writeFile(runtime, 'v1.0.0\n');
@@ -292,10 +313,46 @@ linuxTest('managed update switches runtime, and activation failure restores runt
       assert.equal(result.status, 0, result.output);
       assert.equal(await pointer(f, 'current'), f.version);
       assert.equal((await readFile(runtime, 'utf8')).trim(), f.version);
+      assert.equal(await readFile(join(install, 'service-managed'), 'utf8'), `${f.version}\n`);
     }
     assert.equal(await readFile(join(install, 'config', 'settings.json'), 'utf8'), 'keep-config');
     assert.equal(await readFile(join(install, 'diagnostics', 'last.log'), 'utf8'), 'keep-diagnostics');
   }
+});
+
+linuxTest('first managed activation failures deactivate and remove only the newly-created unit', async () => {
+  for (const failure of ['activation', 'finalization'] as const) {
+    const f = await fixture();
+    await stubServiceNpm(f);
+    const install = join(f.data, 'local-ai-relay');
+    const unit = join(f.home, '.config', 'systemd', 'user', 'local-ai-relay.service');
+    const result = run(f, ['--version', f.version], {
+      ...(failure === 'activation' ? { FAIL_SERVICE_VERSION: f.version } : { RELAY_TEST_FAIL_FINALIZE_AFTER: 'current' }),
+    });
+    assert.notEqual(result.status, 0);
+    await assert.rejects(readFile(join(install, 'current')));
+    await assert.rejects(readFile(join(install, 'service-managed')));
+    await assert.rejects(readFile(unit));
+    await assert.rejects(readFile(join(install, 'versions', f.version, 'package.json')));
+    assert.equal((await readFile(join(f.root, 'service-runtime'), 'utf8')).trim(), 'stopped');
+    const systemctl = await readFile(join(f.root, 'systemctl.log'), 'utf8');
+    assert.match(systemctl, /--user disable --now local-ai-relay\.service/);
+    assert.match(systemctl, /--user daemon-reload/);
+  }
+});
+
+linuxTest('first managed install refuses a pre-existing unmanaged fixed service unit', async () => {
+  const f = await fixture();
+  await stubServiceNpm(f);
+  const unit = join(f.home, '.config', 'systemd', 'user', 'local-ai-relay.service');
+  await mkdir(join(f.home, '.config', 'systemd', 'user'), { recursive: true });
+  await writeFile(unit, 'owner-managed unit\n');
+
+  const result = run(f, ['--version', f.version]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.output, /refusing to overwrite unmanaged service unit/);
+  assert.equal(await readFile(unit, 'utf8'), 'owner-managed unit\n');
+  await assert.rejects(readFile(join(f.root, 'service-runtime')));
 });
 
 linuxTest('managed rollback switches runtime, and activation failure restores it before pointers', async () => {
@@ -310,7 +367,7 @@ linuxTest('managed rollback switches runtime, and activation failure restores it
     await mkdir(join(install, 'diagnostics'), { recursive: true });
     await writeFile(join(install, 'current'), 'v1.1.0\n');
     await writeFile(join(install, 'previous'), 'v1.0.0\n');
-    await writeFile(join(install, 'service-managed'), '');
+    await writeFile(join(install, 'service-managed'), 'v1.1.0\n');
     await writeFile(join(install, 'config', 'settings.json'), 'keep-config');
     await writeFile(join(install, 'diagnostics', 'last.log'), 'keep-diagnostics');
     await writeFile(runtime, 'v1.1.0\n');
@@ -329,24 +386,35 @@ linuxTest('managed rollback switches runtime, and activation failure restores it
       assert.equal(await pointer(f, 'current'), 'v1.0.0');
       assert.equal(await pointer(f, 'previous'), 'v1.1.0');
       assert.equal((await readFile(runtime, 'utf8')).trim(), 'v1.0.0');
+      assert.equal(await readFile(join(install, 'service-managed'), 'utf8'), 'v1.0.0\n');
     }
     assert.equal(await readFile(join(install, 'config', 'settings.json'), 'utf8'), 'keep-config');
     assert.equal(await readFile(join(install, 'diagnostics', 'last.log'), 'utf8'), 'keep-diagnostics');
   }
 });
 
-linuxTest('rollback fails closed on malformed pointers or unauthenticated version directories', async () => {
-  for (const invalid of ['malformed-pointer', 'missing-marker'] as const) {
+linuxTest('rollback fails closed on malformed trust state or incomplete recovery releases', async () => {
+  for (const invalid of ['malformed-pointer', 'missing-marker', 'managed-mismatch', 'invalid-current'] as const) {
     const f = await fixture();
     const install = join(f.data, 'local-ai-relay');
     await seedVersion(install, 'v1.0.0', invalid !== 'missing-marker');
-    await seedVersion(install, 'v1.1.0');
+    await seedVersion(install, 'v1.1.0', invalid !== 'invalid-current');
     await writeFile(join(install, 'current'), invalid === 'malformed-pointer' ? 'latest\n' : 'v1.1.0\n');
     await writeFile(join(install, 'previous'), 'v1.0.0\n');
+    if (invalid === 'managed-mismatch' || invalid === 'invalid-current') {
+      await writeFile(join(install, 'service-managed'), invalid === 'managed-mismatch' ? 'v9.9.9\n' : 'v1.1.0\n');
+    }
 
     const result = run(f, ['--rollback']);
     assert.notEqual(result.status, 0);
-    assert.match(result.output, invalid === 'malformed-pointer' ? /current release pointer is malformed/ : /not an authenticated runnable/);
+    const expected = invalid === 'malformed-pointer'
+      ? /current release pointer is malformed/
+      : invalid === 'managed-mismatch'
+        ? /does not match current/
+        : invalid === 'invalid-current'
+          ? /current recovery release .* is not an authenticated runnable/
+          : /previous release .* is not an authenticated runnable/;
+    assert.match(result.output, expected);
     assert.equal(await readFile(join(install, 'current'), 'utf8'), invalid === 'malformed-pointer' ? 'latest\n' : 'v1.1.0\n');
     assert.equal(await readFile(join(install, 'previous'), 'utf8'), 'v1.0.0\n');
   }
@@ -366,7 +434,7 @@ linuxTest('pointer-finalization failure restores exact pointers, marker, and man
     const previous = operation === 'update' ? 'v0.9.0' : 'v1.0.0';
     await writeFile(join(install, 'current'), `${current}\n`);
     await writeFile(join(install, 'previous'), `${previous}\n`);
-    await writeFile(join(install, 'service-managed'), 'managed-exact-state\n');
+    await writeFile(join(install, 'service-managed'), `${current}\n`);
     await writeFile(join(install, 'config', 'settings.json'), 'keep-config');
     await writeFile(join(install, 'diagnostics', 'last.log'), 'keep-diagnostics');
     await writeFile(runtime, `${current}\n`);
@@ -378,7 +446,7 @@ linuxTest('pointer-finalization failure restores exact pointers, marker, and man
     assert.notEqual(result.status, 0);
     assert.equal(await readFile(join(install, 'current'), 'utf8'), `${current}\n`);
     assert.equal(await readFile(join(install, 'previous'), 'utf8'), `${previous}\n`);
-    assert.equal(await readFile(join(install, 'service-managed'), 'utf8'), 'managed-exact-state\n');
+    assert.equal(await readFile(join(install, 'service-managed'), 'utf8'), `${current}\n`);
     assert.equal((await readFile(runtime, 'utf8')).trim(), current);
     assert.equal(await readFile(join(install, 'config', 'settings.json'), 'utf8'), 'keep-config');
     assert.equal(await readFile(join(install, 'diagnostics', 'last.log'), 'utf8'), 'keep-diagnostics');

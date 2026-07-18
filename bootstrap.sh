@@ -9,6 +9,7 @@ SETUP_ARGS=()
 NO_BROWSER=0
 INSTALL_ROOT="${RELAY_INSTALL_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/local-ai-relay}"
 RELEASE_BASE_URL="${RELAY_RELEASE_BASE_URL:-https://github.com/$REPOSITORY/releases/download}"
+SERVICE_UNIT="$HOME/.config/systemd/user/local-ai-relay.service"
 
 usage() {
   echo 'Usage: bootstrap.sh --version vX.Y.Z [--no-browser] | --rollback' >&2
@@ -64,7 +65,7 @@ write_pointer() {
 read_pointer() {
   local name="$1"
   local -a lines=()
-  [[ -e "$INSTALL_ROOT/$name" ]] || return 3
+  [[ -e "$INSTALL_ROOT/$name" || -L "$INSTALL_ROOT/$name" ]] || return 3
   [[ -f "$INSTALL_ROOT/$name" ]] || return 4
   mapfile -t lines <"$INSTALL_ROOT/$name"
   [[ ${#lines[@]} -eq 1 ]] || return 4
@@ -108,11 +109,33 @@ maybe_fail_finalization() {
   }
 }
 
+validate_release_payload() {
+  local root="$1"
+  [[ -f "$root/package.json" &&
+    -f "$root/package-lock.json" &&
+    -x "$root/setup-linux.sh" &&
+    -f "$root/dist/index.js" &&
+    -f "$root/.env" ]] || return 1
+  if [[ -L "$root/.env" ]]; then
+    [[ "$(readlink "$root/.env")" == "$INSTALL_ROOT/config/.env" ]] || return 1
+  fi
+}
+
 validate_installed_release() {
   local version="$1" root="$INSTALL_ROOT/versions/$1" marker
-  [[ -f "$root/.authenticated-release" && -f "$root/package.json" && -x "$root/setup-linux.sh" ]] || return 1
+  validate_release_payload "$root" && [[ -f "$root/.authenticated-release" ]] || return 1
   IFS= read -r marker <"$root/.authenticated-release"
   [[ "$marker" == "$version" && "$(wc -l <"$root/.authenticated-release")" -eq 1 ]]
+}
+
+read_managed_version() {
+  read_pointer service-managed
+}
+
+deactivate_new_service() {
+  systemctl --user disable --now local-ai-relay.service &&
+    rm -f "$SERVICE_UNIT" &&
+    systemctl --user daemon-reload
 }
 
 if ((ROLLBACK)); then
@@ -138,11 +161,27 @@ if ((ROLLBACK)); then
     echo "FAIL: previous release $previous is not an authenticated runnable installation." >&2
     exit 1
   }
+  service_was_managed=0
+  if [[ -e "$INSTALL_ROOT/service-managed" || -L "$INSTALL_ROOT/service-managed" ]]; then
+    managed_version="$(read_managed_version)" || {
+      echo 'FAIL: managed-service state is malformed.' >&2
+      exit 1
+    }
+    [[ "$managed_version" == "$current" ]] || {
+      echo "FAIL: managed-service state $managed_version does not match current $current." >&2
+      exit 1
+    }
+    validate_installed_release "$current" || {
+      echo "FAIL: current recovery release $current is not an authenticated runnable installation." >&2
+      exit 1
+    }
+    service_was_managed=1
+  fi
   rollback_snapshot="$(mktemp -d "$INSTALL_ROOT/.staging/rollback.XXXXXX")"
   trap 'rm -rf "$rollback_snapshot"' EXIT INT TERM
   snapshot_state "$rollback_snapshot/state" || { echo 'FAIL: could not snapshot install state.' >&2; exit 1; }
   runtime_switched=0
-  if [[ -f "$INSTALL_ROOT/service-managed" ]]; then
+  if ((service_was_managed)); then
     if ! activate_service "$INSTALL_ROOT/versions/$previous"; then
       echo "FAIL: $previous service activation failed; restoring $current." >&2
       activate_service "$INSTALL_ROOT/versions/$current" || {
@@ -156,6 +195,9 @@ if ((ROLLBACK)); then
   if ! {
     write_pointer previous "$current" &&
     maybe_fail_finalization previous &&
+    if ((service_was_managed)); then
+      write_pointer service-managed "$previous" && maybe_fail_finalization service-managed
+    fi &&
     write_pointer current "$previous" &&
     maybe_fail_finalization current
   }; then
@@ -227,6 +269,10 @@ RELAY_RELEASE_VERSION="$VERSION" \
 RELAY_RELEASE_PLATFORM="$PLATFORM" \
 RELAY_INSTALL_ROOT="$INSTALL_ROOT" \
   "$destination/setup-linux.sh" "${SETUP_ARGS[@]}"
+validate_release_payload "$destination" || {
+  echo "FAIL: release $VERSION setup did not produce a complete runnable installation." >&2
+  exit 1
+}
 printf '%s\n' "$VERSION" >"$destination/.authenticated-release"
 
 if old_current="$(read_pointer current)"; then
@@ -240,7 +286,24 @@ fi
 install_snapshot="$stage/install-state"
 snapshot_state "$install_snapshot" || { echo 'FAIL: could not snapshot install state.' >&2; exit 1; }
 service_was_managed=0
-[[ -f "$INSTALL_ROOT/service-managed" ]] && service_was_managed=1
+if [[ -e "$INSTALL_ROOT/service-managed" || -L "$INSTALL_ROOT/service-managed" ]]; then
+  managed_version="$(read_managed_version)" || {
+    echo 'FAIL: managed-service state is malformed.' >&2
+    exit 1
+  }
+  [[ -n "$old_current" && "$managed_version" == "$old_current" ]] || {
+    echo "FAIL: managed-service state $managed_version does not match current ${old_current:-<missing>}." >&2
+    exit 1
+  }
+  validate_installed_release "$old_current" || {
+    echo "FAIL: current recovery release $old_current is not an authenticated runnable installation." >&2
+    exit 1
+  }
+  service_was_managed=1
+elif ((NO_BROWSER == 0)) && [[ -e "$SERVICE_UNIT" || -L "$SERVICE_UNIT" ]]; then
+  echo "FAIL: refusing to overwrite unmanaged service unit $SERVICE_UNIT." >&2
+  exit 1
+fi
 runtime_switched=0
 if ((service_was_managed || NO_BROWSER == 0)); then
   # Retain the target until activation either succeeds or the prior runtime is
@@ -250,6 +313,8 @@ if ((service_was_managed || NO_BROWSER == 0)); then
     restored=0
     if ((service_was_managed)) && [[ -n "$old_current" && -d "$INSTALL_ROOT/versions/$old_current" ]]; then
       activate_service "$INSTALL_ROOT/versions/$old_current" && restored=1
+    elif deactivate_new_service; then
+      restored=1
     fi
     if ((restored)); then
       rm -rf "$destination"
@@ -269,7 +334,7 @@ if ! {
     write_pointer previous "$old_current" && maybe_fail_finalization previous
   fi &&
   if ((runtime_switched)); then
-    : >"$INSTALL_ROOT/service-managed" && maybe_fail_finalization service-managed
+    write_pointer service-managed "$VERSION" && maybe_fail_finalization service-managed
   fi &&
   write_pointer current "$VERSION" &&
   maybe_fail_finalization current
@@ -283,6 +348,8 @@ if ! {
   restored_runtime=0
   if ((service_was_managed)) && [[ -n "$old_current" && -d "$INSTALL_ROOT/versions/$old_current" ]]; then
     activate_service "$INSTALL_ROOT/versions/$old_current" && restored_runtime=1
+  elif ((runtime_switched)) && deactivate_new_service; then
+    restored_runtime=1
   elif ((runtime_switched == 0)); then
     restored_runtime=1
   fi
