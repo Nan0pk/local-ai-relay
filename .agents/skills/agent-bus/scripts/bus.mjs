@@ -452,7 +452,7 @@ async function commandHandoff(id, flags) {
   if (!COMMIT_RE.test(commit)) fail("--commit must be a 7-40 character hexadecimal SHA");
   if (evidence.length === 0) fail("at least one --evidence item is required");
   task.status = "review";
-  task.handoff = { agent, commit, at: nowIso(), evidence: [...new Set(evidence)] };
+  task.handoff = { agent, branch: task.claim.branch, commit, at: nowIso(), evidence: [...new Set(evidence)] };
   task.verification_record = null;
   task.blocker = null;
   addHistory(task, "handoff", agent, evidence.join("; "), commit);
