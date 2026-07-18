@@ -211,25 +211,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
         }
       }
 
-      if (url.includes('accounts.google.com')) {
-        const accountSelectors = [
-          '[data-authuser="0"]',
-          '.authclass',
-          'div[role="link"]',
-          'a[role="link"]',
-          'li[role="link"]',
-          'div[data-email]',
-          'button:has-text("@gmail.com")',
-          'div:has-text("@gmail.com")',
-        ];
-        for (const selector of accountSelectors) {
-          const acc = page.locator(selector).first();
-          if (await acc.isVisible().catch(() => false) && await acc.isEnabled().catch(() => false)) {
-            await acc.click().catch(() => {});
-            return true;
-          }
-        }
-      }
       return false;
     } catch {
       return false;

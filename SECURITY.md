@@ -2,22 +2,20 @@
 
 ## Threat model
 
-`local-ai-relay` is a local-first HTTP server that exposes an
-OpenAI-compatible endpoint. The primary assets at risk are:
+`local-ai-relay` is a local-first HTTP server exposing an OpenAI-compatible endpoint. The threat model covers:
 
-1. **Provider credentials** — API keys for upstream LLM providers, when
-   real providers land in milestone 2. These must never leave the user's
-   environment.
-2. **Request contents** — prompts and completions flowing through the
-   relay. These may contain sensitive user data.
-3. **The relay process itself** — an attacker who can reach the relay can
-   consume the user's provider quota or read prompts.
-4. **Browser profile** — the dedicated automation profile contains an active
-   ChatGPT web session and must be protected like a credential store.
-
-In milestone 1 there are no real credentials in play — the mock provider
-has no secrets. The rules below are forward-looking and apply from day one
-so later milestones don't introduce regressions.
+1. **Malicious Browser Pages / Extensions**:
+   - *Threat*: Malicious web pages or extensions running in the user's browser could attempt cross-origin requests to read completions or exhaust the user's API quota.
+   - *Mitigation*: The relay enforces a loopback bearer token via the `Authorization: Bearer <token>` header on all non-liveness endpoints, alongside strict CORS origin validation which blocks arbitrary web origins.
+2. **Local Processes & Multi-User Environments**:
+   - *Threat*: Malicious local processes or other users on the same machine could try to access the relay or read the authentication token.
+   - *Mitigation*: The relay defaults to binding to loopback (`127.0.0.1`/`localhost`), refusing non-loopback binds unless explicitly acknowledged. The bearer token is saved under the user's home directory (or temporary fallback directory) using restrictive `0o600` file permissions, preventing unauthorized local users from reading it.
+3. **Diagnostics and Logs**:
+   - *Threat*: The bearer token or user credentials could be leaked through console logs or diagnostic files (screenshots, failure dumps).
+   - *Mitigation*: The logger is configured to redact the `Authorization` header. Screenshots capture only browser viewport snapshots, and no credential or token data is written to diagnostics.
+4. **Profile Data**:
+   - *Threat*: Attackers or local processes reading the persistent automation browser profile directory containing active provider web sessions.
+   - *Mitigation*: The browser profile directory is stored under the user's home directory (or temporary fallback) with permissions isolated to the current OS user, and is never pointed at everyday personal browser profiles.
 
 ## Secret handling
 
@@ -62,10 +60,9 @@ cannot be silently skipped.
 
 ## Network surface
 
-- The relay binds to `127.0.0.1` by default. Binding to `0.0.0.0` requires
-  an explicit `HOST=0.0.0.0` env override and is discouraged.
-- Milestone 1 has no auth middleware. Do not expose the relay to a network
-  until milestone 4 (auth) lands.
+- The relay binds to loopback (`127.0.0.1`/`localhost`) by default.
+- Non-loopback binding (e.g., `0.0.0.0`) is refused unless the operator explicitly acknowledges it via `RELAY_UNSAFE_BIND_ACK=1` and configures a custom token via `RELAY_API_TOKEN`.
+- Bearer token authentication is required on all API routes except the `/health` liveness probe.
 - Outbound TLS to real providers is a milestone 2 concern and will use the
   provider SDK's defaults; no custom CA bundles or `NODE_TLS_REJECT_UNAUTHORIZED`
   overrides.

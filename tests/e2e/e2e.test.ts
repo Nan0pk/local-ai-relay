@@ -9,6 +9,7 @@ import { BrowserContextManager } from '../../src/browser/context-manager.js';
 process.env.RELAY_MOCK_BROWSER = 'true';
 process.env.RELAY_BROWSER_HEADLESS = '1';
 process.env.RELAY_BROWSER_MAX_SESSIONS = '2'; // Small count to test session eviction
+process.env.RELAY_API_TOKEN = 'test-token';
 
 let app: any;
 let baseUrl = '';
@@ -32,13 +33,29 @@ after(async () => {
   }
 });
 
+// Helper function to fetch with Bearer authentication
+async function fetchWithAuth(url: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Authorization')) {
+    headers.set('Authorization', 'Bearer test-token');
+  }
+  return fetch(url, { ...init, headers });
+}
+
 // Helper function to send completions request
-async function sendCompletion(body: any, sessionId?: string) {
+async function sendCompletion(body: any, sessionId?: string, authHeaderValue?: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   if (sessionId) {
     headers['x-relay-session'] = sessionId;
+  }
+  if (authHeaderValue !== undefined) {
+    if (authHeaderValue !== '') {
+      headers['Authorization'] = authHeaderValue;
+    }
+  } else {
+    headers['Authorization'] = 'Bearer test-token';
   }
   return fetch(`${baseUrl}/v1/chat/completions`, {
     method: 'POST',
@@ -47,7 +64,7 @@ async function sendCompletion(body: any, sessionId?: string) {
   });
 }
 
-describe('local-ai-relay E2E Test Suite (60 Cases)', () => {
+describe('local-ai-relay E2E Test Suite (62 Cases)', () => {
 
   // ==========================================
   // TIER 1: Basic Requirements (Happy Paths)
@@ -55,7 +72,7 @@ describe('local-ai-relay E2E Test Suite (60 Cases)', () => {
 
   describe('Tier 1: Feature 1 - Chat Completion Routing & Models List', () => {
     test('1. Models list returns valid OpenAI model cards', async () => {
-      const res = await fetch(`${baseUrl}/v1/models`);
+      const res = await fetchWithAuth(`${baseUrl}/v1/models`);
       assert.equal(res.status, 200);
       const data = await res.json() as any;
       assert.ok(Array.isArray(data.data));
@@ -315,7 +332,7 @@ describe('local-ai-relay E2E Test Suite (60 Cases)', () => {
     });
 
     test('42. Lists browser-arena-free model properties', async () => {
-      const res = await fetch(`${baseUrl}/v1/models`);
+      const res = await fetchWithAuth(`${baseUrl}/v1/models`);
       const data = await res.json() as any;
       const arenaModel = data.data.find((m: any) => m.id === 'browser-arena-free');
       assert.ok(arenaModel);
@@ -333,7 +350,7 @@ describe('local-ai-relay E2E Test Suite (60 Cases)', () => {
     });
 
     test('44. Advertises ChatGPT, Gemini, Meta AI, and Arena and routes Meta AI', async () => {
-      const res = await fetch(`${baseUrl}/v1/models`);
+      const res = await fetchWithAuth(`${baseUrl}/v1/models`);
       const data = await res.json() as any;
       const ids = data.data.map((m: any) => m.id);
       assert.ok(ids.includes('browser-chatgpt-free'));
@@ -840,6 +857,45 @@ describe('local-ai-relay E2E Test Suite (60 Cases)', () => {
         chunks++;
       }
       assert.ok(chunks > 0);
+    });
+
+    test('61. Unauthenticated requests are blocked in E2E', async () => {
+      // Missing token
+      const res1 = await sendCompletion({
+        model: 'mock-gpt-4o-mini',
+        messages: [{ role: 'user', content: 'test' }]
+      }, undefined, '');
+      assert.equal(res1.status, 401);
+      const data1 = await res1.json() as any;
+      assert.equal(data1.error.code, 'invalid_api_key');
+
+      // Invalid token
+      const res2 = await sendCompletion({
+        model: 'mock-gpt-4o-mini',
+        messages: [{ role: 'user', content: 'test' }]
+      }, undefined, 'Bearer wrong-token');
+      assert.equal(res2.status, 401);
+      const data2 = await res2.json() as any;
+      assert.equal(data2.error.code, 'invalid_api_key');
+    });
+
+    test('62. Malicious CORS origin requests are blocked in E2E', async () => {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer test-token',
+        'Origin': 'https://malicious-site.com'
+      };
+      const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: 'mock-gpt-4o-mini',
+          messages: [{ role: 'user', content: 'test' }]
+        })
+      });
+      assert.equal(res.status, 403);
+      const data = await res.json() as any;
+      assert.equal(data.error.code, 'cors_blocked');
     });
   });
 

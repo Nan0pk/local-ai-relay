@@ -51,6 +51,7 @@ async function main(): Promise<void> {
       HOST: '127.0.0.1',
       PORT: String(preferredPort),
       LOG_LEVEL: 'silent',
+      RELAY_API_TOKEN: 'smoke-test-token',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -73,7 +74,10 @@ async function main(): Promise<void> {
           if (body.service === 'local-ai-relay') {
             const completion = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
               method: 'POST',
-              headers: { 'content-type': 'application/json' },
+              headers: {
+                'content-type': 'application/json',
+                'authorization': 'Bearer smoke-test-token',
+              },
               body: JSON.stringify({
                 model: 'mock-gpt-4o-mini',
                 messages: [{ role: 'user', content: 'startup smoke' }],
