@@ -15,6 +15,57 @@ if (-not $InstallRoot) {
   $InstallRoot = Join-Path $env:LOCALAPPDATA 'local-ai-relay'
 }
 
+function Get-NormalizedArchitecture([string]$Architecture) {
+  switch ($Architecture.ToUpperInvariant()) {
+    { $_ -in 'AMD64', 'X64' } { return 'X64' }
+    { $_ -in 'ARM64', 'AARCH64' } { return 'ARM64' }
+    { $_ -in 'X86', 'I386', 'I686' } { return 'X86' }
+    default { return $Architecture.ToUpperInvariant() }
+  }
+}
+
+function Assert-WindowsX64 {
+  try {
+    $isWindows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+      [System.Runtime.InteropServices.OSPlatform]::Windows
+    )
+  } catch {
+    $isWindows = [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
+  }
+  if (-not $isWindows) { throw 'This bootstrap supports Windows x64 only.' }
+  if (-not [System.Environment]::Is64BitOperatingSystem -or -not [System.Environment]::Is64BitProcess) {
+    throw 'Windows x64 requires a 64-bit operating system and PowerShell process.'
+  }
+
+  try {
+    $rawOsArchitecture = ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture).ToString()
+    $rawProcessArchitecture = ([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture).ToString()
+    $osArchitecture = Get-NormalizedArchitecture $rawOsArchitecture
+    $processArchitecture = Get-NormalizedArchitecture $rawProcessArchitecture
+  } catch {
+    $rawOsArchitecture = if ($env:PROCESSOR_ARCHITEW6432) {
+      $env:PROCESSOR_ARCHITEW6432
+    } else {
+      $env:PROCESSOR_ARCHITECTURE
+    }
+    $osArchitecture = Get-NormalizedArchitecture $rawOsArchitecture
+    $processArchitecture = Get-NormalizedArchitecture $env:PROCESSOR_ARCHITECTURE
+  }
+  # Denial-only test seam: it cannot make an unsupported host pass this gate.
+  if ($env:RELAY_TEST_WINDOWS_ARCHITECTURE) {
+    $testArchitecture = Get-NormalizedArchitecture $env:RELAY_TEST_WINDOWS_ARCHITECTURE
+    if ($testArchitecture -ne 'X64') {
+      $osArchitecture = $testArchitecture
+      $processArchitecture = $testArchitecture
+    }
+  }
+  if ($osArchitecture -ne 'X64' -or $processArchitecture -ne 'X64') {
+    throw "Unsupported Windows architecture: OS=$osArchitecture process=$processArchitecture; windows-x64 requires x64."
+  }
+}
+
+Assert-WindowsX64
+
 function Set-Pointer([string]$Name, [string]$Value) {
   $path = Join-Path $InstallRoot $Name
   $temporary = "$path.tmp-$([Guid]::NewGuid().ToString('N'))"

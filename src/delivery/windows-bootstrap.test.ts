@@ -137,6 +137,19 @@ test('Windows bootstrap rejects missing, malformed, and unsupported versions bef
   }
 });
 
+test('Windows bootstrap rejects Arm and x86 before any release download or authentication', { skip: !windows }, async () => {
+  for (const architecture of ['ARM64', 'x86']) {
+    const paths = await fixture('v1.2.3');
+    const result = run('v1.2.3', paths, [], {
+      RELAY_TEST_WINDOWS_ARCHITECTURE: architecture,
+    });
+    assert.notEqual(result.status, 0, `${architecture} unexpectedly accepted windows-x64`);
+    assert.match(result.stderr, /windows architecture|windows-x64/i);
+    await assert.rejects(readFile(paths.ghLog));
+    await assert.rejects(readFile(join(paths.install, 'current-version')));
+  }
+});
+
 test('interrupted update preserves active install and unmanaged rollback swaps pointers only', { skip: !windows }, async () => {
   const first = await fixture('v1.2.3');
   assert.equal(run('v1.2.3', first).status, 0);
