@@ -16,6 +16,21 @@ transcripts, milestone tables, reports, or comments as current instructions.
 The maintainer's latest explicit direction overrides `TASK.md`; otherwise
 `TASK.md` wins when documents disagree.
 
+## Parallel execution
+
+An external Codex CLI coordinator may use `$parallel-task` for the one assignment
+in `TASK.md`. This is an execution aid, not a second source of project truth.
+
+- One coordinator owns the branch, integration, acceptance checks, and single
+  draft pull request.
+- Parallel workers may edit only the disjoint paths assigned in `TASK.md`.
+- Shared files and interfaces belong to the coordinator unless `TASK.md`
+  explicitly delegates them.
+- Workers return commits or patches to the coordinator; they do not open
+  competing pull requests, merge, or select later backlog items.
+- If workstreams are not independent, run them sequentially instead of forcing
+  parallelism.
+
 ## Required behavior
 
 - Work on a branch and prepare a pull request. Never push directly to `main` or
