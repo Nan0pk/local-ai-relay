@@ -36,6 +36,7 @@ jobs:
       - run: npm run build
       - run: npm run smoke:startup
       - run: npm run test:delivery
+      - run: node scripts/validate-release.mjs
 
       - name: Build deterministic release assets
         run: node scripts/build-release.mjs --output release --tag "$TAG"

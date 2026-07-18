@@ -9,6 +9,7 @@ test('CI pins actions and runs delivery tests on Ubuntu and Windows', async () =
   const ci = await readFile(join(workflows, 'ci.yml'), 'utf8');
   assert.match(ci, /os: \[ubuntu-latest, windows-latest\]/);
   assert.match(ci, /run: npm run test:delivery/);
+  assert.match(ci, /run: node scripts\/validate-release\.mjs/);
   assert.doesNotMatch(ci, /uses:\s+\S+@(?![a-f0-9]{40}(?:\s|$))/);
 });
 
@@ -19,6 +20,7 @@ test('release workflow publishes the authenticated stable-tag contract', async (
   assert.match(release, /v\$\{version\}/);
   assert.match(release, /node-version:\s*22/);
   assert.match(release, /npm run test:delivery/);
+  assert.match(release, /node scripts\/validate-release\.mjs/);
   assert.doesNotMatch(release, /uses:\s+\S+@(?![a-f0-9]{40}(?:\s|$))/);
 
   for (const asset of [
@@ -38,4 +40,6 @@ test('release workflow publishes the authenticated stable-tag contract', async (
   assert.match(release, /subject-path:\s*release\/\*/);
   assert.match(release, /gh release create/);
   assert.match(release, /scripts\/build-release\.mjs/);
+  assert.ok(release.indexOf('node scripts/validate-release.mjs') < release.indexOf('actions/attest-build-provenance@'));
+  assert.ok(release.indexOf('node scripts/validate-release.mjs') < release.indexOf('gh release create'));
 });

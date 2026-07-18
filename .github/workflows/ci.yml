@@ -32,6 +32,7 @@ jobs:
       - run: npm run build
       - run: npm run smoke:startup
       - run: npm run test:delivery
+      - run: node scripts/validate-release.mjs
 
       - name: Check Bash entry points
         if: runner.os == 'Linux'
