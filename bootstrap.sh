@@ -53,6 +53,13 @@ else
   }
 fi
 
+HOST_OS="$(uname -s)"
+HOST_ARCH="$(uname -m)"
+[[ "$HOST_OS" == 'Linux' && "$HOST_ARCH" == 'x86_64' ]] || {
+  echo "FAIL: unsupported host: $HOST_OS $HOST_ARCH; this bootstrap supports Linux x86_64 only." >&2
+  exit 2
+}
+
 mkdir -p "$INSTALL_ROOT/versions" "$INSTALL_ROOT/config" "$INSTALL_ROOT/diagnostics" "$INSTALL_ROOT/.staging"
 
 write_pointer() {

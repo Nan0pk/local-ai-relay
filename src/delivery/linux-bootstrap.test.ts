@@ -52,6 +52,7 @@ async function fixture(setupBody = '#!/usr/bin/env bash\nset -Eeuo pipefail\ntou
 
   await writeFile(join(bin, 'curl'), `#!/usr/bin/env bash
 set -Eeuo pipefail
+printf 'called\n' >> "$CURL_LOG"
 out=
 url=
 while (($#)); do
@@ -92,6 +93,7 @@ function run(f: Fixture, args: string[], extra: Record<string, string> = {}) {
       PATH: `${f.bin}:${process.env.PATH}`,
       RELAY_RELEASE_BASE_URL: 'https://fixtures.invalid/releases',
       FIXTURE_ASSETS: f.assets,
+      CURL_LOG: join(f.root, 'curl.log'),
       ATTEST_LOG: join(f.root, 'attest.log'),
       POLICY_LOG: join(f.root, 'policy.log'),
       ROOT_MARKER: marker,
@@ -240,6 +242,25 @@ linuxTest('rejects unsupported versions, platforms, and conflicting rollback inp
   ]) {
     const result = run(f, args);
     assert.notEqual(result.status, 0, `${args.join(' ')} unexpectedly passed`);
+  }
+});
+
+linuxTest('rejects unsupported hosts before downloading release inputs', async () => {
+  for (const [hostOs, hostArch] of [['Darwin', 'x86_64'], ['Linux', 'aarch64']]) {
+    const f = await fixture();
+    await writeFile(join(f.bin, 'uname'), `#!/usr/bin/env bash
+case "$1" in
+  -s) echo "$HOST_OS" ;;
+  -m) echo "$HOST_ARCH" ;;
+  *) exit 2 ;;
+esac
+`);
+    await chmod(join(f.bin, 'uname'), 0o755);
+
+    const result = run(f, ['--version', f.version], { HOST_OS: hostOs, HOST_ARCH: hostArch });
+    assert.notEqual(result.status, 0);
+    assert.match(result.output, /unsupported host/);
+    await assert.rejects(readFile(join(f.root, 'curl.log')));
   }
 });
 
