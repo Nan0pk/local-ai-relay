@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { getWritableHome } from './paths.js';
 import type { BrowserContext } from 'patchright';
 import { launchPersistentRelayContext } from './runtime.js';
 
@@ -24,7 +24,7 @@ export class BrowserContextManager {
 
   public async getContext(): Promise<BrowserContext> {
     if (!this.context) {
-      const pDir = this.options?.profileDir ?? join(homedir(), '.local-ai-relay', 'browser-profiles', 'shared');
+      const pDir = this.options?.profileDir ?? join(getWritableHome(), '.local-ai-relay', 'browser-profiles', 'shared');
       const headless = this.options?.headless ?? process.env.RELAY_BROWSER_HEADLESS === '1';
       await mkdir(pDir, { recursive: true });
       this.context = await launchPersistentRelayContext(pDir, {
