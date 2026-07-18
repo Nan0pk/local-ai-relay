@@ -1,81 +1,51 @@
-# local-ai-relay Agent Guide
+# Instructions for coding agents
 
-## Mission
+There is one source of truth for the work to do: [`TASK.md`](TASK.md).
 
-Build a local, multi-backend AI compatibility gateway. Official APIs and local
-model servers are stable backends. Visible browser adapters are experimental,
-user-authorized transports. Do not design around bypassing CAPTCHAs, access
-controls, rate limits, or provider safeguards.
+## Start
 
-## Start here
+1. Read `TASK.md` completely.
+2. Inspect only the files named there, expanding scope only when evidence makes
+   it necessary.
+3. Reproduce the stated baseline before changing code.
+4. Complete the task, run every acceptance command, and publish the required
+   deliverable.
 
-For project work, read only what the task needs:
+Do not select another milestone, invent a task, or treat old `.agents/`
+transcripts, milestone tables, reports, or comments as current instructions.
+The maintainer's latest explicit direction overrides `TASK.md`; otherwise
+`TASK.md` wins when documents disagree.
 
-1. `docs/agent-bus/STATUS.md`
-2. The selected task from `docs/agent-bus/state.json`
-3. That task's section in `docs/plans/v2-master-plan.md`
-4. The files named by the task's `context` field
+## Required behavior
 
-Use the bus CLI instead of manually editing generated status:
+- Work on a branch and prepare a pull request. Never push directly to `main` or
+  merge unless the maintainer explicitly requests that exact action.
+- Do not stop at analysis when `TASK.md` requires implementation.
+- Do not claim a test passed without running it and reporting the exact result.
+- Do not claim a file, commit, branch, or pull request was published unless it
+  exists remotely and you provide its URL or full SHA.
+- Do not equate a registered adapter, mock test, or successful login with live
+  provider readiness. Readiness requires the evidence stated in `TASK.md` and
+  `docs/plans/v2-master-plan.md`.
+- Keep cookies, tokens, browser profiles, prompts, screenshots, and secrets out
+  of Git. Diagnostics must be opt-in and redacted.
+- Do not bypass CAPTCHA, access controls, rate limits, provider safeguards, or
+  manual account/2FA decisions.
+- Preserve unrelated user changes. Use the smallest coherent patch.
 
-```bash
-node .agents/skills/agent-bus/scripts/bus.mjs next
-node .agents/skills/agent-bus/scripts/bus.mjs show <TASK-ID>
-```
+## Deliverable format
 
-Read `.agents/skills/agent-bus/SKILL.md` before claiming or handing off work.
-
-## Operating rules
-
-- Default to one agent per task. Add another only when work is independent or
-  the task requires independent verification.
-- Work on a task branch. Never push directly to `main`, merge a pull request,
-  or enable auto-merge. The only exception is the non-model repository runner
-  when the maintainer explicitly starts `npm run agent:run -- --auto` with an
-  allowlisted reviewer; its exact-SHA, CI, ledger, and owner-gate checks remain
-  mandatory.
-- Respect each task's `write_scope`. Split unrelated discoveries into a new
-  task or a concise follow-up; do not expand the current change silently.
-- Treat `model_tier` as a cost ceiling, not a status symbol. Start with the
-  least expensive capable model and escalate only with recorded evidence.
-- Read targeted files and diffs. Do not ingest the whole repository, old agent
-  transcripts, generated `dist/`, or full logs unless the task requires it.
-- Run the task's acceptance checks. Record commands and outcomes, not pasted
-  logs. Never invent test, browser, account, or provider evidence.
-- Keep prompts, responses, cookies, screenshots, profiles, and tokens out of
-  Git. Diagnostics must be opt-in and redacted.
-- A provider is not ready merely because its adapter compiles. Advertising it
-  requires the capability and live-evidence rules in the master plan.
-- Browser-derived tool calls are untrusted proposals. Do not auto-execute an
-  externally visible or destructive action without explicit policy approval.
-
-## Quality proportional to risk
-
-| Risk | Required proof |
-|---|---|
-| Low | Builder checks and focused tests |
-| Medium | Builder checks plus full deterministic CI |
-| High | Independent review of the exact commit plus adversarial tests |
-| Owner | Human decision or action; agents prepare the recommendation |
-
-High risk includes authentication boundaries, native-host installation,
-extension permissions, browser-to-daemon protocol changes, tool execution,
-release claims, and live-provider enablement.
-
-## Human-effort rule
-
-Investigate before asking. Ask only for a true owner decision, using:
+Finish with facts, not a milestone summary:
 
 ```text
-Decision needed: <decision>
-Recommended default: <recommendation>
-Why: <brief reason>
-Risk if wrong: <brief risk>
-Next agent action: <what follows>
+Branch: <remote branch>
+Commit: <full SHA>
+Pull request: <URL>
+Changed: <short list>
+Checks: <command and exact result for each>
+Remaining blockers: <none, or concrete blocker>
 ```
 
-License choice, provider-account authorization, legal approval, secret entry,
-browser-store publication, and stable-release approval remain human actions.
-Ordinary task merges may be delegated only through the maintainer-started,
-review-gated repository runner described above. Everything else should advance
-as far as safely possible without making the human coordinate agents manually.
+If a true owner decision blocks completion, prepare all reversible work and
+state the decision, recommended default, risk, and next action. Do not silently
+skip it and declare completion.
