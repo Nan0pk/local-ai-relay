@@ -66,7 +66,7 @@ function Invoke-ManagedService([string]$ReleasePath, [switch]$Stop) {
   try {
     $env:RELAY_INSTALL_ROOT = $InstallRoot
     if ($Stop) {
-      Invoke-Npm run service:start:windows -- --stop
+      Invoke-Npm run service:start:windows '--' '--stop'
     } else {
       Sync-ManagedConfig $ReleasePath
       Invoke-Npm run service:start:windows
