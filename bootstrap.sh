@@ -1,121 +1,143 @@
 #!/usr/bin/env bash
-# bootstrap.sh - one-liner entry point for Linux / macOS.
-#
-# Invoke from anywhere (even a machine with nothing cloned):
-#
-#   curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh | bash
-#
-# Or save-and-run:
-#
-#   curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.sh -o bootstrap.sh
-#   bash bootstrap.sh
-#
-# This script handles every state of ~/local-ai-relay:
-#   - does not exist      -> clone, then run setup
-#   - exists, healthy     -> pull, then run setup
-#   - exists, broken      -> preserve as a timestamped backup, then clone
-#
-# It never asks the user to manually git pull, rm -rf, or git clone.
-# Destructive replacement requires the explicit pair --fresh --yes.
-
 set -Eeuo pipefail
 
-REPO="${RELAY_REPO:-https://github.com/Nan0pk/local-ai-relay.git}"
-DIR="${RELAY_DIR:-$HOME/local-ai-relay}"
-FRESH=0
-YES=0
+REPOSITORY='Nan0pk/local-ai-relay'
+PLATFORM='linux-x64'
+VERSION=''
+ROLLBACK=0
 SETUP_ARGS=()
+INSTALL_ROOT="${RELAY_INSTALL_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/local-ai-relay}"
+RELEASE_BASE_URL="${RELAY_RELEASE_BASE_URL:-https://github.com/$REPOSITORY/releases/download}"
 
-while [[ $# -gt 0 ]]; do
+usage() {
+  echo 'Usage: bootstrap.sh --version vX.Y.Z [--no-browser] | --rollback' >&2
+  exit 2
+}
+
+while (($#)); do
   case "$1" in
-    --fresh)    FRESH=1; shift ;;
-    --yes)      YES=1; shift ;;
-    --no-browser) SETUP_ARGS+=("$1"); shift ;;
-    *)          SETUP_ARGS+=("$1"); shift ;;
+    --version)
+      [[ $# -ge 2 ]] || usage
+      VERSION="$2"
+      shift 2
+      ;;
+    --platform)
+      [[ $# -ge 2 ]] || usage
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --no-browser)
+      SETUP_ARGS+=("$1")
+      shift
+      ;;
+    --rollback)
+      ROLLBACK=1
+      shift
+      ;;
+    *)
+      usage
+      ;;
   esac
 done
 
-say()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
-ok()   { printf '    \033[32m%s\033[0m\n' "$*"; }
-warn() { printf '    \033[33m%s\033[0m\n' "$*"; }
+[[ "$PLATFORM" == 'linux-x64' ]] || { echo "FAIL: unsupported platform: $PLATFORM" >&2; exit 2; }
+if ((ROLLBACK)); then
+  [[ -z "$VERSION" && ${#SETUP_ARGS[@]} -eq 0 ]] || usage
+else
+  [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+    echo 'FAIL: --version must be an explicit stable vX.Y.Z tag.' >&2
+    exit 2
+  }
+fi
 
-canonical_repo() {
-  printf '%s' "$1" \
-    | sed -E 's#^git@github\.com:#github.com/#; s#^(https?://)?(www\.)?github\.com/##; s#\.git/?$##; s#/$##' \
-    | tr '[:upper:]' '[:lower:]'
+mkdir -p "$INSTALL_ROOT/versions" "$INSTALL_ROOT/config" "$INSTALL_ROOT/diagnostics" "$INSTALL_ROOT/.staging"
+
+write_pointer() {
+  local name="$1" value="$2" temporary
+  temporary="$INSTALL_ROOT/.${name}.$$"
+  printf '%s\n' "$value" >"$temporary"
+  mv -f "$temporary" "$INSTALL_ROOT/$name"
 }
 
-EXPECTED_REPOSITORY="${RELAY_EXPECTED_REPOSITORY:-Nan0pk/local-ai-relay}"
-if [[ "$(canonical_repo "$REPO")" != "$(canonical_repo "$EXPECTED_REPOSITORY")" ]]; then
-  echo "FAIL: repository '$REPO' does not match expected GitHub repository '$EXPECTED_REPOSITORY'." >&2
-  exit 2
-fi
-
-backup_target() {
-  local backup="${DIR}.backup-$(date -u +%Y%m%dT%H%M%SZ)"
-  local suffix=1
-  while [[ -e "$backup" ]]; do backup="${backup}-${suffix}"; suffix=$((suffix + 1)); done
-  say "Preserving existing directory as $backup"
-  mv "$DIR" "$backup"
-  ok 'local environment, diagnostics, logs, and patches preserved'
+read_pointer() {
+  local name="$1" value
+  [[ -f "$INSTALL_ROOT/$name" ]] || return 1
+  IFS= read -r value <"$INSTALL_ROOT/$name"
+  [[ "$value" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || return 1
+  printf '%s' "$value"
 }
 
-if (( FRESH == 1 && YES != 1 )); then
-  echo 'FAIL: --fresh deletes the target directory and therefore also requires --yes.' >&2
-  exit 2
-fi
-
-# Decide what to do with the target directory.
-ACTION='clone'
-if [[ -d "$DIR" ]]; then
-  if (( FRESH == 1 && YES == 1 )); then
-    say "--fresh --yes requested: deleting $DIR"
-    rm -rf "$DIR"
-    ACTION='clone'
-  elif [[ ! -d "$DIR/.git" ]]; then
-    warn "$DIR exists but is not a git repository"
-    backup_target
-    ACTION='clone'
-  else
-    ORIGIN="$(git -C "$DIR" remote get-url origin 2>/dev/null || true)"
-    if [[ "$(canonical_repo "$ORIGIN")" != "$(canonical_repo "$EXPECTED_REPOSITORY")" ]]; then
-      warn "$DIR has unexpected origin '$ORIGIN'; it will not be updated"
-      backup_target
-      ACTION='clone'
-    else
-    say "Pulling latest in $DIR"
-    if git -C "$DIR" pull --ff-only >/dev/null 2>&1; then
-      ACTION='setup'
-      ok 'pull succeeded'
-    else
-      warn 'pull failed; preserving the current checkout and continuing without updating'
-      warn 'This can mean offline access, local changes/commits, or a temporary Git failure.'
-      ACTION='setup'
-    fi
-    fi
-  fi
-fi
-
-if [[ "$ACTION" == 'clone' ]]; then
-  say "Cloning $REPO into $DIR"
-  if ! git clone "$REPO" "$DIR"; then
-    echo "FAIL: git clone failed. Check your network and the repo URL: $REPO" >&2
+if ((ROLLBACK)); then
+  current="$(read_pointer current)" || { echo 'FAIL: no active release to roll back.' >&2; exit 1; }
+  previous="$(read_pointer previous)" || { echo 'FAIL: no previous release to roll back to.' >&2; exit 1; }
+  [[ -d "$INSTALL_ROOT/versions/$previous" ]] || {
+    echo "FAIL: previous release $previous is unavailable." >&2
     exit 1
-  fi
+  }
+  write_pointer previous "$current"
+  write_pointer current "$previous"
+  echo "Rolled back from $current to $previous."
+  exit 0
 fi
 
-cd "$DIR"
+for command_name in curl gh node tar; do
+  command -v "$command_name" >/dev/null 2>&1 || {
+    echo "FAIL: required command '$command_name' was not found." >&2
+    exit 1
+  }
+done
 
-# Make sure setup-linux.sh exists; if not, pull once more (belt + suspenders).
-if [[ ! -f setup-linux.sh ]]; then
-  say 'setup-linux.sh missing - pulling latest'
-  git pull --ff-only >/dev/null 2>&1 || true
-fi
+artifact="local-ai-relay-${VERSION}-${PLATFORM}.tar.gz"
+stage="$(mktemp -d "$INSTALL_ROOT/.staging/${VERSION}.XXXXXX")"
+new_destination=''
+cleanup() {
+  rm -rf "$stage"
+  [[ -z "$new_destination" ]] || rm -rf "$new_destination"
+}
+trap cleanup EXIT INT TERM
 
-if [[ ! -f setup-linux.sh ]]; then
-  echo 'FAIL: setup-linux.sh still missing after pull. The repo may be on a branch without it.' >&2
+for asset in release-manifest.json verify-release.mjs "$artifact"; do
+  curl -fsSL "$RELEASE_BASE_URL/$VERSION/$asset" -o "$stage/$asset"
+done
+
+# Authentication is deliberately separate from checksums: all executable
+# inputs and metadata must have repository-bound GitHub attestation evidence.
+for asset in release-manifest.json verify-release.mjs "$artifact"; do
+  gh attestation verify "$stage/$asset" --repo "$REPOSITORY" >/dev/null
+done
+
+node "$stage/verify-release.mjs" \
+  --manifest "$stage/release-manifest.json" \
+  --artifact "$stage/$artifact" \
+  --version "$VERSION" \
+  --platform "$PLATFORM"
+
+payload="$stage/payload"
+mkdir "$payload"
+tar -xzf "$stage/$artifact" -C "$payload"
+[[ -x "$payload/setup-linux.sh" ]] || {
+  echo 'FAIL: verified artifact has no executable setup-linux.sh.' >&2
   exit 1
-fi
+}
 
-say 'Running setup-linux.sh'
-exec ./setup-linux.sh "${SETUP_ARGS[@]}"
+destination="$INSTALL_ROOT/versions/$VERSION"
+[[ ! -e "$destination" ]] || {
+  echo "FAIL: release $VERSION is already installed." >&2
+  exit 1
+}
+mv "$payload" "$destination"
+new_destination="$destination"
+
+RELAY_VERIFIED_RELEASE=1 \
+RELAY_RELEASE_VERSION="$VERSION" \
+RELAY_RELEASE_PLATFORM="$PLATFORM" \
+RELAY_INSTALL_ROOT="$INSTALL_ROOT" \
+  "$destination/setup-linux.sh" "${SETUP_ARGS[@]}"
+new_destination=''
+
+old_current="$(read_pointer current || true)"
+if [[ -n "$old_current" && "$old_current" != "$VERSION" ]]; then
+  write_pointer previous "$old_current"
+fi
+write_pointer current "$VERSION"
+echo "Installed authenticated release $VERSION at $destination."
