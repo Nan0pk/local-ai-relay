@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate ${{ matrix.os }} / Node 22
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Require the exact package version tag
+        run: node -e "const p=require('./package.json'); if(process.env.GITHUB_REF !== 'refs/tags/v' + p.version) process.exit(1)"
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:e2e
+      - run: npm run build
+      - run: npm run smoke:startup
+      - run: npm run test:delivery
+      - run: node scripts/validate-release.mjs
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+
+      - name: Require an exact package version tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          version="$(node -p "require('./package.json').version")"
+          [[ "$GITHUB_REF" == refs/tags/v* && "$tag" == "v${version}" ]]
+          printf 'TAG=%s\n' "$tag" >> "$GITHUB_ENV"
+
+      - name: Build deterministic release assets
+        run: node scripts/build-release.mjs --output release --tag "$TAG"
+
+      - name: Attest every published asset
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
+        with:
+          subject-path: release/*
+
+      - name: Publish immutable-tag assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$TAG"
+          assets=(
+            release/release-manifest.json
+            release/verify-release.mjs
+            "release/local-ai-relay-${tag}-linux-x64.tar.gz"
+            "release/local-ai-relay-${tag}-windows-x64.zip"
+            release/bootstrap.sh
+            release/bootstrap.ps1
+            release/SHA256SUMS
+            "release/local-ai-relay-${tag}.spdx.json"
+          )
+          gh release create "$tag" "${assets[@]}" --verify-tag --generate-notes

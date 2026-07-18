@@ -40,6 +40,7 @@
     "probe:all": "node --import tsx scripts/probe-all.ts",
     "smoke:claude-driver": "node --import tsx scripts/claude-driver-smoke.ts",
     "smoke:startup": "npm run build && node dist/cli/startup-smoke.js",
+    "test:delivery": "node --import tsx --test src/delivery/*.test.ts",
     "service:install": "node --env-file-if-exists=.env --import tsx src/cli/install-service.ts",
     "service:start:windows": "node --env-file-if-exists=.env --import tsx src/cli/start-windows-service.ts",
     "hermes:configure": "node --env-file-if-exists=.env --import tsx src/cli/configure-hermes.ts",

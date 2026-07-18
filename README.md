@@ -100,6 +100,23 @@ in `TASK.md`.
 The current critical path is P0-05. Execute `TASK.md`; do not choose a later
 item from this summary manually.
 
+## Authenticated release delivery
+
+P0-05 defines an exact-version, fail-closed delivery contract. It does not mean
+that a production-ready release has been published. Never execute bootstrap
+from mutable `main`.
+
+For a published release, download `bootstrap.sh` or `bootstrap.ps1` from its
+exact `vX.Y.Z` tag with GitHub CLI, verify the bootstrap's GitHub artifact
+attestation, and only then execute it with the same explicit version. Bootstrap
+authenticates the release manifest, verifier, and platform archive before any
+payload code runs. Updates are transactional and rollback selects the prior
+already-verified local version.
+
+See [the authenticated release policy](docs/release-policy.md) for exact Linux
+and Windows install, verify, update, rollback, recovery, platform support, and
+trust assumptions.
+
 ## Current developer setup
 
 This is a development repository and does not yet have the signed, versioned v2
@@ -121,9 +138,8 @@ npm run build
 npm run smoke:startup
 ```
 
-Do not treat `curl | bash` from mutable `main` as the final distribution model.
-Versioned artifacts, signature verification, rollback, and native-host setup are
-tracked in Phase 0 and Phase 4.
+Do not treat `curl | bash` from mutable `main` as a distribution model.
+Development checkout commands do not authenticate a release.
 
 ## Current v1 operation
 

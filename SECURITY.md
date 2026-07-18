@@ -67,6 +67,27 @@ cannot be silently skipped.
   provider SDK's defaults; no custom CA bundles or `NODE_TLS_REJECT_UNAUTHORIZED`
   overrides.
 
+## Release supply chain
+
+Mutable branches are development inputs, not trusted distribution channels.
+Installation requires an exact stable release tag. The user authenticates the
+tagged bootstrap asset with GitHub artifact attestation before execution;
+bootstrap then authenticates the release manifest, verifier, and selected
+platform archive. Attestation policy pins the repository and release-workflow
+signer identity and rejects self-hosted builders. The authenticated verifier
+binds the requested version, supported runtime/platform, artifact name, and
+SHA-256 digest.
+
+Missing or invalid attestation evidence, malformed metadata, unsupported input,
+or a checksum mismatch aborts installation without falling back to a branch or
+older download. Version activation is transactional. Failed updates and
+rollback preserve the prior release, configuration, and diagnostics.
+
+This chain trusts the user's local GitHub CLI and Node.js installations,
+GitHub's release/attestation service, and the authorized repository workflow
+identity. See `docs/release-policy.md` for the exact commands and unsupported
+platforms.
+
 ## Browser diagnostics
 
 On browser failure the relay writes a local screenshot by default. It can
