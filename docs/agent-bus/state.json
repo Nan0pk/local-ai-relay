@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project": "local-ai-relay",
   "plan": "docs/plans/v2-master-plan.md",
-  "updated_at": "2026-07-17T20:15:26Z",
+  "updated_at": "2026-07-17T20:47:48Z",
   "tasks": [
     {
       "id": "P0-01",
@@ -69,7 +69,7 @@
       "title": "Make provider capability discovery truthful",
       "phase": 0,
       "priority": 2,
-      "status": "ready",
+      "status": "claimed",
       "depends_on": [],
       "risk": "medium",
       "model_tier": "standard",
@@ -93,10 +93,23 @@
         "npm test",
         "npm run test:e2e"
       ],
-      "claim": null,
+      "claim": {
+        "agent": "arena-agent",
+        "branch": "task/P0-02-truthful-capability-discovery",
+        "started_at": "2026-07-17T20:47:48Z",
+        "lease_until": "2026-07-18T00:47:48Z"
+      },
       "handoff": null,
       "verification_record": null,
-      "blocker": null
+      "blocker": null,
+      "history": [
+        {
+          "at": "2026-07-17T20:47:48Z",
+          "action": "claim",
+          "agent": "arena-agent",
+          "note": "task/P0-02-truthful-capability-discovery"
+        }
+      ]
     },
     {
       "id": "P0-03",

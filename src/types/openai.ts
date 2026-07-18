@@ -79,6 +79,14 @@ export interface ModelCard {
     supports_sessions: boolean;
     supports_streaming: boolean;
     max_parallel_requests: number;
+    /** Diagnostic capability status (only present with `include=all`). */
+    capability_status?: string;
+    /** Human-readable detail about current state. */
+    capability_detail?: string;
+    /** Opaque evidence reference. */
+    capability_evidence?: string;
+    /** ISO-8601 timestamp of last capability update. */
+    capability_updated_at?: string;
   };
 }
 

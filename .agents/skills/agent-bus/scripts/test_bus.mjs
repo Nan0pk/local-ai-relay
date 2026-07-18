@@ -66,12 +66,15 @@ test("CLI enforces claim, exact-commit verification, and generated status end to
   await mkdir(ledgerDir, { recursive: true });
   
   const init_state = JSON.parse(await readFile(SOURCE_STATE, "utf8"));
-  const p001 = init_state.tasks.find((task) => task.id === "P0-01");
-  if (p001) {
-    p001.status = "ready";
-    p001.claim = null;
-    p001.handoff = null;
-    p001.verification_record = null;
+  // Reset any tasks that have progressed past their seed state so the test
+  // controls exactly which tasks are complete.
+  for (const task of init_state.tasks) {
+    if (task.id === "P0-01" || task.id === "P0-02") {
+      task.status = "ready";
+      task.claim = null;
+      task.handoff = null;
+      task.verification_record = null;
+    }
   }
   await writeFile(path.join(ledgerDir, "state.json"), JSON.stringify(init_state, null, 2), "utf8");
 
