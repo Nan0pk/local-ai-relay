@@ -32,6 +32,7 @@ The maintainer's latest explicit direction overrides `TASK.md`; otherwise
 - Do not bypass CAPTCHA, access controls, rate limits, provider safeguards, or
   manual account/2FA decisions.
 - Preserve unrelated user changes. Use the smallest coherent patch.
+- Verify that all new or modified files are actually staged using `git status` or `git diff --cached` before committing. Pay special attention to filenames containing substrings matched by `.gitignore` (e.g., `token`, `secret`, `key`). Use `git add -f` to force stage required files if ignored.
 
 ## Deliverable format
 
