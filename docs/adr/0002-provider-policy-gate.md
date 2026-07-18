@@ -1,7 +1,7 @@
 # ADR 0002: Provider Policy Review Gate
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 Upstream LLM webchat providers (such as OpenAI, Anthropic, Google, and others) maintain Terms of Service (ToS) and acceptable use policies that govern or prohibit automated interaction, scraping, or programmatic access to their consumer web interfaces. Using consumer browser automation (like Patchright/Playwright) to interface with these services carries operational and policy risks, including potential account termination or IP blocks.

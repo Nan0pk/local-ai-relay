@@ -16,7 +16,7 @@
 | **Occupied-Port Smoke Test** | **PASS** | `npm run smoke:startup` successfully runs and responds to requests. |
 | **systemd Service Installation** | **PASS** | systemd user service runs built relay locally. |
 | **Hermes Configuration Backup** | **PASS** | Config backed up to `~/.hermes/config.yaml.bak`. |
-| **Model Registration** | **PASS** | All 11 browser models are successfully registered and E2E verified. |
+| **Model Registration** | **PASS** | All 12 browser models are successfully registered and E2E verified. |
 | **In-session Model Switching** | **PASS** | Model switching works seamlessly. |
 | **End-to-End Tool Execution** | **PASS** | Mock browser E2E session runs successfully. |
 

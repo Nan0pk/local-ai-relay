@@ -1,7 +1,7 @@
 # Project: local-ai-relay
 
-> **Historical v1 implementation snapshot.** The executable v2 architecture,
-> risk gates, and dependency graph now live in
+> **Current status:** Phase 0 is completed (P0-01, P0-02, P0-03, and P0-04 are completed and merged).
+> The executable v2 architecture, risk gates, and dependency graph now live in
 > [`docs/plans/v2-master-plan.md`](docs/plans/v2-master-plan.md). The one current
 > assignment and its required deliverable live in [`TASK.md`](TASK.md). Do not
 > use the historical milestone table below to claim current provider readiness.

@@ -19,9 +19,7 @@ The project is evolving from a Patchright-only browser relay into **v2 Hybrid**:
 - OpenAI Chat Completions and Responses-style APIs for model traffic;
 - MCP as an optional control and delegation plane.
 
-> **Current state:** v2 is planned and Phase 0 is in progress. P0-01, P0-02, and P0-03 are completed and merged.
-> P0-04 (reconcile project truth and owner decisions) is the current task. See
-> [`TASK.md`](TASK.md) for the exact deliverable and the
+> **Current state:** v2 is planned and Phase 0 is completed (P0-01, P0-02, P0-03, and P0-04 are completed and merged). See the
 > [master plan](docs/plans/v2-master-plan.md) for the remaining backlog.
 
 ## What v2 is trying to achieve
@@ -134,7 +132,7 @@ npm run dev                       # development server
 npm start                         # built server
 ```
 
-Known browser-provider keys are `chatgpt`, `claude`, `gemini`, `deepseek`,
+Known browser-provider keys are `chatgpt`, `claude`, `gemini`, `arena`, `deepseek`,
 `zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`, and `meta`.
 
 Implementation or registration does not establish live readiness. Consult the
@@ -222,10 +220,9 @@ local-ai-relay/
 
 ## Safety and product boundaries
 
-- Consumer-web adapters are experimental local UI automation, not official
-  provider APIs.
-- Use them only with explicit user authorization and after reviewing applicable
-  provider policies.
+- All browser-based providers are experimental fallback adapters (local UI automation), not official provider APIs.
+- The streaming mode for these experimental browser-based providers is UI-observed streaming. Since browser interfaces do not naturally expose token-by-token API streams, the relay implements UI-observed streaming by polling or observing DOM mutations in the browser's assistant message container, tracking the growth of the text content dynamically, extracting newly appended text slices, and emitting them as compatibility Server-Sent Events (SSE) chunks to the client.
+- Use them only with explicit user authorization and after reviewing applicable provider policies.
 - The relay does not request or commit passwords, cookies, browser profiles,
   session tokens, API keys, prompts, or responses.
 - Diagnostics must be explicit, local, redacted, size-bounded, and expiring.
@@ -238,6 +235,4 @@ plan for the v2 threat model and release gates.
 
 ## License
 
-No license has been selected. Treat the repository as source-available, not
-open source, until the maintainer chooses and adds a `LICENSE` file. This is an
-explicit owner gate in task P0-04.
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for the full text.

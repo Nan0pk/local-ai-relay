@@ -23,6 +23,7 @@ another dependency layer.
 | 9 | `browser-grok-free` | Grok | Distinct frontier model family and live-information strength | E2E verified |
 | 10 | `browser-mistral-free` | Mistral Le Chat | Fast EU-hosted alternative and open-weight ecosystem | E2E verified |
 | 11 | `browser-meta-free` | Meta AI | First-party Llama-family assistant and Meta ecosystem integration | E2E verified |
+| 12 | `browser-arena-free` | LMSYS Chatbot Arena | Login-free access to a diverse pool of models | E2E verified |
 
 “E2E verified” means planned adapter is fully implemented and passes mock E2E validation. A model ID enters `/v1/models` only
 after its adapter passes unit tests and its capabilities status is ready.
@@ -42,6 +43,7 @@ after its adapter passes unit tests and its capabilities status is ready.
 | Grok | <https://grok.com> |
 | Mistral Le Chat | <https://chat.mistral.ai> |
 | Meta AI | <https://www.meta.ai> |
+| LMSYS Chatbot Arena | <https://chat.lmsys.org> |
 
 ## Adapter contract
 
