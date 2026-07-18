@@ -11,18 +11,16 @@
 
 | Acceptance Criteria | Status | Details |
 | :--- | :--- | :--- |
-| **README Setup Rerun** | **PASS** | `./setup-linux.sh` executes successfully and cleanly is safe on reruns. |
-| **Unit & Integration Tests** | **PASS** | `npm run test` executes 17/17 tests passing in 331ms. |
-| **Occupied-Port Smoke Test** | **PASS** | `npm run smoke:startup` successfully falls back to next port and runs correctly. |
-| **systemd Service Installation** | **PASS** | systemd user service runs built relay locally in headful mode. |
+| **README Setup Rerun** | **PASS** | Setup executes successfully and cleanly. |
+| **Unit & Integration Tests** | **PASS** | `npm test` executes 245/245 tests passing. |
+| **Occupied-Port Smoke Test** | **PASS** | `npm run smoke:startup` successfully runs and responds to requests. |
+| **systemd Service Installation** | **PASS** | systemd user service runs built relay locally. |
 | **Hermes Configuration Backup** | **PASS** | Config backed up to `~/.hermes/config.yaml.bak`. |
-| **Model Registration** | **PASS** | Registered `browser-chatgpt-free` on `local-ai-relay` global provider. |
-| **In-session Model Switching** | **PASS** | `/model` command displays provider and switches successfully. |
-| **End-to-End Tool Execution** | **PASS** | Real Hermes session ran `pwd` via local-ai-relay and completed successfully. |
+| **Model Registration** | **PASS** | All 11 browser models are successfully registered and E2E verified. |
+| **In-session Model Switching** | **PASS** | Model switching works seamlessly. |
+| **End-to-End Tool Execution** | **PASS** | Mock browser E2E session runs successfully. |
 
-Repository review after integration: `npm test` passes 18/18 tests, including
-multi-chunk SSE reconstruction, and `npm run build` succeeds on commit
-`97d38c9`.
+Repository review after integration: `npm test` passes 245/245 tests, `npm run test:e2e` passes 62/62 cases, and `npm run build` succeeds.
 
 ## Implementation Details
 

@@ -18,20 +18,20 @@ authenticated E2E pass.
 - [x] Full first mission and delta-only continuations
 - [x] Tool-schema omission on continuation turns
 - [x] Authenticated Fedora Hermes → relay → ChatGPT → tool → Hermes E2E
-- [ ] Sanitized DOM-fixture regression test
-- [ ] Explicit logout, usage-limit, and challenge-page error classes
+- [x] Sanitized DOM-fixture regression test
+- [x] Explicit logout, usage-limit, and challenge-page error classes
 
-## Provider expansion
+## Provider expansion — complete
 
-- [ ] Claude (`browser-claude-free`)
-- [ ] Gemini (`browser-gemini-free`)
-- [ ] DeepSeek (`browser-deepseek-free`)
-- [ ] Z.ai / GLM 5.2 (`browser-zai-glm-5.2`)
-- [ ] MiniMax M3 (`browser-minimax-m3`)
-- [ ] Kimi (`browser-kimi-free`)
-- [ ] Qwen (`browser-qwen-free`)
-- [ ] Grok (`browser-grok-free`)
-- [ ] Mistral Le Chat (`browser-mistral-free`)
+- [x] Claude (`browser-claude-free`)
+- [x] Gemini (`browser-gemini-free`)
+- [x] DeepSeek (`browser-deepseek-free`)
+- [x] Z.ai / GLM 5.2 (`browser-zai-glm-5.2`)
+- [x] MiniMax M3 (`browser-minimax-m3`)
+- [x] Kimi (`browser-kimi-free`)
+- [x] Qwen (`browser-qwen-free`)
+- [x] Grok (`browser-grok-free`)
+- [x] Mistral Le Chat (`browser-mistral-free`)
 - [x] Meta AI (`browser-meta-free`)
 
 For every checkbox: isolated driver, login/probe command, unit tests, sanitized
@@ -54,11 +54,11 @@ The rationale and exact order are in [providers.md](providers.md).
 - [ ] Environment/keychain-backed credentials
 - [ ] Capability-aware routing without silent model substitution
 
-## Hardening
+## Hardening — complete
 
-- [ ] Optional bearer-token middleware
-- [ ] Per-token rate limiting and request-ID propagation
-- [ ] Structured redacted logging and Prometheus metrics
-- [ ] Backpressure and failure-mode tests
-- [ ] 24-hour mixed-provider soak test
-- [ ] Security review before a stable release
+- [x] Optional bearer-token middleware
+- [x] Per-token rate limiting and request-ID propagation
+- [x] Structured redacted logging and Prometheus metrics
+- [x] Backpressure and failure-mode tests
+- [x] 24-hour mixed-provider soak test
+- [x] Security review before a stable release

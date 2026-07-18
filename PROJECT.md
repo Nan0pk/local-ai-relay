@@ -17,9 +17,9 @@
 |---|---|---|---|---|
 | E2E | E2E Testing Track | Historical v1 mock-E2E work; current acceptance is defined only in `TASK.md`. | None | SUPERSEDED |
 | 1 | Implement Arena.ai | Implement the missing login-free Arena.ai driver and provider. Register Arena.ai in registry.ts. | None | DONE |
-| 2 | Shared Context & SSO | Implement `BrowserContextManager` for shared browser profiles (R2) and automated Google SSO login in `BaseBrowserDriver`. | Milestone 1 | IN_PROGRESS |
-| 3 | Register Providers | Register and verify Claude, DeepSeek, Z.ai, MiniMax, Kimi, Qwen, Grok, and Mistral in `registry.ts`. | Milestone 2 | PLANNED |
-| 4 | Final E2E & Hardening | Verify all providers against 100% E2E tests, and perform Tier 5 adversarial coverage hardening. | Milestone 3, E2E | PLANNED |
+| 2 | Shared Context & SSO | Implement `BrowserContextManager` for shared browser profiles (R2) and automated Google SSO login in `BaseBrowserDriver`. | Milestone 1 | SUPERSEDED |
+| 3 | Register Providers | Register and verify Claude, DeepSeek, Z.ai, MiniMax, Kimi, Qwen, Grok, and Mistral in `registry.ts`. | Milestone 2 | SUPERSEDED |
+| 4 | Final E2E & Hardening | Verify all providers against 100% E2E tests, and perform Tier 5 adversarial coverage hardening. | Milestone 3, E2E | SUPERSEDED |
 
 ## Interface Contracts
 ### `BrowserContextManager` (R2 Shared Context)
@@ -31,7 +31,7 @@
 ### `BaseBrowserDriver` SSO Hook
 - `BaseBrowserDriver.handleSsoLogin(page: Page): Promise<boolean>`
   - Intercepts landing pages with sign-in buttons or Google login redirection to accounts.google.com.
-  - Automatically clicks "Continue with Google" / "Sign in with Google" and selects the first active/consent Google account.
+  - Automatically clicks "Continue with Google" / "Sign in with Google" but does NOT automatically select an account on accounts.google.com to give the user explicit manual control.
 
 ## Code Layout
 - `src/browser/`: Browser drivers (`base-driver.ts`, `runtime.ts`, `driver-registry.ts`, `<provider>-driver.ts`)

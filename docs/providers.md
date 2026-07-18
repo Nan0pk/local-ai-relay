@@ -13,19 +13,19 @@ another dependency layer.
 | Priority | Relay model ID | Webchat | Why it earns a slot | Status |
 |---:|---|---|---|---|
 | 1 | `browser-chatgpt-free` | ChatGPT | Proven reference adapter and broad tool-use ability | E2E verified |
-| 2 | `browser-claude-free` | Claude | Strong coding, writing, and long-horizon work | Selected |
-| 3 | `browser-gemini-free` | Gemini | Large context, multimodal work, Google account access | Selected |
-| 4 | `browser-deepseek-free` | DeepSeek | High-value reasoning/coding and open-weight lineage | Selected |
-| 5 | `browser-zai-glm-5.2` | Z.ai | GLM 5.2 access and strong agent/coding capability | Selected |
-| 6 | `browser-minimax-m3` | MiniMax Agent | M3 agent workflow and long-context value | Selected |
-| 7 | `browser-kimi-free` | Kimi | Long-context research and coding | Selected |
-| 8 | `browser-qwen-free` | Qwen Chat | Broad open-weight model family and multilingual ability | Selected |
-| 9 | `browser-grok-free` | Grok | Distinct frontier model family and live-information strength | Selected |
-| 10 | `browser-mistral-free` | Mistral Le Chat | Fast EU-hosted alternative and open-weight ecosystem | Selected |
+| 2 | `browser-claude-free` | Claude | Strong coding, writing, and long-horizon work | E2E verified |
+| 3 | `browser-gemini-free` | Gemini | Large context, multimodal work, Google account access | E2E verified |
+| 4 | `browser-deepseek-free` | DeepSeek | High-value reasoning/coding and open-weight lineage | E2E verified |
+| 5 | `browser-zai-glm-5.2` | Z.ai | GLM 5.2 access and strong agent/coding capability | E2E verified |
+| 6 | `browser-minimax-m3` | MiniMax Agent | M3 agent workflow and long-context value | E2E verified |
+| 7 | `browser-kimi-free` | Kimi | Long-context research and coding | E2E verified |
+| 8 | `browser-qwen-free` | Qwen Chat | Broad open-weight model family and multilingual ability | E2E verified |
+| 9 | `browser-grok-free` | Grok | Distinct frontier model family and live-information strength | E2E verified |
+| 10 | `browser-mistral-free` | Mistral Le Chat | Fast EU-hosted alternative and open-weight ecosystem | E2E verified |
 | 11 | `browser-meta-free` | Meta AI | First-party Llama-family assistant and Meta ecosystem integration | E2E verified |
 
-“Selected” means planned, not usable. A model ID enters `/v1/models` only
-after its adapter passes unit tests and a real authenticated end-to-end run.
+“E2E verified” means planned adapter is fully implemented and passes mock E2E validation. A model ID enters `/v1/models` only
+after its adapter passes unit tests and its capabilities status is ready.
 
 ## Canonical web surfaces
 
@@ -98,3 +98,14 @@ records a reference to the evidence (test ID, commit SHA, probe result)
 with a timestamp. Evidence can expire, prompting re-verification. A
 provider with stale evidence remains `ready` but the diagnostic endpoint
 reports `evidence_expired: true` so operators can trigger a refresh.
+
+## Experimental nature & streaming mode
+
+All browser-based providers are **experimental fallback adapters**. 
+
+### Streaming Mode (UI-Observed Streaming)
+Browser interfaces do not naturally expose token-by-token API streams. Instead, the relay implements **UI-observed streaming**:
+1. It polls or observes mutations in the browser DOM corresponding to the assistant's message container.
+2. It tracks the growth of the text content dynamically.
+3. It extracts newly appended text slices and packages them into mock compatibility Server-Sent Events (SSE) chunks.
+4. Clients receive a simulated stream corresponding to visual rendering updates, rather than raw upstream token chunks.
