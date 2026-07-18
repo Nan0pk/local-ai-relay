@@ -62,11 +62,14 @@ write_pointer() {
 }
 
 read_pointer() {
-  local name="$1" value
-  [[ -f "$INSTALL_ROOT/$name" ]] || return 1
-  IFS= read -r value <"$INSTALL_ROOT/$name"
-  [[ "$value" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || return 1
-  printf '%s' "$value"
+  local name="$1"
+  local -a lines=()
+  [[ -e "$INSTALL_ROOT/$name" ]] || return 3
+  [[ -f "$INSTALL_ROOT/$name" ]] || return 4
+  mapfile -t lines <"$INSTALL_ROOT/$name"
+  [[ ${#lines[@]} -eq 1 ]] || return 4
+  [[ "${lines[0]}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || return 4
+  printf '%s' "${lines[0]}"
 }
 
 activate_service() {
@@ -74,13 +77,71 @@ activate_service() {
   (cd "$1" && npm run service:install)
 }
 
+snapshot_state() {
+  local snapshot="$1" name
+  mkdir "$snapshot"
+  for name in current previous service-managed; do
+    if [[ -e "$INSTALL_ROOT/$name" ]]; then
+      [[ -f "$INSTALL_ROOT/$name" ]] || return 1
+      cp "$INSTALL_ROOT/$name" "$snapshot/$name"
+      : >"$snapshot/$name.exists"
+    fi
+  done
+}
+
+restore_state() {
+  local snapshot="$1" name temporary
+  for name in current previous service-managed; do
+    if [[ -f "$snapshot/$name.exists" ]]; then
+      temporary="$INSTALL_ROOT/.${name}.restore.$$"
+      cp "$snapshot/$name" "$temporary" && mv -f "$temporary" "$INSTALL_ROOT/$name" || return 1
+    else
+      rm -f "$INSTALL_ROOT/$name" || return 1
+    fi
+  done
+}
+
+maybe_fail_finalization() {
+  [[ "${RELAY_TEST_FAIL_FINALIZE_AFTER:-}" != "$1" ]] || {
+    echo "FAIL: injected finalization failure after $1." >&2
+    return 70
+  }
+}
+
+validate_installed_release() {
+  local version="$1" root="$INSTALL_ROOT/versions/$1" marker
+  [[ -f "$root/.authenticated-release" && -f "$root/package.json" && -x "$root/setup-linux.sh" ]] || return 1
+  IFS= read -r marker <"$root/.authenticated-release"
+  [[ "$marker" == "$version" && "$(wc -l <"$root/.authenticated-release")" -eq 1 ]]
+}
+
 if ((ROLLBACK)); then
-  current="$(read_pointer current)" || { echo 'FAIL: no active release to roll back.' >&2; exit 1; }
-  previous="$(read_pointer previous)" || { echo 'FAIL: no previous release to roll back to.' >&2; exit 1; }
-  [[ -d "$INSTALL_ROOT/versions/$previous" ]] || {
-    echo "FAIL: previous release $previous is unavailable." >&2
+  if current="$(read_pointer current)"; then
+    :
+  elif [[ $? -eq 3 ]]; then
+    echo 'FAIL: no active release to roll back.' >&2
+    exit 1
+  else
+    echo 'FAIL: current release pointer is malformed.' >&2
+    exit 1
+  fi
+  if previous="$(read_pointer previous)"; then
+    :
+  elif [[ $? -eq 3 ]]; then
+    echo 'FAIL: no previous release to roll back to.' >&2
+    exit 1
+  else
+    echo 'FAIL: previous release pointer is malformed.' >&2
+    exit 1
+  fi
+  validate_installed_release "$previous" || {
+    echo "FAIL: previous release $previous is not an authenticated runnable installation." >&2
     exit 1
   }
+  rollback_snapshot="$(mktemp -d "$INSTALL_ROOT/.staging/rollback.XXXXXX")"
+  trap 'rm -rf "$rollback_snapshot"' EXIT INT TERM
+  snapshot_state "$rollback_snapshot/state" || { echo 'FAIL: could not snapshot install state.' >&2; exit 1; }
+  runtime_switched=0
   if [[ -f "$INSTALL_ROOT/service-managed" ]]; then
     if ! activate_service "$INSTALL_ROOT/versions/$previous"; then
       echo "FAIL: $previous service activation failed; restoring $current." >&2
@@ -90,9 +151,22 @@ if ((ROLLBACK)); then
       }
       exit 1
     fi
+    runtime_switched=1
   fi
-  write_pointer previous "$current"
-  write_pointer current "$previous"
+  if ! {
+    write_pointer previous "$current" &&
+    maybe_fail_finalization previous &&
+    write_pointer current "$previous" &&
+    maybe_fail_finalization current
+  }; then
+    restore_state "$rollback_snapshot/state" || echo 'FAIL: install-state restoration failed.' >&2
+    if ((runtime_switched)); then
+      activate_service "$INSTALL_ROOT/versions/$current" || \
+        echo 'FAIL: prior service restoration also failed.' >&2
+    fi
+    echo 'FAIL: rollback finalization failed; prior state restored.' >&2
+    exit 1
+  fi
   echo "Rolled back from $current to $previous."
   exit 0
 fi
@@ -153,10 +227,21 @@ RELAY_RELEASE_VERSION="$VERSION" \
 RELAY_RELEASE_PLATFORM="$PLATFORM" \
 RELAY_INSTALL_ROOT="$INSTALL_ROOT" \
   "$destination/setup-linux.sh" "${SETUP_ARGS[@]}"
+printf '%s\n' "$VERSION" >"$destination/.authenticated-release"
 
-old_current="$(read_pointer current || true)"
+if old_current="$(read_pointer current)"; then
+  :
+elif [[ $? -eq 3 ]]; then
+  old_current=''
+else
+  echo 'FAIL: current release pointer is malformed.' >&2
+  exit 1
+fi
+install_snapshot="$stage/install-state"
+snapshot_state "$install_snapshot" || { echo 'FAIL: could not snapshot install state.' >&2; exit 1; }
 service_was_managed=0
 [[ -f "$INSTALL_ROOT/service-managed" ]] && service_was_managed=1
+runtime_switched=0
 if ((service_was_managed || NO_BROWSER == 0)); then
   # Retain the target until activation either succeeds or the prior runtime is
   # known-good again; a service unit may already reference this directory.
@@ -174,15 +259,41 @@ if ((service_was_managed || NO_BROWSER == 0)); then
     echo 'FAIL: release service activation failed; pointers remain unchanged.' >&2
     exit 1
   fi
-  : >"$INSTALL_ROOT/service-managed"
+  runtime_switched=1
 else
   new_destination=''
 fi
 
-if [[ -n "$old_current" && "$old_current" != "$VERSION" ]]; then
-  write_pointer previous "$old_current"
+if ! {
+  if [[ -n "$old_current" && "$old_current" != "$VERSION" ]]; then
+    write_pointer previous "$old_current" && maybe_fail_finalization previous
+  fi &&
+  if ((runtime_switched)); then
+    : >"$INSTALL_ROOT/service-managed" && maybe_fail_finalization service-managed
+  fi &&
+  write_pointer current "$VERSION" &&
+  maybe_fail_finalization current
+}; then
+  state_restored=0
+  if restore_state "$install_snapshot"; then
+    state_restored=1
+  else
+    echo 'FAIL: install-state restoration failed.' >&2
+  fi
+  restored_runtime=0
+  if ((service_was_managed)) && [[ -n "$old_current" && -d "$INSTALL_ROOT/versions/$old_current" ]]; then
+    activate_service "$INSTALL_ROOT/versions/$old_current" && restored_runtime=1
+  elif ((runtime_switched == 0)); then
+    restored_runtime=1
+  fi
+  if ((state_restored && restored_runtime)); then
+    rm -rf "$destination"
+  else
+    echo "FAIL: retaining $destination because full restoration was not confirmed." >&2
+  fi
+  echo 'FAIL: release finalization failed; prior state restored.' >&2
+  exit 1
 fi
-write_pointer current "$VERSION"
 
 if ((NO_BROWSER == 0)) && command -v hermes >/dev/null 2>&1; then
   (cd "$destination" && npm run hermes:configure) || \
