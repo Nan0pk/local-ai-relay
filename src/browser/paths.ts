@@ -1,6 +1,7 @@
 import { join, win32 } from 'node:path';
 import { access } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { constants, mkdirSync, rmSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 
 /** One predictable browser-binary location shared by install and runtime. */
 export function browserBinariesDir(): string {
@@ -53,4 +54,21 @@ export async function findSystemBrowser(): Promise<string | undefined> {
     }
   }
   return undefined;
+}
+
+let cachedHome: string | null = null;
+
+/** Returns the user home directory, or a temporary fallback if home is not writable. */
+export function getWritableHome(): string {
+  if (cachedHome) return cachedHome;
+  const home = homedir();
+  try {
+    const testDir = join(home, '.local-ai-relay-write-test-' + Math.random().toString(36).substring(2, 9));
+    mkdirSync(testDir, { recursive: true });
+    rmSync(testDir, { recursive: true });
+    cachedHome = home;
+  } catch {
+    cachedHome = tmpdir();
+  }
+  return cachedHome;
 }

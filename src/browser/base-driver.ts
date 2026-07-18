@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { getWritableHome } from './paths.js';
 import type { BrowserContext, Locator, Page } from 'patchright';
 import type { BrowserChatDriver, BrowserChatRequest, BrowserChatResult } from './types.js';
 import { BrowserFailure } from './types.js';
@@ -68,12 +68,12 @@ export interface BaseDriverOptions {
 
 function defaultProfileDir(cfg: SiteConfig): string {
   return process.env[cfg.profileEnvVar]
-    ?? join(homedir(), '.local-ai-relay', 'browser-profiles', cfg.name);
+    ?? join(getWritableHome(), '.local-ai-relay', 'browser-profiles', cfg.name);
 }
 
 function defaultDiagnosticsDir(): string {
   return process.env.RELAY_DIAGNOSTICS_DIR
-    ?? join(homedir(), '.local-ai-relay', 'diagnostics');
+    ?? join(getWritableHome(), '.local-ai-relay', 'diagnostics');
 }
 
 export interface ResolvedLocator {
