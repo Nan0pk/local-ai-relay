@@ -93,6 +93,9 @@ test("CLI enforces claim, exact-commit verification, and generated status end to
   );
   assert.equal(result.status, 0, result.stderr);
 
+  let state = JSON.parse(await readFile(path.join(ledgerDir, "state.json"), "utf8"));
+  assert.equal(state.tasks.find((task) => task.id === "P0-01").handoff.branch, "fix/p0-01");
+
   result = run("complete", "P0-01", "--agent", "builder", "--commit", "abcdef1");
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /independent verification/);
@@ -122,7 +125,7 @@ test("CLI enforces claim, exact-commit verification, and generated status end to
   result = run("validate", "--check-status");
   assert.equal(result.status, 0, result.stderr);
 
-  const state = JSON.parse(await readFile(path.join(ledgerDir, "state.json"), "utf8"));
+  state = JSON.parse(await readFile(path.join(ledgerDir, "state.json"), "utf8"));
   assert.equal(state.tasks.find((task) => task.id === "P0-01").status, "done");
   assert.equal(state.tasks.find((task) => task.id === "P1-01").status, "backlog");
   const status = await readFile(statusPath, "utf8");

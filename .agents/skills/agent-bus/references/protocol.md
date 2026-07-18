@@ -79,8 +79,10 @@ on an interface first.
 An agent may edit shared documentation required to keep its change truthful,
 but must record the overlap and avoid rewriting unrelated planning state.
 
-Do not push to or merge `main`. A handoff may create a draft pull request; the
-maintainer owns the merge decision.
+Do not push directly to `main`. A handoff may create a draft pull request. The
+maintainer owns the merge policy and may either merge manually or explicitly
+start the guarded repository runner with `--auto` and an allowlisted reviewer.
+Models never merge or enable auto-merge themselves.
 
 ## Verification policy
 
@@ -109,8 +111,24 @@ must not quietly repair the change while certifying it.
 ### Owner gates
 
 License, account authorization, provider-policy/legal acceptance, secret entry,
-browser-store submission, stable release, and merge are owner actions. Agents
-should prepare a recommendation and all reversible prerequisites first.
+browser-store submission, and stable release are owner actions. Ordinary task
+merges may be delegated only through the maintainer-started repository runner;
+owner-gated tasks remain manual. Agents should prepare a recommendation and all
+reversible prerequisites first.
+
+## Review-gated automation
+
+The runner recognizes only an allowlisted PR comment containing one of:
+
+```text
+AGENT-BUS: PASS <TASK-ID> <FULL-PR-HEAD-SHA>
+AGENT-BUS: CHANGES_REQUESTED <TASK-ID> <FULL-PR-HEAD-SHA>
+```
+
+A verdict for an earlier commit, another task, or a non-allowlisted author has
+no effect. PASS permits merge only after the task is `done`, required checks
+pass, and the PR is no longer a draft. CHANGES_REQUESTED wakes the same builder
+on the same task; it never authorizes a new task or arbitrary shell text.
 
 ## Failure packets and model escalation
 

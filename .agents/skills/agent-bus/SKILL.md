@@ -8,6 +8,26 @@ description: Coordinate local-ai-relay project work across one or more AI agents
 Use the repository ledger to move one pull-request-sized task at a time while
 minimizing repeated context and unnecessary model calls.
 
+## One-command runner
+
+For normal economical execution, run from the repository root:
+
+```bash
+npm run agent:run
+```
+
+This invokes one supported builder and stops at review. If the maintainer has
+explicitly delegated ordinary merges, the guarded continuous form is:
+
+```bash
+npm run agent:run -- --auto --reviewer <github-login>
+```
+
+Only the repository runner may act on that flag. A model must never call merge
+or enable auto-merge itself. The runner requires an allowlisted review marker
+for the exact PR head SHA, a completed valid ledger record, a non-draft PR, and
+green required checks. It refuses owner-gated work and release claims.
+
 ## Load the minimum context
 
 Run:
@@ -94,8 +114,9 @@ node .agents/skills/agent-bus/scripts/bus.mjs complete <TASK-ID> \
   --agent <stable-name> --commit <sha>
 ```
 
-`complete` is ledger completion, not permission to merge. Only the maintainer
-merges to `main`.
+`complete` is ledger completion, not permission for a model to merge. The
+maintainer either merges manually or explicitly delegates an ordinary merge to
+the guarded repository runner. Owner-gated work is always manual.
 
 ## Block honestly
 

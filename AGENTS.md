@@ -30,7 +30,10 @@ Read `.agents/skills/agent-bus/SKILL.md` before claiming or handing off work.
 - Default to one agent per task. Add another only when work is independent or
   the task requires independent verification.
 - Work on a task branch. Never push directly to `main`, merge a pull request,
-  or enable auto-merge.
+  or enable auto-merge. The only exception is the non-model repository runner
+  when the maintainer explicitly starts `npm run agent:run -- --auto` with an
+  allowlisted reviewer; its exact-SHA, CI, ledger, and owner-gate checks remain
+  mandatory.
 - Respect each task's `write_scope`. Split unrelated discoveries into a new
   task or a concise follow-up; do not expand the current change silently.
 - Treat `model_tier` as a cost ceiling, not a status symbol. Start with the
@@ -72,6 +75,7 @@ Next agent action: <what follows>
 ```
 
 License choice, provider-account authorization, legal approval, secret entry,
-browser-store publication, and merging remain human actions. Everything else
-should advance as far as safely possible without making the human coordinate
-agents manually.
+browser-store publication, and stable-release approval remain human actions.
+Ordinary task merges may be delegated only through the maintainer-started,
+review-gated repository runner described above. Everything else should advance
+as far as safely possible without making the human coordinate agents manually.
