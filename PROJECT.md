@@ -1,8 +1,10 @@
 # Project: local-ai-relay
 
-> **Current status:** Phase 0 is in progress. P0-01 through P0-04 are completed
-> and merged; P0-05 is the current assignment.
-> The executable v2 architecture, risk gates, and dependency graph now live in
+> **Current status:** P0-01 through P0-05 are completed and merged. U0-01—the
+> fresh Fedora Hermes → relay → ChatGPT proof—is the current assignment.
+> Execution order through v1.0 lives in
+> [`docs/plans/use-first-completion-plan.md`](docs/plans/use-first-completion-plan.md);
+> the v2 architecture reference lives in
 > [`docs/plans/v2-master-plan.md`](docs/plans/v2-master-plan.md). The one current
 > assignment and its required deliverable live in [`TASK.md`](TASK.md). Do not
 > use the historical milestone table below to claim current provider readiness.

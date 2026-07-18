@@ -1,5 +1,11 @@
 # Roadmap
 
+> **Execution notice:** This is a historical implementation checklist, not the
+> current task queue or a live-readiness matrix. Follow
+> [the use-first completion plan](plans/use-first-completion-plan.md) and
+> [TASK.md](../TASK.md). A checked adapter may have mock coverage while still
+> lacking fresh authenticated live evidence.
+
 Each provider is shipped independently and registered only after a real
 authenticated E2E pass.
 
