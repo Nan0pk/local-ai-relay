@@ -22,16 +22,41 @@ function Set-Pointer([string]$Name, [string]$Value) {
   Move-Item -LiteralPath $temporary -Destination $path -Force
 }
 
-function Start-ManagedRuntime([string]$ReleasePath) {
-  if (-not (Test-Path -LiteralPath (Join-Path $ReleasePath 'package.json') -PathType Leaf)) { return }
+function Set-ManagedRuntime([string]$Version) {
+  Set-Pointer 'managed-runtime' $Version
+}
+
+function Assert-AuthenticatedInstall([string]$ReleasePath, [string]$ExpectedVersion) {
+  $markerPath = Join-Path $ReleasePath '.authenticated-install.json'
+  if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+    throw "Release $ExpectedVersion is missing its authenticated install marker."
+  }
+  try {
+    $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+  } catch {
+    throw "Release $ExpectedVersion has a malformed authenticated install marker."
+  }
+  if ($marker.version -ne $ExpectedVersion -or $marker.runtimeEntry -ne 'dist/index.js') {
+    throw "Release $ExpectedVersion has a mismatched authenticated install marker."
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $ReleasePath 'package.json') -PathType Leaf) -or -not (Test-Path -LiteralPath (Join-Path $ReleasePath 'dist/index.js') -PathType Leaf)) {
+    throw "Release $ExpectedVersion is missing package.json or dist/index.js."
+  }
+}
+
+function Start-ManagedRuntime([string]$ReleasePath, [string]$ExpectedVersion) {
+  Assert-AuthenticatedInstall $ReleasePath $ExpectedVersion
   if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
     throw 'npm.cmd is required to activate a managed Windows runtime.'
   }
+  $oldInstallRoot = $env:RELAY_INSTALL_ROOT
   Push-Location $ReleasePath
   try {
+    $env:RELAY_INSTALL_ROOT = $InstallRoot
     & npm.cmd run service:start:windows
     if ($LASTEXITCODE -ne 0) { throw "Managed runtime activation failed for $ReleasePath." }
   } finally {
+    $env:RELAY_INSTALL_ROOT = $oldInstallRoot
     Pop-Location
   }
 }
@@ -60,8 +85,20 @@ if ($Rollback) {
   if (-not (Test-Path -LiteralPath $previousRelease -PathType Container)) {
     throw "Rollback target '$previous' is not installed."
   }
+  $managedPath = Join-Path $InstallRoot 'managed-runtime'
+  $oldManaged = if (Test-Path -LiteralPath $managedPath) {
+    (Get-Content -LiteralPath $managedPath -Raw).Trim()
+  } else {
+    $null
+  }
+  if ($oldManaged -and ($oldManaged -notmatch $stableVersion -or $oldManaged -ne $current)) {
+    throw 'managed-runtime must match the current stable release before rollback.'
+  }
+  Assert-AuthenticatedInstall $currentRelease $current
+  Assert-AuthenticatedInstall $previousRelease $previous
   try {
-    Start-ManagedRuntime $previousRelease
+    Start-ManagedRuntime $previousRelease $previous
+    Set-ManagedRuntime $previous
     Set-Pointer 'previous-version' $current
     Set-Pointer 'current-version' $previous
   } catch {
@@ -69,7 +106,12 @@ if ($Rollback) {
     try {
       Set-Pointer 'previous-version' $previous
       Set-Pointer 'current-version' $current
-      Start-ManagedRuntime $currentRelease
+      Start-ManagedRuntime $currentRelease $current
+      if ($oldManaged) {
+        Set-ManagedRuntime $oldManaged
+      } elseif (Test-Path -LiteralPath $managedPath) {
+        Remove-Item -LiteralPath $managedPath -Force
+      }
     } catch {
       throw "Rollback failed and current runtime recovery also failed: $($_.Exception.Message)"
     }

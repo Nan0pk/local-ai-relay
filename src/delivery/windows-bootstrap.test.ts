@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -20,9 +20,10 @@ async function fixture(version: string, options: { tamper?: boolean; attestation
   const install = join(root, 'install');
   const ghLog = join(root, 'gh.log');
   const npmLog = join(root, 'npm.log');
-  await Promise.all([mkdir(release), mkdir(downloads), mkdir(bin), mkdir(install)]);
+  await Promise.all([mkdir(release), mkdir(downloads), mkdir(bin), mkdir(install), mkdir(join(release, 'dist'))]);
   await copyFile(setup, join(release, 'setup-windows.ps1'));
   await writeFile(join(release, '.env.example'), 'RELAY_FIXTURE=default\n');
+  await writeFile(join(release, 'dist', 'index.js'), 'void 0;\n');
   await writeFile(join(release, 'package.json'), JSON.stringify({
     name: 'delivery-fixture',
     version: '1.0.0',
@@ -64,7 +65,7 @@ async function fixture(version: string, options: { tamper?: boolean; attestation
 const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
-fs.appendFileSync(process.env.RELAY_NPM_LOG, process.cwd() + '|' + args.join(' ') + '\\n');
+fs.appendFileSync(process.env.RELAY_NPM_LOG, process.cwd() + '|' + args.join(' ') + '|' + (process.env.RELAY_INSTALL_ROOT || '') + '\\n');
 if (args.includes('service:start:windows') &&
     path.basename(process.cwd()).toLowerCase() === (process.env.RELAY_FAIL_SERVICE_VERSION || '').toLowerCase()) {
   process.exitCode = 1;
@@ -105,6 +106,10 @@ test('Windows bootstrap installs only an explicit authenticated release', { skip
   assert.equal(await readFile(join(paths.install, 'current-version'), 'utf8'), 'v1.2.3');
   assert.equal(await readFile(join(paths.install, 'config', '.env'), 'utf8'), 'RELAY_FIXTURE=default\n');
   assert.equal(await readFile(join(paths.install, 'versions', 'v1.2.3', '.env'), 'utf8'), 'RELAY_FIXTURE=default\n');
+  assert.match(
+    await readFile(join(paths.install, 'versions', 'v1.2.3', '.authenticated-install.json'), 'utf8'),
+    /"version":"v1\.2\.3"/,
+  );
   const attestations = (await readFile(paths.ghLog, 'utf8')).trim().split(/\r?\n/);
   assert.equal(attestations.length, 3);
   assert.ok(attestations.every((line) =>
@@ -156,6 +161,13 @@ test('interrupted update preserves active install, configuration, and diagnostic
   assert.notEqual(run(undefined, second, ['-Rollback'], {}, false).status, 0);
   await writeFile(join(first.install, 'previous-version'), 'v1.2.3');
 
+  const previousMarker = join(first.install, 'versions', 'v1.2.3', '.authenticated-install.json');
+  const validMarker = await readFile(previousMarker, 'utf8');
+  await rm(previousMarker);
+  assert.notEqual(run(undefined, second, ['-Rollback'], {}, false).status, 0);
+  assert.equal(await readFile(join(first.install, 'current-version'), 'utf8'), 'v1.2.4');
+  await writeFile(previousMarker, validMarker);
+
   const failedRollback = run(undefined, second, ['-Rollback'], {
     RELAY_FAIL_SERVICE_VERSION: 'v1.2.3',
   }, false);
@@ -170,11 +182,12 @@ test('interrupted update preserves active install, configuration, and diagnostic
   assert.equal(rollback.status, 0, rollback.stderr);
   assert.equal(await readFile(join(first.install, 'current-version'), 'utf8'), 'v1.2.3');
   assert.equal(await readFile(join(first.install, 'previous-version'), 'utf8'), 'v1.2.4');
+  assert.equal(await readFile(join(first.install, 'managed-runtime'), 'utf8'), 'v1.2.3');
 });
 
 test('failed service activation restores the old runtime and leaves pointers unchanged', { skip: !windows }, async () => {
   const first = await fixture('v1.2.3');
-  assert.equal(run('v1.2.3', first).status, 0);
+  assert.equal(run('v1.2.3', first, [], {}, false).status, 0);
   const second = await fixture('v1.2.4');
   second.install = first.install;
   const failed = run('v1.2.4', second, [], { RELAY_FAIL_SERVICE_VERSION: 'v1.2.4' }, false);
@@ -184,6 +197,26 @@ test('failed service activation restores the old runtime and leaves pointers unc
   const npmLog = await readFile(second.npmLog, 'utf8');
   assert.match(npmLog, /v1\.2\.4\|run service:start:windows/);
   assert.match(npmLog, /v1\.2\.3\|run service:start:windows/);
+});
+
+test('NoBrowser restarts an already managed runtime but leaves an unmanaged install pointer-only', { skip: !windows }, async () => {
+  const unmanaged = await fixture('v1.2.3');
+  assert.equal(run('v1.2.3', unmanaged).status, 0);
+  await assert.rejects(readFile(join(unmanaged.install, 'managed-runtime')));
+  assert.doesNotMatch(await readFile(unmanaged.npmLog, 'utf8'), /service:start:windows/);
+
+  const managed = await fixture('v2.0.0');
+  assert.equal(run('v2.0.0', managed, [], {}, false).status, 0);
+  assert.equal(await readFile(join(managed.install, 'managed-runtime'), 'utf8'), 'v2.0.0');
+  const update = await fixture('v2.0.1');
+  update.install = managed.install;
+  assert.equal(run('v2.0.1', update).status, 0);
+  assert.equal(await readFile(join(managed.install, 'current-version'), 'utf8'), 'v2.0.1');
+  assert.equal(await readFile(join(managed.install, 'managed-runtime'), 'utf8'), 'v2.0.1');
+  const updateLog = await readFile(update.npmLog, 'utf8');
+  assert.match(updateLog, /v2\.0\.1\|run service:start:windows\|/);
+  assert.match(updateLog, new RegExp(managed.install.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(updateLog, /probe:chatgpt/);
 });
 
 test('PowerShell entry points parse and the batch wrapper only launches verified setup', { skip: !windows }, async () => {

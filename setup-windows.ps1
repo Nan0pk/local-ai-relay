@@ -49,8 +49,21 @@ function Set-Pointer([string]$Name, [string]$Value) {
   Move-Item -LiteralPath $temporary -Destination $path -Force
 }
 
+function Invoke-ManagedService([string]$ReleasePath) {
+  $oldInstallRoot = $env:RELAY_INSTALL_ROOT
+  Push-Location $ReleasePath
+  try {
+    $env:RELAY_INSTALL_ROOT = $InstallRoot
+    Invoke-Npm run service:start:windows
+  } finally {
+    $env:RELAY_INSTALL_ROOT = $oldInstallRoot
+    Pop-Location
+  }
+}
+
 $currentPath = Join-Path $InstallRoot 'current-version'
 $previousPath = Join-Path $InstallRoot 'previous-version'
+$managedPath = Join-Path $InstallRoot 'managed-runtime'
 $oldCurrent = if (Test-Path -LiteralPath $currentPath) {
   (Get-Content -LiteralPath $currentPath -Raw).Trim()
 } else {
@@ -64,6 +77,14 @@ $oldPrevious = if (Test-Path -LiteralPath $previousPath) {
 $stableVersion = '^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$'
 if (($oldCurrent -and $oldCurrent -notmatch $stableVersion) -or ($oldPrevious -and $oldPrevious -notmatch $stableVersion)) {
   throw 'Install pointers must contain explicit stable vX.Y.Z versions.'
+}
+$oldManaged = if (Test-Path -LiteralPath $managedPath) {
+  (Get-Content -LiteralPath $managedPath -Raw).Trim()
+} else {
+  $null
+}
+if ($oldManaged -and ($oldManaged -notmatch $stableVersion -or $oldManaged -ne $oldCurrent)) {
+  throw 'managed-runtime must match the current stable release before update.'
 }
 $oldRelease = if ($oldCurrent) { Join-Path $versionsRoot $oldCurrent } else { $null }
 $targetCreated = $false
@@ -101,6 +122,13 @@ try {
   } finally {
     Pop-Location
   }
+  $runtimeEntry = Join-Path $stagedRelease 'dist/index.js'
+  if (-not (Test-Path -LiteralPath (Join-Path $stagedRelease 'package.json') -PathType Leaf) -or -not (Test-Path -LiteralPath $runtimeEntry -PathType Leaf)) {
+    throw 'Verified staged release is missing package.json or dist/index.js.'
+  }
+  @{ version = $Version; runtimeEntry = 'dist/index.js' } |
+    ConvertTo-Json -Compress |
+    Set-Content -LiteralPath (Join-Path $stagedRelease '.authenticated-install.json') -Encoding UTF8
 
   if ($env:RELAY_TEST_INTERRUPT_BEFORE_ACTIVATE -eq '1') {
     throw 'Simulated interruption before activation.'
@@ -108,15 +136,16 @@ try {
 
   Move-Item -LiteralPath $stagedRelease -Destination $targetRelease
   $targetCreated = $true
-  if (-not $NoBrowser) {
+  if (-not $NoBrowser -or $oldManaged) {
     $activationAttempted = $true
     Push-Location $targetRelease
     try {
-      Invoke-Npm run probe:chatgpt
-      Invoke-Npm run service:start:windows
+      if (-not $NoBrowser) { Invoke-Npm run probe:chatgpt }
     } finally {
       Pop-Location
     }
+    Invoke-ManagedService $targetRelease
+    Set-Pointer 'managed-runtime' $Version
   }
   if ($oldCurrent -and $oldCurrent -ne $Version) {
     Set-Pointer 'previous-version' $oldCurrent
@@ -125,9 +154,13 @@ try {
 } catch {
   $installError = $_
   try {
-    if ($activationAttempted -and $oldRelease -and (Test-Path -LiteralPath (Join-Path $oldRelease 'package.json') -PathType Leaf)) {
-      Push-Location $oldRelease
-      try { Invoke-Npm run service:start:windows } finally { Pop-Location }
+    if ($activationAttempted -and $oldManaged -and $oldRelease) {
+      Invoke-ManagedService $oldRelease
+    }
+    if ($oldManaged) {
+      Set-Pointer 'managed-runtime' $oldManaged
+    } elseif (Test-Path -LiteralPath $managedPath) {
+      Remove-Item -LiteralPath $managedPath -Force
     }
     if ($oldPrevious) {
       Set-Pointer 'previous-version' $oldPrevious
