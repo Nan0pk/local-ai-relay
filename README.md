@@ -7,8 +7,9 @@ harnesses.
 
 Read [`AGENTS.md`](AGENTS.md), then execute the single current assignment in
 [`TASK.md`](TASK.md). `TASK.md` states the exact scope, acceptance commands, and
-required pull-request handoff. There is no orchestration service or special
-agent command.
+required pull-request handoff. The repository has no orchestration service or
+special command; an externally installed Codex CLI `$parallel-task` skill may
+coordinate only the disjoint workstreams explicitly allowed by those files.
 
 The project is evolving from a Patchright-only browser relay into **v2 Hybrid**:
 
@@ -19,8 +20,10 @@ The project is evolving from a Patchright-only browser relay into **v2 Hybrid**:
 - OpenAI Chat Completions and Responses-style APIs for model traffic;
 - MCP as an optional control and delegation plane.
 
-> **Current state:** v2 is planned and Phase 0 is completed (P0-01, P0-02, P0-03, and P0-04 are completed and merged). See the
-> [master plan](docs/plans/v2-master-plan.md) for the remaining backlog.
+> **Current state:** v2 is planned and Phase 0 is in progress. P0-01 through
+> P0-04 are completed and merged; P0-05 (secure bootstrap and dependency
+> delivery) is the current assignment. See [`TASK.md`](TASK.md) and the
+> [master plan](docs/plans/v2-master-plan.md).
 
 ## What v2 is trying to achieve
 
@@ -79,6 +82,10 @@ Every agent gets the same contract regardless of model, CLI, or subscription:
 2. `TASK.md` defines the one current task and deliverable.
 3. The task is complete only when its checks run and its remote draft PR exists.
 
+Codex CLI may use `$parallel-task` when installed, but one coordinator still
+owns integration and the single PR; workers use only the disjoint write scopes
+in `TASK.md`.
+
 ## Delivery phases
 
 | Phase | Outcome |
@@ -90,7 +97,7 @@ Every agent gets the same contract regardless of model, CLI, or subscription:
 | 4 — Release | Provider conformance, individual rollout, signed artifacts, 24-hour soak, scoped beta |
 | 5 — Measure first | Benchmark TypeScript; consider Rust only if written thresholds fail |
 
-The current critical path is Phase 0. Execute `TASK.md`; do not choose a later
+The current critical path is P0-05. Execute `TASK.md`; do not choose a later
 item from this summary manually.
 
 ## Current developer setup
