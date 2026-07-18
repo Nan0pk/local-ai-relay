@@ -19,10 +19,8 @@ The project is evolving from a Patchright-only browser relay into **v2 Hybrid**:
 - OpenAI Chat Completions and Responses-style APIs for model traffic;
 - MCP as an optional control and delegation plane.
 
-> **Current state:** v2 is planned and Phase 0 is in progress. P0-01 (E2E and
-> tool-proposal safety) and P0-02 (truthful provider discovery) are merged.
-> P0-03 (authentication and account selection) is the current assignment.
-> Browser adapters being registered does not make them live-verified. See
+> **Current state:** v2 is planned and Phase 0 is in progress. P0-01, P0-02, and P0-03 are completed and merged.
+> P0-04 (reconcile project truth and owner decisions) is the current task. See
 > [`TASK.md`](TASK.md) for the exact deliverable and the
 > [master plan](docs/plans/v2-master-plan.md) for the remaining backlog.
 
