@@ -20,10 +20,11 @@ The project is evolving from a Patchright-only browser relay into **v2 Hybrid**:
 - OpenAI Chat Completions and Responses-style APIs for model traffic;
 - MCP as an optional control and delegation plane.
 
-> **Current state:** v2 is planned and Phase 0 is in progress. P0-01 through
-> P0-04 are completed and merged; P0-05 (secure bootstrap and dependency
-> delivery) is the current assignment. See [`TASK.md`](TASK.md) and the
-> [master plan](docs/plans/v2-master-plan.md).
+> **Current state:** P0-01 through P0-05 are completed and merged. The current
+> assignment is U0-01: prove the real Fedora Hermes → relay → ChatGPT path before
+> any further architecture or provider expansion. See [`TASK.md`](TASK.md), the
+> [use-first completion plan](docs/plans/use-first-completion-plan.md), and the
+> [v2 architecture reference](docs/plans/v2-master-plan.md).
 
 ## What v2 is trying to achieve
 
@@ -71,8 +72,10 @@ Important contracts:
   account choice, embedded inference, and default semantic caching are outside
   the v2 design.
 
-The complete decisions, task graph, gates, and deferred work are in
-[docs/plans/v2-master-plan.md](docs/plans/v2-master-plan.md).
+The [use-first completion plan](docs/plans/use-first-completion-plan.md) defines
+execution order, delivery gates, estimates, timeboxes, and the path through
+v1.0. The [v2 master plan](docs/plans/v2-master-plan.md) remains the architecture
+and threat-model reference.
 
 ## Project execution
 
@@ -97,8 +100,8 @@ in `TASK.md`.
 | 4 — Release | Provider conformance, individual rollout, signed artifacts, 24-hour soak, scoped beta |
 | 5 — Measure first | Benchmark TypeScript; consider Rust only if written thresholds fail |
 
-The current critical path is P0-05. Execute `TASK.md`; do not choose a later
-item from this summary manually.
+The current critical path is U0-01, the fresh Fedora ChatGPT proof. Execute
+`TASK.md`; do not choose a later item from this summary manually.
 
 ## Authenticated release delivery
 
@@ -158,9 +161,10 @@ npm start                         # built server
 Known browser-provider keys are `chatgpt`, `claude`, `gemini`, `arena`, `deepseek`,
 `zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`, and `meta`.
 
-Implementation or registration does not establish live readiness. Consult the
-per-provider evidence under `docs/e2e/`; Phase P0-02 will make runtime model
-discovery enforce that rule.
+Implementation, registration, or mock E2E does not establish live readiness.
+Consult the per-provider evidence under `docs/e2e/`; runtime model discovery is
+gated by capability evidence, and U0-01 must refresh ChatGPT evidence on the
+current Patchright commit.
 
 ## Current API
 
@@ -223,7 +227,8 @@ local-ai-relay/
 ├── bootstrap.sh / bootstrap.ps1       current development bootstrap entry points
 ├── verify-all.sh / verify-all.cmd     current provider verification helpers
 ├── docs/
-│   ├── plans/v2-master-plan.md       full architecture and execution graph
+│   ├── plans/use-first-completion-plan.md  authoritative route through v1.0
+│   ├── plans/v2-master-plan.md       architecture and threat-model reference
 │   ├── adr/                          accepted architectural decisions
 │   ├── e2e/                          sanitized live-provider evidence
 │   ├── architecture.md               current implementation architecture
