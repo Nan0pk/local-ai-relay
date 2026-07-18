@@ -1,6 +1,6 @@
 # Current task: P0-05 — Secure bootstrap and dependency delivery
 
-**Status:** Open  
+**Status:** Implemented — local acceptance passed; draft PR CI pending
 **Deliverable:** One draft pull request against `main`; do not merge.
 
 ## Goal
@@ -104,3 +104,33 @@ fallback—for tampered or unauthenticated artifacts.
 Report the remote branch, full commit SHA, draft PR URL, changed files, exact
 local and CI results, the release contract, security assumptions, unsupported
 platforms/versions, and remaining owner decisions. Do not merge.
+
+## Execution record
+
+- Baseline on `origin/main`: all six acceptance commands passed. The first
+  sandboxed `npm ci` attempt could not execute esbuild (`EPERM`); the required
+  unsandboxed rerun passed with 58 packages and 0 vulnerabilities. Baseline E2E
+  passed 62/62.
+- Frozen contract: exact stable `vX.Y.Z` releases; `linux-x64` tarball and
+  `windows-x64` ZIP; versioned manifest; SHA-256 sums; GitHub artifact
+  attestations bound to this repository and release workflow; SPDX JSON SBOM;
+  Node.js 22-24.
+- Parallel lanes: Linux bootstrap/setup/tests, Windows bootstrap/setup/tests,
+  and release workflow/artifact validation. Shared verifier, documentation,
+  package metadata, integration, and publication remained coordinator-owned.
+- Final local acceptance:
+  - `npm ci`: passed; 58 packages, 0 vulnerabilities.
+  - `npm run typecheck`: passed.
+  - `npm test`: passed; 274 tests, 264 passed, 10 Windows-only skipped.
+  - `npm run test:e2e`: passed; 62/62.
+  - `npm run build`: passed.
+  - `npm run smoke:startup`: passed; occupied-port startup, `/health`, and
+    `/v1/chat/completions`.
+  - `npm run test:delivery`: passed on Linux; 30 tests, 20 passed and 10
+    Windows-only skipped pending Windows CI.
+  - `node scripts/validate-release.mjs`: passed; 8 deterministic authenticated
+    assets validated.
+- Scope expanded to `src/cli/start-windows-service.ts` and its tests because
+  repository evidence showed version-local process state made authenticated
+  update and rollback unsafe. The obsolete mutable-`main` bootstrap test was
+  replaced by the delivery contract suites.
