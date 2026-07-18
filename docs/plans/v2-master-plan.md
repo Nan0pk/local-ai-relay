@@ -1,13 +1,15 @@
 # local-ai-relay v2 Hybrid — Master Execution Plan
 
-**Status:** proposed execution source of truth  
-**Updated:** 2026-07-17  
+**Status:** architecture and threat-model reference  
+**Updated:** 2026-07-19  
 **Scope:** repository truth, transport migration, API/MCP integration, provider
 rollout, security, packaging, and the conditional Rust decision
 
-This plan supersedes milestone claims in `PROJECT.md` and `docs/roadmap.md` when
-they conflict. It does not make a provider, release, legal, or performance
-claim by itself; evidence gates below do that.
+The [use-first completion plan](use-first-completion-plan.md) is authoritative
+for execution order, timeboxes, delivery stages, and the route through v1.0.
+This document remains the detailed architectural backlog and threat-model
+reference. It does not make a provider, release, legal, or performance claim by
+itself; evidence gates do that.
 
 ## 1. Outcome
 
