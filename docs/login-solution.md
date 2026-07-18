@@ -54,10 +54,11 @@ looks for:
 - "Continue with Google"
 - Google-provider data attributes
 
-If found, it clicks the SSO button. On `accounts.google.com` it also
-auto-selects the first visible account. This means signing into Google
-once in the shared profile can propagate to every provider that supports
-Google SSO, without manual intervention for each site.
+If found, it clicks the SSO button to direct the user to the Google sign-in page.
+
+To keep the local relay safe by default and give the operator full control over their account choices, **automatic account selection on `accounts.google.com` is disabled**.
+
+The user must manually click their desired Google account and authenticate in the visible browser window (opened via `npm run login:<provider>`). Once selected and signed in, the session is saved in the persistent browser profile.
 
 ## Which providers support "Sign in with Google"
 

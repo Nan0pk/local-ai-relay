@@ -323,7 +323,7 @@ test('handleSsoLogin logic triggers correctly on login page', async () => {
   assert.equal(clicked, true);
 });
 
-test('handleSsoLogin logic triggers correctly on accounts.google.com page', async () => {
+test('handleSsoLogin logic does not automatically select accounts on accounts.google.com page', async () => {
   const driver = new TestDriver();
   
   let clicked = false;
@@ -340,8 +340,8 @@ test('handleSsoLogin logic triggers correctly on accounts.google.com page', asyn
     },
   } as unknown as Page;
   const result = await driver.handleSsoLogin(mockPage);
-  assert.equal(result, true);
-  assert.equal(clicked, true);
+  assert.equal(result, false);
+  assert.equal(clicked, false);
 });
 
 test('assertNotBlocked attempts SSO auto-login and succeeds if page transitions away', async () => {

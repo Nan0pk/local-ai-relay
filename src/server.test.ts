@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from './server.js';
 
+process.env.RELAY_API_TOKEN = 'test-token';
+
 test('models endpoint advertises the browser batch transport', async () => {
   // Enable mock browser so browser providers are marked as ready.
   const original = process.env.RELAY_MOCK_BROWSER;
@@ -28,7 +30,11 @@ test('models endpoint advertises the browser batch transport', async () => {
   });
 
   try {
-    const response = await app.inject({ method: 'GET', url: '/v1/models' });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/models',
+      headers: { authorization: 'Bearer test-token' }
+    });
     assert.equal(response.statusCode, 200);
     const body = response.json() as {
       data: Array<{ id: string; x_relay?: { execution_style: string } }>;
@@ -51,6 +57,7 @@ test('streaming chat completions use OpenAI-compatible SSE', async () => {
   try {
     const response = await app.inject({
       method: 'POST', url: '/v1/chat/completions',
+      headers: { authorization: 'Bearer test-token' },
       payload: { model: 'mock-gpt-4o-mini', stream: true, messages: [{ role: 'user', content: 'Hermes stream check' }] },
     });
     assert.equal(response.statusCode, 200);

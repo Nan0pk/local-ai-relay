@@ -229,11 +229,13 @@ test('SSE stream terminates with bare [DONE] (not JSON-encoded) for OpenAI compa
   // Use the real buildApp (with the mock provider) to exercise the actual
   // SSE code path in src/routes/chat.ts. The mock provider returns content
   // that the route splits into SSE chunks and terminates with [DONE].
+  process.env.RELAY_API_TOKEN = 'test-token';
   const { buildApp } = await import('./server.js');
   const app = buildApp({ host: '127.0.0.1', port: 0, logLevel: 'silent', defaultModel: 'mock-gpt-4o-mini' });
   try {
     const response = await app.inject({
       method: 'POST', url: '/v1/chat/completions',
+      headers: { authorization: 'Bearer test-token' },
       payload: { model: 'mock-gpt-4o-mini', stream: true, messages: [{ role: 'user', content: 'stream test' }] },
     });
     assert.equal(response.statusCode, 200);

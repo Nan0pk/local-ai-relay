@@ -154,8 +154,13 @@ discovery enforce that rule.
 Example against the deterministic mock:
 
 ```bash
+# Retrieve the loopback token
+TOKEN=$(cat ~/.local-ai-relay/token)
+
+# Make the request with the Authorization header
 curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'X-Relay-Session: demo' \
   -d '{
     "model":"mock-gpt-4o-mini",
@@ -163,8 +168,13 @@ curl -s http://127.0.0.1:8787/v1/chat/completions \
   }'
 ```
 
-Loopback bearer authentication is a Phase P0-03 requirement. Do not expose the
-current development server on an untrusted interface.
+## Security & Configuration
+
+The gateway implements security controls by default:
+
+- **Loopback Bearer Authentication**: A high-entropy bearer token is generated and persisted at `~/.local-ai-relay/token` with `0o600` permissions. All API endpoints except `/health` require this token in the `Authorization: Bearer <token>` header. You can override it by setting the `RELAY_API_TOKEN` environment variable.
+- **Loopback Binding Safety**: The server defaults to binding to `127.0.0.1`. Binding to a non-loopback host (e.g., `0.0.0.0`) is refused unless explicitly authorized via `RELAY_UNSAFE_BIND_ACK=1` and custom `RELAY_API_TOKEN` environment variables.
+- **Strict CORS Protection**: Cross-origin requests are blocked unless the `Origin` header matches a loopback host or starts with `chrome-extension://`.
 
 ## Verification
 
