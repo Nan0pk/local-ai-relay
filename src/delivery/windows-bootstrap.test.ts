@@ -81,7 +81,10 @@ test('Windows bootstrap installs only an explicit authenticated release', { skip
   assert.equal(await readFile(join(paths.install, 'current-version'), 'utf8'), 'v1.2.3');
   const attestations = (await readFile(paths.ghLog, 'utf8')).trim().split(/\r?\n/);
   assert.equal(attestations.length, 3);
-  assert.ok(attestations.every((line) => line.includes('--repo Nan0pk/local-ai-relay')));
+  assert.ok(attestations.every((line) =>
+    line.includes('--repo Nan0pk/local-ai-relay') &&
+    line.includes('--signer-workflow Nan0pk/local-ai-relay/.github/workflows/release.yml') &&
+    line.includes('--deny-self-hosted-runners')));
 });
 
 test('Windows bootstrap fails closed on checksum or attestation failure', { skip: !windows }, async () => {

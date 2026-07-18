@@ -67,7 +67,10 @@ function Receive-ReleaseFile([string]$Name, [string]$Destination) {
 }
 
 function Assert-Attestation([string]$Path) {
-  & gh attestation verify $Path --repo $Repository
+  & gh attestation verify $Path `
+    --repo $Repository `
+    --signer-workflow "$Repository/.github/workflows/release.yml" `
+    --deny-self-hosted-runners
   if ($LASTEXITCODE -ne 0) { throw "GitHub attestation verification failed for $(Split-Path -Leaf $Path)." }
 }
 
