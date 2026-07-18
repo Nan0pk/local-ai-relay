@@ -1,6 +1,6 @@
 # Current task: P0-05 — Secure bootstrap and dependency delivery
 
-**Status:** Implemented — local acceptance passed; draft PR CI pending
+**Status:** Complete — draft PR open; local and CI acceptance passed
 **Deliverable:** One draft pull request against `main`; do not merge.
 
 ## Goal
@@ -134,3 +134,6 @@ platforms/versions, and remaining owner decisions. Do not merge.
   repository evidence showed version-local process state made authenticated
   update and rollback unsafe. The obsolete mutable-`main` bootstrap test was
   replaced by the delivery contract suites.
+- Draft PR: https://github.com/Nan0pk/local-ai-relay/pull/17
+- GitHub Actions run 38 passed on Ubuntu and Windows:
+  https://github.com/Nan0pk/local-ai-relay/actions/runs/29657970360
