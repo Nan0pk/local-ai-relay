@@ -9,6 +9,7 @@ import test from 'node:test';
 const repositoryRoot = process.cwd();
 const bootstrapSource = join(repositoryRoot, 'bootstrap.sh');
 const verifierSource = join(repositoryRoot, 'scripts', 'verify-release.mjs');
+const linuxTest = process.platform === 'win32' ? test.skip : test;
 
 type Fixture = {
   root: string;
@@ -61,6 +62,10 @@ cp "$FIXTURE_ASSETS/\${url##*/}" "$out"
   await writeFile(join(bin, 'gh'), `#!/usr/bin/env bash
 set -Eeuo pipefail
 file=
+printf '%s\n' "$*" >> "$POLICY_LOG"
+[[ " $* " == *" --repo Nan0pk/local-ai-relay "* ]]
+[[ " $* " == *" --signer-workflow Nan0pk/local-ai-relay/.github/workflows/release.yml "* ]]
+[[ " $* " == *" --deny-self-hosted-runners "* ]]
 while (($#)); do
   [[ -f "$1" ]] && file="$1"
   shift
@@ -84,6 +89,7 @@ function run(f: Fixture, args: string[], extra: Record<string, string> = {}) {
       RELAY_RELEASE_BASE_URL: 'https://fixtures.invalid/releases',
       FIXTURE_ASSETS: f.assets,
       ATTEST_LOG: join(f.root, 'attest.log'),
+      POLICY_LOG: join(f.root, 'policy.log'),
       ROOT_MARKER: marker,
       ...extra,
     },
@@ -95,7 +101,7 @@ async function pointer(f: Fixture, name: string) {
   return basename((await readFile(join(f.data, 'local-ai-relay', name), 'utf8')).trim());
 }
 
-test('installs only an explicit authenticated release and records all attestations', async () => {
+linuxTest('installs only an explicit authenticated release and records all attestations', async () => {
   const f = await fixture();
   const missing = run(f, []);
   assert.notEqual(missing.status, 0);
@@ -109,9 +115,16 @@ test('installs only an explicit authenticated release and records all attestatio
     (await readFile(join(f.root, 'attest.log'), 'utf8')).trim().split('\n').sort(),
     [f.artifact, 'release-manifest.json', 'verify-release.mjs'].sort(),
   );
+  const policyCalls = (await readFile(join(f.root, 'policy.log'), 'utf8')).trim().split('\n');
+  assert.equal(policyCalls.length, 3);
+  for (const call of policyCalls) {
+    assert.match(call, /--repo Nan0pk\/local-ai-relay/);
+    assert.match(call, /--signer-workflow Nan0pk\/local-ai-relay\/\.github\/workflows\/release\.yml/);
+    assert.match(call, /--deny-self-hosted-runners/);
+  }
 });
 
-test('fails closed before setup for tampering, checksum mismatch, or bad attestation', async () => {
+linuxTest('fails closed before setup for tampering, checksum mismatch, or bad attestation', async () => {
   for (const failure of ['checksum', 'manifest-attestation', 'verifier-attestation', 'artifact-attestation'] as const) {
     const f = await fixture();
     const extra: Record<string, string> = {};
@@ -129,7 +142,7 @@ test('fails closed before setup for tampering, checksum mismatch, or bad attesta
   }
 });
 
-test('setup requires verified release context and installs only the lockfile', async () => {
+linuxTest('setup requires verified release context and installs only the lockfile', async () => {
   const root = await mkdtemp(join(tmpdir(), 'relay-linux-setup-'));
   const bin = join(root, 'bin');
   const install = join(root, 'install');
@@ -173,7 +186,7 @@ printf '%s\n' "$*" >> "$NPM_LOG"
   assert.equal(await readFile(join(payload, '.env'), 'utf8'), 'RELAY_API_TOKEN=change-me\n');
 });
 
-test('rejects unsupported versions, platforms, and conflicting rollback input', async () => {
+linuxTest('rejects unsupported versions, platforms, and conflicting rollback input', async () => {
   const f = await fixture();
   for (const args of [
     ['--version', 'latest'],
@@ -186,7 +199,7 @@ test('rejects unsupported versions, platforms, and conflicting rollback input', 
   }
 });
 
-test('interrupted update preserves active release, configuration, and diagnostics', async () => {
+linuxTest('interrupted update preserves active release, configuration, and diagnostics', async () => {
   const f = await fixture(`#!/usr/bin/env bash
 set -Eeuo pipefail
 touch "$ROOT_MARKER"
@@ -208,7 +221,7 @@ exit 73
   assert.equal(await readFile(join(install, 'diagnostics', 'last.log'), 'utf8'), 'keep-diagnostics');
 });
 
-test('rollback swaps release pointers without changing preserved state', async () => {
+linuxTest('rollback swaps release pointers without changing preserved state', async () => {
   const f = await fixture();
   const install = join(f.data, 'local-ai-relay');
   await mkdir(join(install, 'versions', 'v1.0.0'), { recursive: true });

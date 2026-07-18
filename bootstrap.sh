@@ -103,7 +103,10 @@ done
 # Authentication is deliberately separate from checksums: all executable
 # inputs and metadata must have repository-bound GitHub attestation evidence.
 for asset in release-manifest.json verify-release.mjs "$artifact"; do
-  gh attestation verify "$stage/$asset" --repo "$REPOSITORY" >/dev/null
+  gh attestation verify "$stage/$asset" \
+    --repo "$REPOSITORY" \
+    --signer-workflow "$REPOSITORY/.github/workflows/release.yml" \
+    --deny-self-hosted-runners >/dev/null
 done
 
 node "$stage/verify-release.mjs" \
