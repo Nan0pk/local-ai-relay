@@ -60,13 +60,9 @@ npm test
 npm run smoke:startup
 
 if ((NO_BROWSER)); then
-  echo 'SIMULATION COMPLETE (browser, service, and Hermes stages intentionally skipped)'
+  echo 'SIMULATION COMPLETE (browser activation intentionally skipped)'
   exit 0
 fi
 
 npm run probe:chatgpt
-npm run service:install
-if command -v hermes >/dev/null 2>&1; then
-  npm run hermes:configure
-fi
-echo 'SETUP COMPLETE'
+echo 'SETUP VALIDATION COMPLETE'

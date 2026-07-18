@@ -101,6 +101,17 @@ async function pointer(f: Fixture, name: string) {
   return basename((await readFile(join(f.data, 'local-ai-relay', name), 'utf8')).trim());
 }
 
+async function stubServiceNpm(f: Fixture) {
+  await writeFile(join(f.bin, 'npm'), `#!/usr/bin/env bash
+set -Eeuo pipefail
+[[ "$*" == "run service:install" ]]
+version="\${PWD##*/}"
+printf '%s\n' "$version" > "$SERVICE_RUNTIME"
+[[ "$version" != "\${FAIL_SERVICE_VERSION:-}" ]]
+`);
+  await chmod(join(f.bin, 'npm'), 0o755);
+}
+
 linuxTest('installs only an explicit authenticated release and records all attestations', async () => {
   const f = await fixture();
   const missing = run(f, []);
@@ -111,6 +122,7 @@ linuxTest('installs only an explicit authenticated release and records all attes
   assert.equal(result.status, 0, result.output);
   assert.equal(await pointer(f, 'current'), f.version);
   assert.equal(await readFile(result.marker, 'utf8'), '');
+  await assert.rejects(readFile(join(f.data, 'local-ai-relay', 'service-managed')));
   assert.deepEqual(
     (await readFile(join(f.root, 'attest.log'), 'utf8')).trim().split('\n').sort(),
     [f.artifact, 'release-manifest.json', 'verify-release.mjs'].sort(),
@@ -182,6 +194,8 @@ printf '%s\n' "$*" >> "$NPM_LOG"
   const npmCommands = (await readFile(npmLog, 'utf8')).trim().split('\n');
   assert.equal(npmCommands[0], 'ci');
   assert.equal(npmCommands.includes('install'), false);
+  assert.equal(npmCommands.includes('run service:install'), false);
+  assert.equal(npmCommands.includes('run hermes:configure'), false);
   assert.equal(await readFile(join(install, 'config', '.env'), 'utf8'), 'RELAY_API_TOKEN=change-me\n');
   assert.equal(await readFile(join(payload, '.env'), 'utf8'), 'RELAY_API_TOKEN=change-me\n');
 });
@@ -239,4 +253,75 @@ linuxTest('rollback swaps release pointers without changing preserved state', as
   assert.equal(await pointer(f, 'previous'), 'v1.1.0');
   assert.equal(await readFile(join(install, 'config', 'settings.json'), 'utf8'), 'keep-config');
   assert.equal(await readFile(join(install, 'diagnostics', 'last.log'), 'utf8'), 'keep-diagnostics');
+});
+
+linuxTest('managed update switches runtime, and activation failure restores runtime and state', async () => {
+  for (const failActivation of [false, true]) {
+    const f = await fixture();
+    await stubServiceNpm(f);
+    const install = join(f.data, 'local-ai-relay');
+    const runtime = join(f.root, 'service-runtime');
+    await mkdir(join(install, 'versions', 'v1.0.0'), { recursive: true });
+    await mkdir(join(install, 'config'), { recursive: true });
+    await mkdir(join(install, 'diagnostics'), { recursive: true });
+    await writeFile(join(install, 'current'), 'v1.0.0\n');
+    await writeFile(join(install, 'service-managed'), '');
+    await writeFile(join(install, 'config', 'settings.json'), 'keep-config');
+    await writeFile(join(install, 'diagnostics', 'last.log'), 'keep-diagnostics');
+    await writeFile(runtime, 'v1.0.0\n');
+
+    const result = run(f, ['--version', f.version, '--no-browser'], {
+      SERVICE_RUNTIME: runtime,
+      ...(failActivation ? { FAIL_SERVICE_VERSION: f.version } : {}),
+    });
+    if (failActivation) {
+      assert.notEqual(result.status, 0);
+      assert.equal(await pointer(f, 'current'), 'v1.0.0');
+      assert.equal((await readFile(runtime, 'utf8')).trim(), 'v1.0.0');
+      await assert.rejects(readFile(join(install, 'versions', f.version, 'package.json')));
+    } else {
+      assert.equal(result.status, 0, result.output);
+      assert.equal(await pointer(f, 'current'), f.version);
+      assert.equal((await readFile(runtime, 'utf8')).trim(), f.version);
+    }
+    assert.equal(await readFile(join(install, 'config', 'settings.json'), 'utf8'), 'keep-config');
+    assert.equal(await readFile(join(install, 'diagnostics', 'last.log'), 'utf8'), 'keep-diagnostics');
+  }
+});
+
+linuxTest('managed rollback switches runtime, and activation failure restores it before pointers', async () => {
+  for (const failActivation of [false, true]) {
+    const f = await fixture();
+    await stubServiceNpm(f);
+    const install = join(f.data, 'local-ai-relay');
+    const runtime = join(f.root, 'service-runtime');
+    await mkdir(join(install, 'versions', 'v1.0.0'), { recursive: true });
+    await mkdir(join(install, 'versions', 'v1.1.0'), { recursive: true });
+    await mkdir(join(install, 'config'), { recursive: true });
+    await mkdir(join(install, 'diagnostics'), { recursive: true });
+    await writeFile(join(install, 'current'), 'v1.1.0\n');
+    await writeFile(join(install, 'previous'), 'v1.0.0\n');
+    await writeFile(join(install, 'service-managed'), '');
+    await writeFile(join(install, 'config', 'settings.json'), 'keep-config');
+    await writeFile(join(install, 'diagnostics', 'last.log'), 'keep-diagnostics');
+    await writeFile(runtime, 'v1.1.0\n');
+
+    const result = run(f, ['--rollback'], {
+      SERVICE_RUNTIME: runtime,
+      ...(failActivation ? { FAIL_SERVICE_VERSION: 'v1.0.0' } : {}),
+    });
+    if (failActivation) {
+      assert.notEqual(result.status, 0);
+      assert.equal(await pointer(f, 'current'), 'v1.1.0');
+      assert.equal(await pointer(f, 'previous'), 'v1.0.0');
+      assert.equal((await readFile(runtime, 'utf8')).trim(), 'v1.1.0');
+    } else {
+      assert.equal(result.status, 0, result.output);
+      assert.equal(await pointer(f, 'current'), 'v1.0.0');
+      assert.equal(await pointer(f, 'previous'), 'v1.1.0');
+      assert.equal((await readFile(runtime, 'utf8')).trim(), 'v1.0.0');
+    }
+    assert.equal(await readFile(join(install, 'config', 'settings.json'), 'utf8'), 'keep-config');
+    assert.equal(await readFile(join(install, 'diagnostics', 'last.log'), 'utf8'), 'keep-diagnostics');
+  }
 });
