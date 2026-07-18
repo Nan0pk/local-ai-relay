@@ -55,6 +55,14 @@ test('rejects tampered artifact bytes', async () => {
   assert.match(result.stderr, /checksum mismatch/i);
 });
 
+test('rejects an incorrect checksum for unchanged artifact bytes', async () => {
+  const incorrect = manifest();
+  incorrect.artifacts['linux-x64'].sha256 = 'f'.repeat(64);
+  const result = await run({ manifest: incorrect });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /checksum mismatch/i);
+});
+
 test('rejects a manifest for a different release', async () => {
   const result = await run({ version: 'v1.2.4' });
   assert.notEqual(result.status, 0);

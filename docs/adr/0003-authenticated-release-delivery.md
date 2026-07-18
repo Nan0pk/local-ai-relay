@@ -24,7 +24,9 @@ Arm, prereleases, and Node versions outside the manifest range fail closed.
 The operator downloads a bootstrap script from the exact release and
 authenticates it before execution. Bootstrap then authenticates the manifest,
 verifier, and selected artifact with
-`gh attestation verify --repo Nan0pk/local-ai-relay`. The
+`gh attestation verify --repo Nan0pk/local-ai-relay --signer-workflow
+Nan0pk/local-ai-relay/.github/workflows/release.yml
+--deny-self-hosted-runners`. The
 authenticated verifier then checks the manifest schema, exact requested
 version, platform, runtime support, artifact name, and digest. Missing or
 invalid evidence, malformed metadata, a mismatch, or an unavailable exact

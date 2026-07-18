@@ -73,8 +73,10 @@ Mutable branches are development inputs, not trusted distribution channels.
 Installation requires an exact stable release tag. The user authenticates the
 tagged bootstrap asset with GitHub artifact attestation before execution;
 bootstrap then authenticates the release manifest, verifier, and selected
-platform archive. The authenticated verifier binds the repository, requested
-version, supported runtime/platform, artifact name, and SHA-256 digest.
+platform archive. Attestation policy pins the repository and release-workflow
+signer identity and rejects self-hosted builders. The authenticated verifier
+binds the requested version, supported runtime/platform, artifact name, and
+SHA-256 digest.
 
 Missing or invalid attestation evidence, malformed metadata, unsupported input,
 or a checksum mismatch aborts installation without falling back to a branch or

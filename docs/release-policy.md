@@ -31,7 +31,9 @@ mkdir -p relay-bootstrap
 gh release download "$VERSION" --repo Nan0pk/local-ai-relay \
   --pattern bootstrap.sh --dir relay-bootstrap
 gh attestation verify relay-bootstrap/bootstrap.sh \
-  --repo Nan0pk/local-ai-relay
+  --repo Nan0pk/local-ai-relay \
+  --signer-workflow Nan0pk/local-ai-relay/.github/workflows/release.yml \
+  --deny-self-hosted-runners
 bash relay-bootstrap/bootstrap.sh --version "$VERSION"
 ```
 
@@ -43,7 +45,9 @@ New-Item -ItemType Directory -Force relay-bootstrap | Out-Null
 gh release download $Version --repo Nan0pk/local-ai-relay `
   --pattern bootstrap.ps1 --dir relay-bootstrap
 gh attestation verify relay-bootstrap/bootstrap.ps1 `
-  --repo Nan0pk/local-ai-relay
+  --repo Nan0pk/local-ai-relay `
+  --signer-workflow Nan0pk/local-ai-relay/.github/workflows/release.yml `
+  --deny-self-hosted-runners
 & .\relay-bootstrap\bootstrap.ps1 -Version $Version
 ```
 
@@ -51,6 +55,8 @@ Bootstrap downloads only that version's manifest, verifier, and platform
 archive. It verifies GitHub attestation evidence for each, then the verifier
 checks the manifest contract and archive SHA-256 before setup runs. Any missing,
 malformed, unsupported, mismatched, or unauthenticated input stops the install.
+Verification pins both the repository and `.github/workflows/release.yml`
+signer identity and rejects evidence produced on self-hosted runners.
 
 ## Update and rollback
 
