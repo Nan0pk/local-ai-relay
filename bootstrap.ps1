@@ -1,122 +1,104 @@
-# bootstrap.ps1 - one-liner entry point for Windows.
-#
-# Invoke from anywhere (even a machine with nothing cloned):
-#
-#   irm https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1 | iex
-#
-# Or save-and-run if pipe-to-iex is blocked:
-#
-#   curl.exe -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/bootstrap.ps1 -o bootstrap.ps1
-#   powershell -ExecutionPolicy Bypass -File bootstrap.ps1
-#
-# This script handles every state of ~/local-ai-relay:
-#   - does not exist      -> clone, then run setup
-#   - exists, healthy     -> pull, then run setup
-#   - exists, broken      -> preserve as a timestamped backup, then clone
-#
-# It never asks the user to manually git pull, Remove-Item, or git clone.
-# It passes all args through to setup-windows.cmd.
-
+# Authenticated Windows bootstrap for versioned local-ai-relay releases.
 [CmdletBinding()]
 param(
-  [switch]$Fresh,
-  [switch]$Yes,
-  [string]$Repo = 'https://github.com/Nan0pk/local-ai-relay.git',
-  [string]$Dir
+  [string]$Version,
+  [string]$InstallRoot,
+  [switch]$NoBrowser,
+  [switch]$Rollback
 )
 
 $ErrorActionPreference = 'Stop'
+$Repository = 'Nan0pk/local-ai-relay'
 
-if (-not $Dir) {
-  $Dir = Join-Path $HOME 'local-ai-relay'
+if (-not $InstallRoot) {
+  if (-not $env:LOCALAPPDATA) { throw 'LOCALAPPDATA is required unless -InstallRoot is supplied.' }
+  $InstallRoot = Join-Path $env:LOCALAPPDATA 'local-ai-relay'
 }
 
-function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
-function Write-Ok($msg)   { Write-Host "    $msg" -ForegroundColor Green }
-function Write-Warn($msg) { Write-Host "    $msg" -ForegroundColor Yellow }
-
-function Get-CanonicalRepository([string]$value) {
-  return (($value -replace '^git@github\.com:', 'github.com/' -replace '^(https?://)?(www\.)?github\.com/', '' -replace '\.git/?$', '' -replace '/$', '').ToLowerInvariant())
+function Set-Pointer([string]$Name, [string]$Value) {
+  $path = Join-Path $InstallRoot $Name
+  $temporary = "$path.tmp-$([Guid]::NewGuid().ToString('N'))"
+  Set-Content -LiteralPath $temporary -Value $Value -NoNewline
+  Move-Item -LiteralPath $temporary -Destination $path -Force
 }
 
-$expectedRepository = if ($env:RELAY_EXPECTED_REPOSITORY) { $env:RELAY_EXPECTED_REPOSITORY } else { 'Nan0pk/local-ai-relay' }
-if ((Get-CanonicalRepository $Repo) -ne (Get-CanonicalRepository $expectedRepository)) {
-  throw "Repository '$Repo' does not match expected GitHub repository '$expectedRepository'."
-}
-if ($Fresh -and -not $Yes) {
-  throw '--Fresh deletes the target directory and therefore also requires --Yes.'
+if ($Rollback) {
+  $currentPath = Join-Path $InstallRoot 'current-version'
+  $previousPath = Join-Path $InstallRoot 'previous-version'
+  if (-not (Test-Path -LiteralPath $currentPath) -or -not (Test-Path -LiteralPath $previousPath)) {
+    throw 'Rollback requires both current-version and previous-version pointers.'
+  }
+  $current = (Get-Content -LiteralPath $currentPath -Raw).Trim()
+  $previous = (Get-Content -LiteralPath $previousPath -Raw).Trim()
+  if (-not (Test-Path -LiteralPath (Join-Path (Join-Path $InstallRoot 'versions') $previous) -PathType Container)) {
+    throw "Rollback target '$previous' is not installed."
+  }
+  Set-Pointer 'previous-version' $current
+  Set-Pointer 'current-version' $previous
+  Write-Host "Rolled back from $current to $previous."
+  exit 0
 }
 
-function Move-ToBackup([string]$path) {
-  $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
-  $backup = "$path.backup-$stamp"
-  $suffix = 1
-  while (Test-Path $backup) { $backup = "$path.backup-$stamp-$suffix"; $suffix++ }
-  Write-Step "Preserving existing directory as $backup"
-  Move-Item -LiteralPath $path -Destination $backup
-  Write-Ok 'local environment, diagnostics, logs, and patches preserved'
+if (-not $Version -or $Version -notmatch '^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$') {
+  throw '-Version must be an explicit stable vX.Y.Z tag.'
+}
+foreach ($command in 'gh', 'node') {
+  if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
+    throw "Missing prerequisite: $command."
+  }
 }
 
-# Decide what to do with the target directory.
-$action = 'clone'
-if (Test-Path $Dir) {
-  $isGitRepo = Test-Path (Join-Path $Dir '.git')
-  if ($Fresh -and $Yes) {
-    Write-Step "--Fresh --Yes requested: deleting $Dir"
-    Remove-Item -Recurse -Force $Dir
-    $action = 'clone'
-  } elseif (-not $isGitRepo) {
-    Write-Warn "$Dir exists but is not a Git repository"
-    Move-ToBackup $Dir
-    $action = 'clone'
+$baseUrl = if ($env:RELAY_RELEASE_BASE_URL) {
+  $env:RELAY_RELEASE_BASE_URL.TrimEnd('/','\')
+} else {
+  "https://github.com/$Repository/releases/download/$Version"
+}
+$artifactName = "local-ai-relay-$Version-windows-x64.zip"
+$downloadRoot = Join-Path $InstallRoot ".staging\download-$([Guid]::NewGuid().ToString('N'))"
+$extractRoot = Join-Path $downloadRoot 'extracted'
+New-Item -ItemType Directory -Path $downloadRoot -Force | Out-Null
+
+function Receive-ReleaseFile([string]$Name, [string]$Destination) {
+  if ($env:RELAY_RELEASE_BASE_URL -and (Test-Path -LiteralPath $baseUrl -PathType Container)) {
+    Copy-Item -LiteralPath (Join-Path $baseUrl $Name) -Destination $Destination
   } else {
-    $origin = (& git -C $Dir remote get-url origin 2>$null)
-    if ($LASTEXITCODE -ne 0 -or (Get-CanonicalRepository $origin) -ne (Get-CanonicalRepository $expectedRepository)) {
-      Write-Warn "$Dir has unexpected origin '$origin'; it will not be updated"
-      Move-ToBackup $Dir
-      $action = 'clone'
-    } else {
-      Write-Step "Pulling latest in $Dir"
-      & git -C $Dir pull --ff-only 2>&1 | Out-Null
-      if ($LASTEXITCODE -eq 0) {
-        Write-Ok 'pull succeeded'
-      } else {
-        Write-Warn 'pull failed; preserving the current checkout and continuing without updating'
-        Write-Warn 'This can mean offline access, local changes/commits, or a temporary Git failure.'
-      }
-      $action = 'setup'
-    }
+    Invoke-WebRequest -Uri "$baseUrl/$Name" -OutFile $Destination -UseBasicParsing
   }
 }
 
-if ($action -eq 'clone') {
-  Write-Step "Cloning $Repo into $Dir"
-  git clone $Repo $Dir
-  if ($LASTEXITCODE -ne 0) {
-    throw "git clone failed. Check your network and the repo URL: $Repo"
+function Assert-Attestation([string]$Path) {
+  & gh attestation verify $Path --repo $Repository
+  if ($LASTEXITCODE -ne 0) { throw "GitHub attestation verification failed for $(Split-Path -Leaf $Path)." }
+}
+
+try {
+  $manifest = Join-Path $downloadRoot 'release-manifest.json'
+  $verifier = Join-Path $downloadRoot 'verify-release.mjs'
+  $artifact = Join-Path $downloadRoot $artifactName
+  Receive-ReleaseFile 'release-manifest.json' $manifest
+  Receive-ReleaseFile 'verify-release.mjs' $verifier
+  Receive-ReleaseFile $artifactName $artifact
+
+  # Authenticate every executable input before parsing metadata or extracting code.
+  Assert-Attestation $manifest
+  Assert-Attestation $verifier
+  Assert-Attestation $artifact
+
+  & node $verifier --manifest $manifest --artifact $artifact --version $Version --platform windows-x64
+  if ($LASTEXITCODE -ne 0) { throw 'Release checksum or manifest verification failed.' }
+
+  Expand-Archive -LiteralPath $artifact -DestinationPath $extractRoot
+  $setups = @(Get-ChildItem -LiteralPath $extractRoot -Filter 'setup-windows.ps1' -File -Recurse)
+  if ($setups.Count -ne 1) { throw 'Verified artifact must contain exactly one setup-windows.ps1.' }
+
+  $oldContext = $env:RELAY_VERIFIED_RELEASE_VERSION
+  try {
+    $env:RELAY_VERIFIED_RELEASE_VERSION = $Version
+    & $setups[0].FullName -Version $Version -InstallRoot $InstallRoot -ReleaseRoot $setups[0].DirectoryName -NoBrowser:$NoBrowser
+    if ($LASTEXITCODE -ne 0) { throw "setup-windows.ps1 exited with code $LASTEXITCODE." }
+  } finally {
+    $env:RELAY_VERIFIED_RELEASE_VERSION = $oldContext
   }
+} finally {
+  Remove-Item -LiteralPath $downloadRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
-
-Set-Location $Dir
-
-# Make sure setup-windows.cmd exists; if not, pull once more (belt + suspenders).
-if (-not (Test-Path 'setup-windows.cmd')) {
-  Write-Step "setup-windows.cmd missing - pulling latest"
-  git pull --ff-only 2>&1 | Out-Null
-}
-
-if (-not (Test-Path 'setup-windows.cmd')) {
-  throw "setup-windows.cmd still missing after pull. The repo may be on a branch without it."
-}
-
-# Hand off to setup-windows.cmd, passing through all remaining args.
-Write-Step "Running setup-windows.cmd"
-$argsPassThrough = @()
-# Collect extra bound parameters the user passed (except our own -Fresh/-Repo/-Dir)
-foreach ($key in $PSBoundParameters.Keys) {
-  if ($key -notin 'Fresh','Yes','Repo','Dir') {
-    $argsPassThrough += "-$key"
-  }
-}
-& .\setup-windows.cmd @argsPassThrough
-exit $LASTEXITCODE
