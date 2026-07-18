@@ -53,7 +53,7 @@ async function filesAt(path) {
 
 const sourceFiles = (await Promise.all(sourceRoots.map(filesAt))).flat().sort();
 const entries = await Promise.all(sourceFiles.map(async (name) => ({
-  name: posix.join(`local-ai-relay-${tag}`, name),
+  name,
   mode: /\.(?:sh|mjs)$/.test(name) ? 0o755 : 0o644,
   bytes: await readFile(join(root, name)),
 })));
