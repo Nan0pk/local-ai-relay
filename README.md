@@ -235,6 +235,4 @@ plan for the v2 threat model and release gates.
 
 ## License
 
-No license has been selected. Treat the repository as source-available, not
-open source, until the maintainer chooses and adds a `LICENSE` file. This is an
-explicit owner gate in task P0-04.
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for the full text.
