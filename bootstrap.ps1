@@ -22,7 +22,24 @@ function Set-Pointer([string]$Name, [string]$Value) {
   Move-Item -LiteralPath $temporary -Destination $path -Force
 }
 
+function Start-ManagedRuntime([string]$ReleasePath) {
+  if (-not (Test-Path -LiteralPath (Join-Path $ReleasePath 'package.json') -PathType Leaf)) { return }
+  if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
+    throw 'npm.cmd is required to activate a managed Windows runtime.'
+  }
+  Push-Location $ReleasePath
+  try {
+    & npm.cmd run service:start:windows
+    if ($LASTEXITCODE -ne 0) { throw "Managed runtime activation failed for $ReleasePath." }
+  } finally {
+    Pop-Location
+  }
+}
+
 if ($Rollback) {
+  if ($PSBoundParameters.ContainsKey('Version') -or $PSBoundParameters.ContainsKey('NoBrowser')) {
+    throw '-Rollback cannot be combined with -Version or -NoBrowser.'
+  }
   $currentPath = Join-Path $InstallRoot 'current-version'
   $previousPath = Join-Path $InstallRoot 'previous-version'
   if (-not (Test-Path -LiteralPath $currentPath) -or -not (Test-Path -LiteralPath $previousPath)) {
@@ -30,11 +47,34 @@ if ($Rollback) {
   }
   $current = (Get-Content -LiteralPath $currentPath -Raw).Trim()
   $previous = (Get-Content -LiteralPath $previousPath -Raw).Trim()
-  if (-not (Test-Path -LiteralPath (Join-Path (Join-Path $InstallRoot 'versions') $previous) -PathType Container)) {
+  $stableVersion = '^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$'
+  if ($current -notmatch $stableVersion -or $previous -notmatch $stableVersion) {
+    throw 'Rollback pointers must contain explicit stable vX.Y.Z versions.'
+  }
+  $versionsRoot = Join-Path $InstallRoot 'versions'
+  $currentRelease = Join-Path $versionsRoot $current
+  $previousRelease = Join-Path $versionsRoot $previous
+  if (-not (Test-Path -LiteralPath $currentRelease -PathType Container)) {
+    throw "Current rollback source '$current' is not installed."
+  }
+  if (-not (Test-Path -LiteralPath $previousRelease -PathType Container)) {
     throw "Rollback target '$previous' is not installed."
   }
-  Set-Pointer 'previous-version' $current
-  Set-Pointer 'current-version' $previous
+  try {
+    Start-ManagedRuntime $previousRelease
+    Set-Pointer 'previous-version' $current
+    Set-Pointer 'current-version' $previous
+  } catch {
+    $rollbackError = $_
+    try {
+      Set-Pointer 'previous-version' $previous
+      Set-Pointer 'current-version' $current
+      Start-ManagedRuntime $currentRelease
+    } catch {
+      throw "Rollback failed and current runtime recovery also failed: $($_.Exception.Message)"
+    }
+    throw $rollbackError
+  }
   Write-Host "Rolled back from $current to $previous."
   exit 0
 }
