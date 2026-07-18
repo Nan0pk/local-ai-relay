@@ -9,6 +9,7 @@ Accepted for P0-05. This contract does not declare a release ready.
 Installers accept one mandatory stable tag in the form `vX.Y.Z`. They never
 resolve `latest`, a branch, or a mutable ref. A release publishes:
 
+- `bootstrap.sh` and `bootstrap.ps1`
 - `release-manifest.json`
 - `verify-release.mjs`
 - `local-ai-relay-vX.Y.Z-linux-x64.tar.gz`
@@ -20,8 +21,10 @@ supported Node.js major range, platform-specific artifact names, and lowercase
 SHA-256 digests. Supported platforms are Linux x64 and Windows x64. macOS,
 Arm, prereleases, and Node versions outside the manifest range fail closed.
 
-Before execution, bootstrap authenticates the manifest, verifier, and selected
-artifact with `gh attestation verify --repo Nan0pk/local-ai-relay`. The
+The operator downloads a bootstrap script from the exact release and
+authenticates it before execution. Bootstrap then authenticates the manifest,
+verifier, and selected artifact with
+`gh attestation verify --repo Nan0pk/local-ai-relay`. The
 authenticated verifier then checks the manifest schema, exact requested
 version, platform, runtime support, artifact name, and digest. Missing or
 invalid evidence, malformed metadata, a mismatch, or an unavailable exact
