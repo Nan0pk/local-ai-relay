@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   authenticatedIdentity,
   terminateRecordedProcess,
+  windowsConfigPath,
   windowsStateDirectory,
 } from './start-windows-service.js';
 
@@ -32,6 +33,10 @@ test('authenticated Windows service identity binds version, runtime, and managed
     windowsStateDirectory(fixture.releaseRoot, fixture.installRoot),
     join(resolve(fixture.installRoot), 'runtime'),
   );
+  assert.equal(
+    windowsConfigPath(fixture.installRoot),
+    join(resolve(fixture.installRoot), 'config', '.env'),
+  );
 
   await assert.rejects(
     authenticatedIdentity(fixture.releaseRoot, join(fixture.installRoot, 'other')),
@@ -55,20 +60,37 @@ test('authenticated Windows service identity rejects a mismatched marker', async
 
 test('recorded process termination reconciles an unavailable process without orphaning it', async () => {
   const killed: number[] = [];
-  await terminateRecordedProcess(42, 'v1.2.3', {
-    kill(pid) { killed.push(pid); },
-    alive() { return false; },
+  let alive = true;
+  await terminateRecordedProcess(42, 'v1.2.3', 'relay-process-42', {
+    kill(pid) { killed.push(pid); alive = false; },
+    alive() { return alive; },
+    async identity() { return 'relay-process-42'; },
     async wait() {},
   });
   assert.deepEqual(killed, [42]);
 
-  await terminateRecordedProcess(43, 'v1.2.3', {
+  await terminateRecordedProcess(43, 'v1.2.3', 'relay-process-43', {
     kill() {
       const error = new Error('gone') as NodeJS.ErrnoException;
       error.code = 'ESRCH';
       throw error;
     },
-    alive() { throw new Error('must not check a missing process'); },
+    alive() { return true; },
+    async identity() { return 'relay-process-43'; },
     async wait() {},
   });
+});
+
+test('recorded process termination fails closed when a PID was reused', async () => {
+  let killed = false;
+  await assert.rejects(
+    terminateRecordedProcess(42, 'v1.2.3', 'original-relay', {
+      kill() { killed = true; },
+      alive() { return true; },
+      async identity() { return 'unrelated-reused-process'; },
+      async wait() {},
+    }),
+    /no longer belongs/i,
+  );
+  assert.equal(killed, false);
 });

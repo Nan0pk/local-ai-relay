@@ -46,6 +46,11 @@ function Assert-AuthenticatedInstall([string]$ReleasePath, [string]$ExpectedVers
 
 function Start-ManagedRuntime([string]$ReleasePath, [string]$ExpectedVersion) {
   Assert-AuthenticatedInstall $ReleasePath $ExpectedVersion
+  $persistentEnv = Join-Path (Join-Path $InstallRoot 'config') '.env'
+  if (-not (Test-Path -LiteralPath $persistentEnv -PathType Leaf)) {
+    throw 'Managed runtime configuration is missing from InstallRoot/config/.env.'
+  }
+  Copy-Item -LiteralPath $persistentEnv -Destination (Join-Path $ReleasePath '.env') -Force
   if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
     throw 'npm.cmd is required to activate a managed Windows runtime.'
   }

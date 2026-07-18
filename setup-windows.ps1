@@ -52,6 +52,14 @@ function Set-Pointer([string]$Name, [string]$Value) {
   Move-Item -LiteralPath $temporary -Destination $path -Force
 }
 
+function Sync-ManagedConfig([string]$ReleasePath) {
+  $persistentEnv = Join-Path (Join-Path $InstallRoot 'config') '.env'
+  if (-not (Test-Path -LiteralPath $persistentEnv -PathType Leaf)) {
+    throw 'Managed runtime configuration is missing from InstallRoot/config/.env.'
+  }
+  Copy-Item -LiteralPath $persistentEnv -Destination (Join-Path $ReleasePath '.env') -Force
+}
+
 function Invoke-ManagedService([string]$ReleasePath, [switch]$Stop) {
   $oldInstallRoot = $env:RELAY_INSTALL_ROOT
   Push-Location $ReleasePath
@@ -60,6 +68,7 @@ function Invoke-ManagedService([string]$ReleasePath, [switch]$Stop) {
     if ($Stop) {
       Invoke-Npm run service:start:windows -- --stop
     } else {
+      Sync-ManagedConfig $ReleasePath
       Invoke-Npm run service:start:windows
     }
   } finally {
@@ -147,6 +156,7 @@ try {
   if (-not $NoBrowser -or $oldManaged) {
     $activationAttempted = $true
     $targetSafeToDelete = $false
+    Sync-ManagedConfig $targetRelease
     Push-Location $targetRelease
     try {
       if (-not $NoBrowser) { Invoke-Npm run probe:chatgpt }

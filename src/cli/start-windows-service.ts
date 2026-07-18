@@ -1,7 +1,8 @@
 import { open, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { loadConfig } from '../config.js';
 import { selectPort } from '../startup/port-selection.js';
 
@@ -13,6 +14,10 @@ export function windowsStateDirectory(releaseRoot: string, managedInstallRoot?: 
     : join(resolve(releaseRoot), '.relay-browser');
 }
 
+export function windowsConfigPath(managedInstallRoot: string): string {
+  return join(resolve(managedInstallRoot), 'config', '.env');
+}
+
 const stateDir = windowsStateDirectory(root, installRoot);
 const activePortPath = join(stateDir, 'active-port');
 const pidPath = join(stateDir, 'windows-relay.pid');
@@ -20,6 +25,7 @@ const logPath = join(stateDir, 'windows-relay.log');
 const activeReleasePath = join(stateDir, 'active-release.json');
 
 type ReleaseIdentity = { version: string; root: string };
+type ActiveReleaseIdentity = ReleaseIdentity & { processIdentity: string };
 
 export async function authenticatedIdentity(
   releaseRoot = root,
@@ -48,12 +54,16 @@ export async function authenticatedIdentity(
   return { version: value.version, root: resolve(releaseRoot) };
 }
 
-async function activeIdentity(): Promise<ReleaseIdentity | undefined> {
+async function activeIdentity(): Promise<ActiveReleaseIdentity | undefined> {
   try {
-    const value = JSON.parse(await readFile(activeReleasePath, 'utf8')) as Partial<ReleaseIdentity>;
-    if (typeof value.version !== 'string' || typeof value.root !== 'string') return undefined;
+    const value = JSON.parse(await readFile(activeReleasePath, 'utf8')) as Partial<ActiveReleaseIdentity>;
+    if (typeof value.version !== 'string' ||
+        typeof value.root !== 'string' ||
+        typeof value.processIdentity !== 'string') return undefined;
     const authenticated = await authenticatedIdentity(resolve(value.root));
-    return authenticated.version === value.version ? authenticated : undefined;
+    return authenticated.version === value.version
+      ? { ...authenticated, processIdentity: value.processIdentity }
+      : undefined;
   } catch {
     return undefined;
   }
@@ -70,8 +80,25 @@ async function clearManagedState(): Promise<void> {
 type ProcessControl = {
   kill(pid: number): void;
   alive(pid: number): boolean;
+  identity(pid: number): Promise<string | undefined>;
   wait(milliseconds: number): Promise<void>;
 };
+
+const execFileAsync = promisify(execFile);
+
+async function windowsProcessIdentity(pid: number): Promise<string | undefined> {
+  const command = [
+    `$p = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}";`,
+    'if ($p) { [pscustomobject]@{',
+    'CreationDate=$p.CreationDate; ExecutablePath=$p.ExecutablePath; CommandLine=$p.CommandLine',
+    '} | ConvertTo-Json -Compress }',
+  ].join(' ');
+  const { stdout } = await execFileAsync('powershell.exe', [
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command,
+  ], { windowsHide: true });
+  const value = stdout.trim();
+  return value || undefined;
+}
 
 const processControl: ProcessControl = {
   kill(pid) {
@@ -86,6 +113,7 @@ const processControl: ProcessControl = {
       throw error;
     }
   },
+  identity: windowsProcessIdentity,
   wait(milliseconds) {
     return new Promise((resolveWait) => setTimeout(resolveWait, milliseconds));
   },
@@ -94,8 +122,18 @@ const processControl: ProcessControl = {
 export async function terminateRecordedProcess(
   pid: number,
   version: string,
+  expectedIdentity: string,
   control: ProcessControl = processControl,
 ): Promise<void> {
+  if (!control.alive(pid)) return;
+  const actualIdentity = await control.identity(pid);
+  if (!actualIdentity) {
+    if (!control.alive(pid)) return;
+    throw new Error(`Unable to verify recorded process identity for ${version}.`);
+  }
+  if (actualIdentity !== expectedIdentity) {
+    throw new Error(`Recorded PID ${pid} no longer belongs to managed relay ${version}; refusing to terminate it.`);
+  }
   try {
     control.kill(pid);
   } catch (error) {
@@ -140,7 +178,7 @@ async function stopPreviousManagedRelay(): Promise<void> {
   if (!pid || !port || !identity) {
     throw new Error('Managed runtime state is incomplete; refusing to stop an unverified process.');
   }
-  await terminateRecordedProcess(pid, identity.version);
+  await terminateRecordedProcess(pid, identity.version, identity.processIdentity);
   await clearManagedState();
 }
 
@@ -173,6 +211,8 @@ async function main(): Promise<void> {
     return;
   }
 
+  const configPath = windowsConfigPath(installRoot);
+  process.loadEnvFile(configPath);
   const requested = loadConfig();
   const selected = await selectPort(requested.host, requested.port);
   if (selected.existingRelay) {
@@ -180,7 +220,7 @@ async function main(): Promise<void> {
   }
 
   const log = await open(logPath, 'a');
-  const child = spawn(process.execPath, ['--env-file-if-exists=.env', 'dist/index.js'], {
+  const child = spawn(process.execPath, [`--env-file-if-exists=${configPath}`, 'dist/index.js'], {
     cwd: root,
     detached: true,
     windowsHide: true,
@@ -195,13 +235,18 @@ async function main(): Promise<void> {
     child.unref();
     await log.close();
     if (!child.pid) throw new Error('Windows did not return a process id for the background relay.');
+    const childProcessIdentity = await windowsProcessIdentity(child.pid);
+    if (!childProcessIdentity) throw new Error('Could not record the background relay process identity.');
     await writeFile(pidPath, `${child.pid}\n`);
     await writeFile(activePortPath, `${selected.port}\n`);
-    await writeFile(activeReleasePath, `${JSON.stringify(targetIdentity)}\n`);
+    await writeFile(activeReleasePath, `${JSON.stringify({
+      ...targetIdentity,
+      processIdentity: childProcessIdentity,
+    })}\n`);
     await waitForHealth(selected.port);
   } catch (error) {
     if (child.pid) {
-      await terminateRecordedProcess(child.pid, targetIdentity.version);
+      try { child.kill('SIGTERM'); } catch { /* already exited */ }
     }
     try { await log.close(); } catch { /* already closed */ }
     await clearManagedState();

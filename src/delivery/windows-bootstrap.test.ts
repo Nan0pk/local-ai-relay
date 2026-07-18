@@ -65,7 +65,9 @@ async function fixture(version: string, options: { tamper?: boolean; attestation
 const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
-fs.appendFileSync(process.env.RELAY_NPM_LOG, process.cwd() + '|' + args.join(' ') + '|' + (process.env.RELAY_INSTALL_ROOT || '') + '\\n');
+let config = '';
+try { config = fs.readFileSync(path.join(process.env.RELAY_INSTALL_ROOT, 'config', '.env'), 'utf8').trim(); } catch {}
+fs.appendFileSync(process.env.RELAY_NPM_LOG, process.cwd() + '|' + args.join(' ') + '|' + (process.env.RELAY_INSTALL_ROOT || '') + '|' + config + '\\n');
 if (args.includes('service:start:windows') &&
     path.basename(process.cwd()).toLowerCase() === (process.env.RELAY_FAIL_SERVICE_VERSION || '').toLowerCase()) {
   process.exitCode = 1;
@@ -216,6 +218,7 @@ test('managed rollback restores its old runtime and marker when target activatio
   const second = await fixture('v3.0.1');
   second.install = first.install;
   assert.equal(run('v3.0.1', second).status, 0);
+  await writeFile(join(first.install, 'config', '.env'), 'RELAY_FIXTURE=rollback-current\n');
 
   const failed = run(undefined, second, ['-Rollback'], {
     RELAY_FAIL_SERVICE_VERSION: 'v3.0.0',
@@ -227,6 +230,11 @@ test('managed rollback restores its old runtime and marker when target activatio
   const failedLog = await readFile(second.npmLog, 'utf8');
   assert.match(failedLog, /v3\.0\.0\|run service:start:windows/);
   assert.match(failedLog, /v3\.0\.1\|run service:start:windows/);
+  assert.match(failedLog, /v3\.0\.0\|run service:start:windows\|.*\|RELAY_FIXTURE=rollback-current/);
+  assert.equal(
+    await readFile(join(first.install, 'versions', 'v3.0.0', '.env'), 'utf8'),
+    'RELAY_FIXTURE=rollback-current\n',
+  );
 
   const rollback = run(undefined, second, ['-Rollback'], {}, false);
   assert.equal(rollback.status, 0, rollback.stderr);
