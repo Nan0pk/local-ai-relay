@@ -25,6 +25,7 @@ authenticated E2E pass.
 
 - [x] Claude (`browser-claude-free`)
 - [x] Gemini (`browser-gemini-free`)
+- [x] LMSYS Chatbot Arena (`browser-arena-free`)
 - [x] DeepSeek (`browser-deepseek-free`)
 - [x] Z.ai / GLM 5.2 (`browser-zai-glm-5.2`)
 - [x] MiniMax M3 (`browser-minimax-m3`)
