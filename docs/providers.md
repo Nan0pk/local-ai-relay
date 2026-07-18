@@ -1,5 +1,11 @@
 # Provider fleet
 
+> **Readiness notice:** The table below records implemented adapters and mock
+> pipeline coverage. It does not establish current authenticated provider
+> readiness. Runtime capability evidence controls `/v1/models`; U0-01 refreshes
+> ChatGPT live evidence on the current Patchright commit, and later providers
+> require their own bounded live gates.
+
 ## Selection rules
 
 The relay prioritizes direct first-party webchats with strong models, useful
