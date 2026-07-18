@@ -2,9 +2,9 @@
 
 > **Historical v1 implementation snapshot.** The executable v2 architecture,
 > risk gates, and dependency graph now live in
-> [`docs/plans/v2-master-plan.md`](docs/plans/v2-master-plan.md). Current task
-> state is generated in [`docs/agent-bus/STATUS.md`](docs/agent-bus/STATUS.md).
-> Do not use the milestone table below to claim current provider readiness.
+> [`docs/plans/v2-master-plan.md`](docs/plans/v2-master-plan.md). The one current
+> assignment and its required deliverable live in [`TASK.md`](TASK.md). Do not
+> use the historical milestone table below to claim current provider readiness.
 
 ## Architecture
 - **API Routing Layer (`src/routes/`)**: Receives OpenAI-compatible POST requests at `/v1/chat/completions` and routes them to the correct provider adapter.
@@ -15,7 +15,7 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|---|---|---|---|
-| E2E | E2E Testing Track | Design and implement comprehensive opaque-box E2E test suite (Tiers 1-4). Publish TEST_READY.md. | None | IN_PROGRESS |
+| E2E | E2E Testing Track | Historical v1 mock-E2E work; current acceptance is defined only in `TASK.md`. | None | SUPERSEDED |
 | 1 | Implement Arena.ai | Implement the missing login-free Arena.ai driver and provider. Register Arena.ai in registry.ts. | None | DONE |
 | 2 | Shared Context & SSO | Implement `BrowserContextManager` for shared browser profiles (R2) and automated Google SSO login in `BaseBrowserDriver`. | Milestone 1 | IN_PROGRESS |
 | 3 | Register Providers | Register and verify Claude, DeepSeek, Z.ai, MiniMax, Kimi, Qwen, Grok, and Mistral in `registry.ts`. | Milestone 2 | PLANNED |

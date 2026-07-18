@@ -180,8 +180,10 @@ rules exist.
 
 ## 6. Work graph
 
-Task state lives in `docs/agent-bus/state.json`. The metadata below explains
-the work; the state file controls readiness and ownership.
+This section is the architectural backlog, not the current assignment.
+`TASK.md` contains the one task an agent should execute now, including its
+scope, acceptance checks, and required deliverable. Do not select work directly
+from this backlog while `TASK.md` is open.
 
 ### Phase 0 — Establish truth and remove immediate hazards
 
@@ -233,7 +235,7 @@ defensible default; the project clearly separates stable and experimental use.
 - Separate unit, fixture/integration, mock E2E, live E2E, and soak reports.
 - Record daemon and Patchright baseline startup, idle memory, first observed
   text, completion latency, and failure classification.
-- CI must validate the agent-bus state and generated status.
+- CI must validate deterministic code, tests, builds, and entry points.
 - Never require credentials for deterministic pull-request CI.
 
 ### Phase 1 — Build transport-independent foundations

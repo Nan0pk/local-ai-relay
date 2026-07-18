@@ -3,45 +3,12 @@
 Local, multi-backend compatibility gateway for OpenAI-style clients and agent
 harnesses.
 
-## Continue building v2
+## For coding agents
 
-From a clone with dependencies installed, give any supported coding agent this
-single repository command:
-
-```bash
-npm run agent:run
-```
-
-It validates the ledger, resumes the only active task or selects the next
-dependency-ready task, chooses an economical model tier, runs one Antigravity
-or Codex builder turn, and stops at review. Antigravity (`agy`) is preferred
-when both CLIs are installed; use `--builder codex` to override it.
-
-To keep watching and permit automatic squash-merge after an independent review:
-
-```bash
-npm run agent:run -- --auto --reviewer YOUR_REVIEWER_GITHUB_LOGIN
-```
-
-`--auto` is deliberately fail-closed. It accepts a verdict only from an
-allowlisted GitHub login and only when the comment names the task and the exact
-40-character PR head SHA. The task must be complete in the ledger, the PR must
-be out of draft, and required checks must pass. Owner-gated tasks and release
-claims stop for a human. After GitHub merges an ordinary task, the runner
-fast-forwards the default branch and continues with the next ready task. The
-builder itself cannot merge or enable auto-merge.
-
-The reviewer posts one machine-readable line on the PR:
-
-```text
-AGENT-BUS: PASS P1-02 1234567890abcdef1234567890abcdef12345678
-AGENT-BUS: CHANGES_REQUESTED P1-02 1234567890abcdef1234567890abcdef12345678
-```
-
-Auto mode additionally requires an authenticated GitHub CLI (`gh auth login`).
-Use `--dry-run` to inspect the selected task and prompt without invoking a
-model. See the [agent-bus skill](.agents/skills/agent-bus/SKILL.md) for recovery
-and review rules.
+Read [`AGENTS.md`](AGENTS.md), then execute the single current assignment in
+[`TASK.md`](TASK.md). `TASK.md` states the exact scope, acceptance commands, and
+required pull-request handoff. There is no orchestration service or special
+agent command.
 
 The project is evolving from a Patchright-only browser relay into **v2 Hybrid**:
 
@@ -52,15 +19,12 @@ The project is evolving from a Patchright-only browser relay into **v2 Hybrid**:
 - OpenAI Chat Completions and Responses-style APIs for model traffic;
 - MCP as an optional control and delegation plane.
 
-> **Current state:** v2 is planned and Phase 0 is in progress. On current
-> `main` (`1e6449b`), typecheck and all 240 unit tests pass. With an isolated,
-> writable test home, the mock-backed E2E suite is 59/60: the remaining failure
-> is a stale assertion that expects internal tool instructions to leak into the
-> returned assistant text. P0-01 and P0-02 code has merged, but their ledger
-> handoff/verification state still needs reconciliation before autonomous work
-> should advance. The runner fails closed on that inconsistency. Follow the
-> [master plan](docs/plans/v2-master-plan.md) and live
-> [agent-bus status](docs/agent-bus/STATUS.md), not old milestone prose.
+> **Current state:** v2 is planned and Phase 0 is in progress. P0-01 (E2E and
+> tool-proposal safety) and P0-02 (truthful provider discovery) are merged.
+> P0-03 (authentication and account selection) is the current assignment.
+> Browser adapters being registered does not make them live-verified. See
+> [`TASK.md`](TASK.md) for the exact deliverable and the
+> [master plan](docs/plans/v2-master-plan.md) for the remaining backlog.
 
 ## What v2 is trying to achieve
 
@@ -111,56 +75,13 @@ Important contracts:
 The complete decisions, task graph, gates, and deferred work are in
 [docs/plans/v2-master-plan.md](docs/plans/v2-master-plan.md).
 
-## One-prompt project execution
+## Project execution
 
-Repository-aware coding agents should load `AGENTS.md` automatically. For any
-capable model, this single prompt is enough to select and execute the next safe
-unit of work:
+Every agent gets the same contract regardless of model, CLI, or subscription:
 
-```text
-Continue local-ai-relay v2. Follow AGENTS.md and the repo-local agent-bus skill.
-Select the highest-priority dependency-ready task, claim it, read only its bounded
-context, implement the smallest complete change, run its acceptance checks,
-update the bus, and prepare a draft pull request. Use the least expensive capable
-model tier and escalate only with a compact failure packet. Do not ask me for
-implementation choices the repository can resolve; stop only for an owner-only
-decision or a concrete safety blocker. Never merge.
-```
-
-The executable form above is preferred. For systems that cannot launch a
-repository command but can accept pasted text:
-
-```bash
-npm run agent:prompt
-```
-
-That prints a self-contained prompt for the current highest-priority ready task.
-
-Useful project-agent commands:
-
-```bash
-npm run agent:run        # execute one economical builder turn and stop at review
-npm run agent:next       # show the next task, context, scope, and checks
-npm run agent:prompt     # emit a copy/paste task prompt
-npm run agent:status     # render current human-readable status
-npm run agent:check      # validate ledger, generated status, and bus behavior
-```
-
-The improved agent bus is deliberately economical:
-
-- one builder by default, not an automatic agent swarm;
-- 33 dependency-aware, pull-request-sized tasks;
-- model tiers are cost ceilings: economy, standard, or frontier;
-- independent verification only for security, release, installer, tool, native
-  bridge, or live-provider claims;
-- task-specific context and write scopes prevent whole-repository rereads;
-- leases prevent duplicate paid work;
-- a single task record replaces routine plan/handoff/verdict document triplets;
-- status is generated deterministically from the machine-readable ledger.
-
-See [AGENTS.md](AGENTS.md), the
-[agent-bus skill](.agents/skills/agent-bus/SKILL.md), and
-[state.json](docs/agent-bus/state.json).
+1. `AGENTS.md` defines repository behavior.
+2. `TASK.md` defines the one current task and deliverable.
+3. The task is complete only when its checks run and its remote draft PR exists.
 
 ## Delivery phases
 
@@ -173,8 +94,8 @@ See [AGENTS.md](AGENTS.md), the
 | 4 — Release | Provider conformance, individual rollout, signed artifacts, 24-hour soak, scoped beta |
 | 5 — Measure first | Benchmark TypeScript; consider Rust only if written thresholds fail |
 
-The current critical path is Phase 0. Run `npm run agent:next` for the exact
-highest-priority task rather than choosing from this summary manually.
+The current critical path is Phase 0. Execute `TASK.md`; do not choose a later
+item from this summary manually.
 
 ## Current developer setup
 
@@ -227,7 +148,7 @@ discovery enforce that rule.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/health` | Liveness |
-| `GET` | `/v1/models` | Current registered models; truthfulness hardening is pending |
+| `GET` | `/v1/models` | Models currently usable according to runtime capability evidence |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible completion and buffered compatibility SSE |
 
 Example against the deterministic mock:
@@ -248,7 +169,6 @@ current development server on an untrusted interface.
 ## Verification
 
 ```bash
-npm run agent:check
 npm run typecheck
 npm test
 npm run test:e2e
@@ -270,11 +190,10 @@ Never convert one category into another in documentation.
 ```text
 local-ai-relay/
 ├── AGENTS.md                         repository instructions for agents
-├── .agents/skills/agent-bus/         economical coordination skill and CLI
+├── TASK.md                           one current task and required deliverable
 ├── bootstrap.sh / bootstrap.ps1       current development bootstrap entry points
 ├── verify-all.sh / verify-all.cmd     current provider verification helpers
 ├── docs/
-│   ├── agent-bus/                    machine state and generated status
 │   ├── plans/v2-master-plan.md       full architecture and execution graph
 │   ├── adr/                          accepted architectural decisions
 │   ├── e2e/                          sanitized live-provider evidence
