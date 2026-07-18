@@ -5,29 +5,29 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  validate:
+    name: Validate ${{ matrix.os }} / Node 22
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
           cache: npm
 
-      - name: Require an exact package version tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF#refs/tags/}"
-          version="$(node -p "require('./package.json').version")"
-          [[ "$GITHUB_REF" == refs/tags/v* && "$tag" == "v${version}" ]]
-          printf 'TAG=%s\n' "$tag" >> "$GITHUB_ENV"
+      - name: Require the exact package version tag
+        run: node -e "const p=require('./package.json'); if(process.env.GITHUB_REF !== 'refs/tags/v' + p.version) process.exit(1)"
 
       - run: npm ci
       - run: npm run typecheck
@@ -37,6 +37,32 @@ jobs:
       - run: npm run smoke:startup
       - run: npm run test:delivery
       - run: node scripts/validate-release.mjs
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+
+      - name: Require an exact package version tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          version="$(node -p "require('./package.json').version")"
+          [[ "$GITHUB_REF" == refs/tags/v* && "$tag" == "v${version}" ]]
+          printf 'TAG=%s\n' "$tag" >> "$GITHUB_ENV"
 
       - name: Build deterministic release assets
         run: node scripts/build-release.mjs --output release --tag "$TAG"

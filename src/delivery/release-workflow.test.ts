@@ -21,6 +21,8 @@ test('release workflow publishes the authenticated stable-tag contract', async (
   assert.match(release, /node-version:\s*22/);
   assert.match(release, /npm run test:delivery/);
   assert.match(release, /node scripts\/validate-release\.mjs/);
+  assert.match(release, /os: \[ubuntu-latest, windows-latest\]/);
+  assert.match(release, /needs: validate/);
   assert.doesNotMatch(release, /uses:\s+\S+@(?![a-f0-9]{40}(?:\s|$))/);
 
   for (const asset of [
