@@ -5,6 +5,7 @@ import { parse, stringify } from 'yaml';
 import { getOrGenerateToken } from '../auth/token.js';
 import { upsertHermesRelayConfig } from '../hermes/config.js';
 import { type HarnessModel, upsertOpenCodeRelayConfig } from '../opencode/config.js';
+import { listAllModels } from '../providers/registry.js';
 
 async function activePort(): Promise<number> {
   const explicit = Number.parseInt(process.env.PORT ?? '', 10);
@@ -32,6 +33,21 @@ async function fetchModels(baseUrl: string, token: string): Promise<HarnessModel
   return (body.data ?? [])
     .filter((model): model is { id: string; x_relay?: { capability_status?: string } } => Boolean(model.id))
     .map((model) => ({ id: model.id, status: model.x_relay?.capability_status }));
+}
+
+function compiledModels(): HarnessModel[] {
+  return listAllModels().map((model) => ({ id: model.id }));
+}
+
+async function discoverModels(baseUrl: string, token: string): Promise<{ models: HarnessModel[]; source: 'live' | 'compiled' }> {
+  try {
+    const health = await fetch(baseUrl.replace(/\/v1$/, '/health'));
+    const identity = await health.json() as { service?: unknown };
+    if (!health.ok || identity.service !== 'local-ai-relay') throw new Error('not_local_ai_relay');
+    return { models: await fetchModels(baseUrl, token), source: 'live' };
+  } catch {
+    return { models: compiledModels(), source: 'compiled' };
+  }
 }
 
 async function writeAtomic(path: string, content: string): Promise<void> {
@@ -66,17 +82,17 @@ async function configureOpenCode(baseUrl: string, token: string, models: readonl
 async function main(): Promise<void> {
   const token = await getOrGenerateToken();
   const baseUrl = `http://127.0.0.1:${await activePort()}/v1`;
-  const models = await fetchModels(baseUrl, token);
+  const { models, source } = await discoverModels(baseUrl, token);
   if (models.length === 0) throw new Error('Relay returned no registered models.');
   const hermesOnly = process.argv.includes('--hermes');
   const paths = [await configureHermes(baseUrl, token, models)];
   if (!hermesOnly) paths.push(await configureOpenCode(baseUrl, token, models));
-  console.log(`PASS: populated ${models.length} model(s) using Responses API.`);
+  console.log(`PASS: populated ${models.length} model(s) using Responses API (${source} catalog).`);
   for (const path of paths) console.log(`  ${path}`);
 }
 
 main().catch((error: unknown) => {
   console.error(`HARNESS SETUP FAILED: ${error instanceof Error ? error.message : String(error)}`);
-  console.error('Confirm relay is running, then retry. Existing configs remain backed up.');
+  console.error('Existing configs remain backed up.');
   process.exitCode = 1;
 });

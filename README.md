@@ -33,8 +33,8 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` starts the relay on `http://127.0.0.1:8787` by default. Keep it
-running, then configure both supported harnesses:
+`npm run dev` starts the relay on `http://127.0.0.1:8787` by default. Configure
+both supported harnesses with one command, before or after starting the relay:
 
 ```bash
 npm run harnesses:configure
@@ -42,7 +42,9 @@ npm run harnesses:configure
 
 That command:
 
-- reads all models from `/v1/models?include=all`;
+- uses live discovery only when the endpoint identifies itself as this relay;
+- otherwise uses the compiled 14-model catalog, so setup never depends on an
+  unrelated process occupying the expected port;
 - configures Hermes at `~/.hermes/config.yaml`;
 - configures OpenCode at `~/.config/opencode/opencode.json`;
 - switches both integrations to `/v1/responses`;
