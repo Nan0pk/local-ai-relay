@@ -38,6 +38,7 @@
     "probe:mistral": "node --import tsx src/cli/live-probe.ts --provider mistral",
     "probe:meta": "node --import tsx src/cli/live-probe.ts --provider meta",
     "probe:all": "node --import tsx scripts/probe-all.ts",
+    "live:chatgpt": "npm run build && node --import tsx src/cli/chatgpt-canary.ts",
     "smoke:claude-driver": "node --import tsx scripts/claude-driver-smoke.ts",
     "smoke:startup": "npm run build && node dist/cli/startup-smoke.js",
     "test:delivery": "node --import tsx --test src/delivery/*.test.ts",

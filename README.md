@@ -94,6 +94,18 @@ Probe evidence survives a relay restart, but does not advertise a model: only
 full mission verification can promote it to discovery. Expired or malformed
 evidence is ignored; run the probe again.
 
+After signing in, run the complete ChatGPT proof with one command:
+
+```bash
+npm run live:chatgpt
+```
+
+It uses an isolated temporary Hermes config, starts and cold-restarts its own
+loopback relay, runs the required Hermes/streaming/tool missions plus five
+canaries, and writes sanitized local evidence. It promotes ChatGPT to default
+model discovery only when every mission passes. Evidence binds the exact commit
+and working tree without storing prompts, responses, cookies, or tokens.
+
 ## API
 
 All endpoints except `/health` require the token stored at

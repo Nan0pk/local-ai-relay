@@ -4,6 +4,21 @@ import { buildApp } from './server.js';
 
 process.env.RELAY_API_TOKEN = 'test-token';
 
+test('health reports a process instance identifier when supplied', async () => {
+  const previous = process.env.RELAY_INSTANCE_ID;
+  process.env.RELAY_INSTANCE_ID = 'canary-instance';
+  const app = buildApp({ host: '127.0.0.1', port: 0, logLevel: 'silent', defaultModel: 'mock-gpt-4o-mini' });
+  try {
+    const response = await app.inject({ method: 'GET', url: '/health' });
+    assert.equal(response.statusCode, 200);
+    assert.equal((response.json() as { instance_id?: string }).instance_id, 'canary-instance');
+  } finally {
+    await app.close();
+    if (previous === undefined) delete process.env.RELAY_INSTANCE_ID;
+    else process.env.RELAY_INSTANCE_ID = previous;
+  }
+});
+
 test('models endpoint advertises the browser batch transport', async () => {
   // Enable mock browser so browser providers are marked as ready.
   const original = process.env.RELAY_MOCK_BROWSER;
