@@ -104,6 +104,23 @@ export interface ErrorResponse {
   };
 }
 
+export interface ResponseRequest {
+  model?: string;
+  input: string | Array<Record<string, unknown>>;
+  instructions?: string;
+  stream?: boolean;
+  temperature?: number;
+  top_p?: number;
+  max_output_tokens?: number;
+  tools?: Array<{
+    type: 'function';
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+  }>;
+  tool_choice?: 'auto' | 'none' | 'required' | Record<string, unknown>;
+}
+
 /**
  * Maps a BrowserFailureKind to an OpenAI-shaped HTTP error response.
  *

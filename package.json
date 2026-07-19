@@ -43,7 +43,8 @@
     "test:delivery": "node --import tsx --test src/delivery/*.test.ts",
     "service:install": "node --env-file-if-exists=.env --import tsx src/cli/install-service.ts",
     "service:start:windows": "node --env-file-if-exists=.env --import tsx src/cli/start-windows-service.ts",
-    "hermes:configure": "node --env-file-if-exists=.env --import tsx src/cli/configure-hermes.ts",
+    "harnesses:configure": "node --env-file-if-exists=.env --import tsx src/cli/configure-harnesses.ts",
+    "hermes:configure": "node --env-file-if-exists=.env --import tsx src/cli/configure-harnesses.ts --hermes",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

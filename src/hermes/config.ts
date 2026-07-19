@@ -12,9 +12,8 @@ function record(value: unknown): ConfigMap {
 /**
  * Register the named relay provider and all of its advertised models.
  *
- * The first model in the combined list (always {@link HERMES_MODEL_ID} plus
- * any extras the running relay advertises) is the default. Other models are
- * still selectable in Hermes via `custom:local-ai-relay:<model-id>`.
+ * Every supplied model is selectable through
+ * `custom:local-ai-relay:<model-id>`. The caller chooses the default.
  *
  * Existing provider entries, the user's other custom providers, and any
  * unrelated top-level config keys are preserved.
@@ -22,30 +21,35 @@ function record(value: unknown): ConfigMap {
 export function upsertHermesRelayConfig(
   source: unknown,
   baseUrl: string,
-  additionalModelIds: readonly string[] = [],
+  apiKey: string,
+  modelIds: readonly string[],
+  defaultModel = modelIds[0] ?? HERMES_MODEL_ID,
 ): ConfigMap {
   const config = { ...record(source) };
   const existingProviders = Array.isArray(config.custom_providers)
     ? config.custom_providers.filter((value): value is ConfigMap => Boolean(value) && typeof value === 'object' && !Array.isArray(value))
     : [];
+  const relayIndex = existingProviders.findIndex((provider) => provider.name === HERMES_PROVIDER_NAME);
+  const existingRelay = relayIndex >= 0 ? existingProviders[relayIndex]! : {};
+  const existingModels = record(existingRelay.models);
 
-  // De-duplicate: never list the same model twice even if the caller passes
-  // it explicitly in `additionalModelIds`.
-  const modelOrder = [HERMES_MODEL_ID];
-  for (const id of additionalModelIds) {
-    if (id && id !== HERMES_MODEL_ID && !modelOrder.includes(id)) modelOrder.push(id);
+  // De-duplicate model discovery without changing its stable order.
+  const modelOrder: string[] = [];
+  for (const id of modelIds) {
+    if (id && !modelOrder.includes(id)) modelOrder.push(id);
   }
+  if (!modelOrder.includes(defaultModel)) modelOrder.unshift(defaultModel);
   const models: Record<string, ConfigMap> = {};
-  for (const id of modelOrder) models[id] = {};
+  for (const id of modelOrder) models[id] = { ...record(existingModels[id]) };
 
   const relayProvider: ConfigMap = {
     name: HERMES_PROVIDER_NAME,
     base_url: baseUrl,
-    model: HERMES_MODEL_ID,
-    api_mode: 'chat_completions',
+    api_key: apiKey,
+    model: defaultModel,
+    api_mode: 'codex_responses',
     models,
   };
-  const relayIndex = existingProviders.findIndex((provider) => provider.name === HERMES_PROVIDER_NAME);
   const customProviders = [...existingProviders];
   if (relayIndex >= 0) {
     customProviders[relayIndex] = {
@@ -62,9 +66,10 @@ export function upsertHermesRelayConfig(
   config.model = {
     ...record(config.model),
     provider: `custom:${HERMES_PROVIDER_NAME}`,
-    default: HERMES_MODEL_ID,
+    default: defaultModel,
     base_url: baseUrl,
-    api_mode: 'chat_completions',
+    api_key: apiKey,
+    api_mode: 'codex_responses',
   };
   return config;
 }
