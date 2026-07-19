@@ -3,6 +3,31 @@
 Local, multi-backend compatibility gateway for OpenAI-style clients and agent
 harnesses.
 
+## Read this first: what works today
+
+This is a development repository, not a finished all-provider installer.
+
+| Claim | Current truth |
+|---|---|
+| Browser adapter exists | Code and mock coverage exist for ChatGPT, Claude, Gemini, Arena, DeepSeek, Z.ai, MiniMax, Kimi, Qwen, Grok, Mistral, and Meta. |
+| Browser provider is usable | It still needs current manual login and live verification on a real machine. |
+| Browser provider appears in `/v1/models` | Only after the running relay has valid runtime readiness evidence. |
+| Browser provider is added to Hermes | Only when it is already advertised by `/v1/models`. |
+| One command installs/logs in/probes/adds every provider | **Not implemented.** Do not expect the front-page setup or `probe:all` to do this. |
+| Current work | U0-01 proves the real Fedora Hermes → relay → ChatGPT path before any further provider expansion. |
+
+The crucial missing link is persistent promotion:
+
+```text
+manual login → live probe → persist readiness in the running relay
+             → /v1/models advertises model → Hermes adds it
+```
+
+Today, login/probe commands are separate processes. They can test a provider,
+but their result is not yet persisted into the running relay; therefore the
+remaining providers are not automatically discoverable by Hermes. This is an
+unfinished feature, not a user setup mistake.
+
 ## For coding agents
 
 Read [`AGENTS.md`](AGENTS.md), then execute the single current assignment in
@@ -120,16 +145,13 @@ See [the authenticated release policy](docs/release-policy.md) for exact Linux
 and Windows install, verify, update, rollback, recovery, platform support, and
 trust assumptions.
 
-## Current developer setup
-
-This is a development repository and does not yet have the signed, versioned v2
-installer described in the plan.
+## Development setup — code validation only
 
 Requirements:
 
 - Node.js 22 or newer
 - Git
-- Google Chrome only for current Patchright browser-provider work
+- Google Chrome for current Patchright browser-provider work
 
 ```bash
 git clone https://github.com/Nan0pk/local-ai-relay.git
@@ -137,34 +159,65 @@ cd local-ai-relay
 npm ci
 npm run typecheck
 npm test
+npm run test:e2e
 npm run build
 npm run smoke:startup
 ```
 
+These commands verify the repository. They do **not** log into providers,
+activate browser models, configure Hermes, or create an authenticated release.
+
 Do not treat `curl | bash` from mutable `main` as a distribution model.
-Development checkout commands do not authenticate a release.
+The authenticated release bootstrap is for a future published `vX.Y.Z` tag;
+no stable user release is claimed here.
 
-## Current v1 operation
+## Browser-provider commands — current behavior
 
-The existing implementation exposes a Fastify API and uses Patchright browser
-drivers. These commands remain development tools while v2 is built:
+All browser providers use separate, manually authorized persistent profiles.
+These commands are useful diagnostics, not a completed onboarding system.
+
+| Command | What it does | What it does **not** do |
+|---|---|---|
+| `npm run login:chatgpt` | Opens ChatGPT's dedicated profile for manual sign-in. | Does not verify a response, mark it ready, or configure Hermes. |
+| `npm run login:<provider>` | Opens that provider's profile for manual sign-in. | Does not add the provider to the relay or Hermes. |
+| `npm run probe:chatgpt` | Sends one harmless ChatGPT verification message. | Does not persist readiness in the service. |
+| `npm run probe:<provider>` | Sends one harmless verification message to one provider. | Does not persist readiness or add it to Hermes. |
+| `npm run probe:all` | Serially classifies known providers using existing profiles. | Does not log in, prompt for account choice, persist results, or add models. |
+| `npm run hermes:configure` | Writes the relay provider and models already advertised by the running relay. | Cannot make an unready browser provider ready. |
+| `npm run dev` / `npm start` | Starts the relay. | Does not automatically run login or probes. |
+
+Known provider keys are `chatgpt`, `claude`, `gemini`, `arena`,
+`deepseek`, `zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`,
+and `meta`. For Arena, use the generic form:
 
 ```bash
-npm run browser:login             # visible login flow
-npm run login:<provider>          # provider-specific login
-npm run probe:<provider>          # explicit live probe
-npm run probe:all                 # classify configured providers
-npm run dev                       # development server
-npm start                         # built server
+npm run browser:login -- --provider arena
+node --import tsx src/cli/live-probe.ts --provider arena
 ```
 
-Known browser-provider keys are `chatgpt`, `claude`, `gemini`, `arena`, `deepseek`,
-`zai`, `minimax`, `kimi`, `qwen`, `grok`, `mistral`, and `meta`.
+### Current operational status
 
-Implementation, registration, or mock E2E does not establish live readiness.
-Consult the per-provider evidence under `docs/e2e/`; runtime model discovery is
-gated by capability evidence, and U0-01 must refresh ChatGPT evidence on the
-current Patchright commit.
+- **ChatGPT:** the only active live-use target. U0-01 must refresh its proof on
+  the current Patchright build before it is called usable.
+- **Claude, Gemini, Arena, DeepSeek, Z.ai, MiniMax, Kimi, Qwen, Grok, Mistral,
+  Meta:** adapters and mock coverage exist, but they are not currently
+  live-proven, automatically promoted, or automatically added to Hermes.
+- **Official APIs, local servers, Responses API, MCP, and the browser
+  extension:** planned later phases, not current product features.
+
+Implementation, registration, a successful login, or mock E2E never establishes
+live readiness. A provider must have current authenticated evidence on the
+specific relay/browser/OS combination. The default `/v1/models` endpoint is
+intended to show only those ready models; use
+`/v1/models?include=all` and `/v1/providers/status` for diagnostics.
+
+### What U0-01 fixes first
+
+U0-01 proves the current ChatGPT path on Fedora, adds a repeatable live canary,
+and makes its capability evidence truthful. It deliberately does not pretend to
+add all providers. Once that path is stable, the plan adds a persistent
+login → probe → readiness → Hermes onboarding flow and then proves Claude and
+Gemini individually.
 
 ## Current API
 
