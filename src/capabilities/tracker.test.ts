@@ -198,9 +198,8 @@ test('stale evidence is detected by the tracker', () => {
   });
 
   assert.equal(capabilityTracker.isEvidenceExpired('browser-kimi'), true);
-  // The provider is still marked ready, but evidence is stale.
-  // Consumers should re-verify before trusting readiness.
-  assert.equal(capabilityTracker.isReady('browser-kimi'), true);
+  // Expired evidence must not advertise a provider after restart or time passes.
+  assert.equal(capabilityTracker.isReady('browser-kimi'), false);
 });
 
 test('reset clears all state', () => {

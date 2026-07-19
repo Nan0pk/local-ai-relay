@@ -2,6 +2,8 @@ import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { findBrowserProvider } from '../browser/driver-registry.js';
 import { browserBinariesDir, findSystemBrowser } from '../browser/paths.js';
+import { persistCapability } from '../capabilities/evidence-store.js';
+import type { ProviderCapabilityRecord } from '../capabilities/tracker.js';
 
 const EXPECTED = 'LOCAL AI RELAY READY';
 
@@ -79,10 +81,25 @@ async function main(): Promise<void> {
       sessionId: `local-ai-relay-live-probe-${descriptor.name}`,
       resetSession: true,
     });
-    if (!result.text.toUpperCase().includes(EXPECTED)) {
+    if (result.text.trim().replace(/\s+/g, ' ').toUpperCase() !== EXPECTED) {
       throw new Error(`A response was extracted, but it did not contain the expected marker. Received: ${result.text.slice(0, 160)}`);
     }
+    const recordedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const record: ProviderCapabilityRecord = {
+      providerId: `browser-${descriptor.name}`,
+      status: 'reachable',
+      evidence: {
+        reference: `live-probe:${descriptor.name}:${recordedAt}`,
+        recordedAt,
+        expiresAt,
+      },
+      detail: 'Live browser probe passed; full mission verification is still required before discovery.',
+      updatedAt: recordedAt,
+    };
+    await persistCapability(record);
     console.log(`PASS: ${descriptor.label} submission, completion detection, and response extraction worked.`);
+    console.log(`Probe evidence recorded until ${expiresAt}; model remains undiscoverable until full mission verification.`);
     console.log(`Conversation: ${result.conversationUrl ?? 'URL unavailable'}`);
   } finally {
     await driver.close();

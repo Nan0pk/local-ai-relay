@@ -1,3 +1,5 @@
+import { isEvidenceCurrent } from './evidence-store.js';
+
 /**
  * Provider capability tracker.
  *
@@ -105,7 +107,8 @@ class CapabilityTracker {
   isReady(providerId: string): boolean {
     const record = this.records.get(providerId);
     if (!record) return false;
-    return READY_STATUSES.has(record.status);
+    return READY_STATUSES.has(record.status)
+      && (record.evidence === null || isEvidenceCurrent(record.evidence));
   }
 
   /** Check whether evidence has expired for a provider. */
@@ -129,7 +132,7 @@ class CapabilityTracker {
   getReadyProviderIds(): string[] {
     const result: string[] = [];
     for (const record of this.records.values()) {
-      if (READY_STATUSES.has(record.status)) {
+      if (this.isReady(record.providerId)) {
         result.push(record.providerId);
       }
     }

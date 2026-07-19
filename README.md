@@ -88,8 +88,11 @@ node --import tsx src/cli/live-probe.ts --provider arena
 ```
 
 Login, account selection, 2FA, and CAPTCHA remain manual. The relay does not
-bypass provider controls. Probes do not currently persist readiness across
-service restarts.
+bypass provider controls. A successful probe stores only sanitized readiness
+metadata in `~/.local-ai-relay/capabilities.json` (`0600`) for 24 hours.
+Probe evidence survives a relay restart, but does not advertise a model: only
+full mission verification can promote it to discovery. Expired or malformed
+evidence is ignored; run the probe again.
 
 ## API
 
