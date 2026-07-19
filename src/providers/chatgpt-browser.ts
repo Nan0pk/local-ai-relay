@@ -1,4 +1,5 @@
 import type { BrowserChatDriver } from '../browser/types.js';
+import { appendFile } from 'node:fs/promises';
 import { ChatGptPlaywrightDriver } from '../browser/chatgpt-driver.js';
 import type {
   ChatCompletionRequest,
@@ -10,6 +11,11 @@ import { ConversationPlanner } from './conversation-planner.js';
 import { createToolBridgeContext, parseBrowserResponse, toolInstructions } from './tool-bridge.js';
 
 const MODEL_ID = 'browser-chatgpt-free';
+
+async function recordCanarySubmission(): Promise<void> {
+  const path = process.env.RELAY_CANARY_SUBMISSIONS_PATH;
+  if (path) await appendFile(path, 'submission\n', { mode: 0o600 });
+}
 
 function estimateTokens(text: string): number {
   if (!text.trim()) return 0;
@@ -46,6 +52,7 @@ export class ChatGptBrowserProvider implements Provider {
     const plan = this.planner.plan(req.messages, context.sessionId);
     const toolBridge = createToolBridgeContext(req.tools, req.tool_choice);
     const prompt = plan.prompt + toolInstructions(toolBridge);
+    await recordCanarySubmission();
     const result = await this.driver.send({
       prompt,
       resetSession: plan.resetSession,

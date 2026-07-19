@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import type { BrowserChatDriver, BrowserChatRequest } from '../browser/types.js';
 import { ChatGptBrowserProvider } from './chatgpt-browser.js';
@@ -43,4 +46,19 @@ test('browser provider closes its driver', async () => {
   const provider = new ChatGptBrowserProvider(driver);
   await provider.close();
   assert.equal(driver.closed, true);
+});
+
+test('records every browser submission when the canary counter is enabled', async () => {
+  const path = join(await mkdtemp(join(tmpdir(), 'relay-submission-test-')), 'submissions');
+  const previous = process.env.RELAY_CANARY_SUBMISSIONS_PATH;
+  process.env.RELAY_CANARY_SUBMISSIONS_PATH = path;
+  try {
+    const provider = new ChatGptBrowserProvider(new FakeDriver());
+    await provider.complete({ model: 'browser-chatgpt-free', messages: [{ role: 'user', content: 'Count this.' }] }, 'browser-chatgpt-free');
+    assert.equal(await readFile(path, 'utf8'), 'submission\n');
+  } finally {
+    if (previous === undefined) delete process.env.RELAY_CANARY_SUBMISSIONS_PATH;
+    else process.env.RELAY_CANARY_SUBMISSIONS_PATH = previous;
+    await rm(join(path, '..'), { recursive: true, force: true });
+  }
 });

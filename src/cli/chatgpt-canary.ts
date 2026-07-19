@@ -44,6 +44,7 @@ interface Evidence {
   hermes: string;
   commit: string;
   worktree: string;
+  outcome: 'pending_promotion' | 'passed' | 'failed';
   mission_count: number;
   missions: MissionResult[];
 }
@@ -274,15 +275,19 @@ async function streamedCheck(baseUrl: string, token: string): Promise<void> {
   if (!response.ok || !isExactMarker(streamedTextFromSse(body) ?? '', marker)) throw new Error('streaming_failed');
 }
 
-async function hermesToolRoundTrip(home: string, workspace: string, countPath: string): Promise<void> {
+async function hermesToolRoundTrip(home: string, workspace: string, countPath: string, submissionPath: string): Promise<void> {
+  const previousToolCalls = (await readFile(countPath, 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
+  const previousSubmissions = (await readFile(submissionPath, 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
   const result = await callHermes(
     home,
     workspace,
     'Call relay_canary_readonly exactly once. Then reply with exactly: SAFE_TOOL_RESULT_OK.',
   );
   if (!isExactMarker(result.stdout, 'SAFE_TOOL_RESULT_OK')) throw new Error('hermes_tool_result_mismatch');
-  const count = (await readFile(countPath, 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
-  if (count !== 1) throw new Error('hermes_tool_call_count_mismatch');
+  const toolCalls = (await readFile(countPath, 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
+  if (toolCalls !== previousToolCalls + 1) throw new Error('hermes_tool_call_count_mismatch');
+  const submissions = (await readFile(submissionPath, 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
+  if (submissions !== previousSubmissions + 2) throw new Error('hermes_tool_submission_count_mismatch');
 }
 
 async function writeEvidence(evidence: Evidence): Promise<string> {
@@ -308,6 +313,7 @@ async function main(): Promise<void> {
   const hermesHome = await mkdtemp(join(tmpdir(), 'local-ai-relay-hermes-'));
   const hermesWorkspace = await mkdtemp(join(tmpdir(), 'local-ai-relay-hermes-workspace-'));
   const stagedCapabilityStore = join(hermesHome, 'capabilities.json');
+  const submissionPath = join(hermesHome, 'chatgpt-submissions');
   let relay: RelayProcess | undefined;
   let toolCountPath: string | undefined;
   const evidence: Evidence = {
@@ -322,6 +328,7 @@ async function main(): Promise<void> {
     hermes: hermesVersionFrom((await run(process.env.HERMES_BIN ?? 'hermes', ['--version'], process.env)).stdout),
     commit: (await run('git', ['rev-parse', 'HEAD'], process.env)).stdout.trim(),
     worktree: await worktreeFingerprint(),
+    outcome: 'pending_promotion',
     mission_count: 0,
     missions,
   };
@@ -340,7 +347,7 @@ async function main(): Promise<void> {
     await mission('fresh_probe', async () => {
       await run(process.execPath, ['--import', 'tsx', 'src/cli/live-probe.ts', '--provider', 'chatgpt'], process.env);
     });
-    relay = await startRelay(selectedPort, token);
+    relay = await startRelay(selectedPort, token, { RELAY_CANARY_SUBMISSIONS_PATH: submissionPath });
     toolCountPath = await writeHermesConfig(hermesHome, baseUrl, token);
     await mission('hermes_single_turn', () => assertHermesMarker(hermesHome, hermesWorkspace, 'HERMES_SINGLE_OK'));
     await mission('compatibility_streaming', () => streamedCheck(baseUrl, token));
@@ -352,13 +359,14 @@ async function main(): Promise<void> {
       if (!isExactMarker(second.stdout, 'HERMES_CONTINUATION_TWO')) throw new Error('hermes_continuation_mismatch');
     });
     await mission('long_native_insertion', () => assertHermesMarker(hermesHome, hermesWorkspace, 'HERMES_LONG_PROMPT_OK', `${'safe canary text '.repeat(900)}\n\n`));
-    await mission('hermes_compact_tool_round_trip', () => hermesToolRoundTrip(hermesHome, hermesWorkspace, toolCountPath!));
+    await mission('hermes_compact_tool_round_trip', () => hermesToolRoundTrip(hermesHome, hermesWorkspace, toolCountPath!, submissionPath));
 
     await stop(relay, selectedPort);
-    relay = await startRelay(selectedPort, token);
+    relay = await startRelay(selectedPort, token, { RELAY_CANARY_SUBMISSIONS_PATH: submissionPath });
     for (let index = 1; index <= CANARY_COUNT; index += 1) {
       await mission(`cold_restart_canary_${index}`, () => assertHermesMarker(hermesHome, hermesWorkspace, `HERMES_CANARY_${index}_OK`));
     }
+    await mission('post_restart_hermes_tool_round_trip', () => hermesToolRoundTrip(hermesHome, hermesWorkspace, toolCountPath!, submissionPath));
 
     const now = new Date().toISOString();
     const ready: ProviderCapabilityRecord = {
@@ -370,7 +378,10 @@ async function main(): Promise<void> {
     };
     await persistCapability(ready, stagedCapabilityStore);
     await stop(relay, selectedPort);
-    relay = await startRelay(selectedPort, token, { RELAY_CAPABILITY_STORE: stagedCapabilityStore });
+    relay = await startRelay(selectedPort, token, {
+      RELAY_CAPABILITY_STORE: stagedCapabilityStore,
+      RELAY_CANARY_SUBMISSIONS_PATH: submissionPath,
+    });
     await mission('post_promotion_discovery', async () => {
       const response = await fetch(`${baseUrl}/models`, { headers: { Authorization: `Bearer ${token}` } });
       const body = await response.json() as { data?: Array<{ id?: string }> };
@@ -382,9 +393,13 @@ async function main(): Promise<void> {
     relay = undefined;
     await rm(hermesHome, { recursive: true, force: true });
     await rm(hermesWorkspace, { recursive: true, force: true });
-    await persistCapability(ready);
+    await mission('durable_promotion', () => persistCapability(ready));
+    evidence.mission_count = missions.length;
+    evidence.outcome = 'passed';
+    await writeEvidence(evidence).catch(() => undefined);
     console.log(`PASS: ${missions.length} ChatGPT canary missions passed. Sanitized evidence: ${evidencePath}`);
   } catch (error) {
+    evidence.outcome = 'failed';
     evidence.mission_count = missions.length;
     const evidencePath = await writeEvidence(evidence);
     console.error(`FAIL: ChatGPT canary failed (${failureClass(error)}). Sanitized evidence: ${evidencePath}`);
