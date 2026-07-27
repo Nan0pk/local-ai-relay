@@ -41,6 +41,14 @@ cd ~ && export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] || g
 
 ### Step-by-Step Setup
 
+One-line setup (idempotent; works even if directory exists or `npm` is in `$HOME/.local/node/bin`):
+
+```bash
+export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] || git clone https://github.com/Nan0pk/local-ai-relay.git) && cd local-ai-relay && npm ci && npm run dev
+```
+
+Or step-by-step:
+
 ```bash
 # 1. Ensure working directory is user home to avoid Root (/) permission errors
 cd ~
