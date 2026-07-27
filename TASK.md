@@ -1,14 +1,14 @@
-# Current task: Phase U6 — Enterprise Systemd Operations & Load Balancing (v0.6.0)
+# Current task: Phase U7 — Multi-Architecture CI/CD Matrix & Release Automation (v0.7.0)
 
 **Status:** In Progress  
-**Priority:** Implement systemd user service installer and multi-provider failover matrix  
+**Priority:** Implement multi-architecture CI/CD matrix and automated release signing  
 **Estimate:** 1 engineering day  
-**Deliverable:** 1 consolidated pull request for Phase U6
+**Deliverable:** 1 consolidated commit on `main`
 
 ## Goal
 
-1. **Systemd User Service Installer (`src/cli/install-service.ts`):** Generate, install, enable, and start `~/.config/systemd/user/local-ai-relay.service` with automatic restart policy.
-2. **Multi-Provider Priority Failover (`src/router/model-router.ts`):** Dynamic multi-provider fallback matrix routing across all 11 providers when primary provider is degraded or rate-limited.
+1. **GitHub Actions Multi-Arch CI Matrix (`.github/workflows/ci.yml`):** Verify dual-runner matrix (`ubuntu-latest`, `windows-latest`) for cross-platform delivery test suite.
+2. **Release Attestation Automation (`.github/workflows/release.yml`):** Build, sign, and publish SPDX SBOM provenance attestations for release tarballs.
 
 ## Baseline
 
@@ -27,12 +27,14 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. Verify `install-service.ts` unit tests and systemd service generator.
-2. Verify priority fallback ordering in `model-router.ts` across provider statuses.
+1. Verify `.github/workflows/ci.yml` matrix configuration.
+2. Verify `.github/workflows/release.yml` release step triggers.
+3. Run full 8-command baseline test suite.
 
 ## Acceptance
 
 Deterministic:
 - `npm run typecheck` passes with 0 errors.
-- All unit and delivery tests pass cleanly.
-- Full 8-command baseline passes 100%.
+- `npm test` passes all 289+ unit tests.
+- `npm run test:delivery` passes all delivery tests.
+- `node scripts/validate-release.mjs` passes cleanly.
