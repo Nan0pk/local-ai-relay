@@ -1,13 +1,13 @@
-# Current task: U0-02 — Windows ChatGPT proof & non-admin persistence foundation
+# Current task: U1-01 — Complete evidence lifecycle & provider control plane
 
 **Status:** Open  
-**Priority:** unblock Windows background service & non-admin persistence  
-**Estimate:** 0.5–1 engineering days  
+**Priority:** complete evidence expiration matrix, provider CLI verbs, and security gates  
+**Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Implement and verify non-admin Windows process persistence via Task Scheduler (`ONLOGON` trigger, "run only when user is logged on"), stale PID validation (PID + process creation timestamp), occupied port selection, relay configuration backup/merge, and zero-duplicate restart semantics.
+Implement the evidence lifecycle invalidation matrix, CLI control verbs (`status`, `reprobe`, `disable`, `enable`, `clear-evidence`), global provider kill switch, and CI secret scanning/audit gates.
 
 ## Baseline
 
@@ -26,13 +26,13 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Task Scheduler Registration:** Implement user-level Task Scheduler registration (`schtasks /create /tn local-ai-relay /tr ... /sc ONLOGON`) without requiring Administrator elevation.
-2. **Stale PID Validation:** Update PID file management (`src/cli/install-service.ts`, `src/cli/start-windows-service.ts`) to store `{ pid, startTime }`. Validate live process start time on read to prevent PID reuse bugs.
-3. **Port & Configuration Handling:** Verify occupied port selection and Hermes/OpenCode configuration backup (`*.bak-local-ai-relay`) and non-destructive merge.
-4. **Zero-Duplicate Restart Verification:** Ensure SQLite ledger resumes observation for generation restarts without prompt resubmission.
+1. **Evidence Expiration & Invalidation Matrix:** Handle automatic invalidation on adapter, model, browser, transport, or relay configuration changes.
+2. **Provider Control CLI Verbs:** Implement `status`, `reprobe`, `disable`, `enable`, and `clear-evidence` CLI subcommands in `src/cli/provider-control.ts`.
+3. **Global Kill Switch:** Add global browser-provider kill switch (`RELAY_BROWSER_KILL_SWITCH=1`) and stable `provider_not_ready` error taxonomy.
+4. **CI Security Baseline:** Integrate gitleaks secret scanning and npm audit gate in `.github/workflows/ci.yml`.
 
 ## Acceptance
 
 Deterministic:
-- Full baseline passes cleanly on Linux and Windows CI.
-- Unit tests verify PID + start-time validation, Task Scheduler command parsing, and config backup.
+- Full 8-command baseline passes.
+- Unit tests verify CLI control verbs, kill switch, and invalidation rules.
