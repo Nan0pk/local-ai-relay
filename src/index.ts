@@ -6,9 +6,11 @@
 import { buildApp } from './server.js';
 import { loadConfig } from './config.js';
 import { selectPort } from './startup/port-selection.js';
+import { ensureNodeInUserPath } from './startup/persist-path.js';
 import { runHarnessConfiguration } from './cli/configure-harnesses.js';
 
 async function main(): Promise<void> {
+  void ensureNodeInUserPath();
   const requestedConfig = loadConfig();
   const portSelection = await selectPort(requestedConfig.host, requestedConfig.port);
   if (portSelection.existingRelay) {
