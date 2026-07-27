@@ -1,13 +1,13 @@
-# Current task: U0-02 — Windows ChatGPT proof & non-admin persistence foundation
+# Current task: U0-03 — Cross-platform dogfood & deterministic fault-injection harness
 
 **Status:** Open  
-**Priority:** unblock Windows background service & non-admin persistence  
+**Priority:** validate classification resilience before v0.1.0 publication  
 **Estimate:** 0.5–1 engineering days  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Implement and verify non-admin Windows process persistence via Task Scheduler (`ONLOGON` trigger, "run only when user is logged on"), stale PID validation (PID + process creation timestamp), occupied port selection, relay configuration backup/merge, and zero-duplicate restart semantics.
+Build the deterministic local fault-injection harness for challenge/quota/network-cut DOM states and generate the aggregate sanitized dogfood evidence report.
 
 ## Baseline
 
@@ -26,13 +26,12 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Task Scheduler Registration:** Implement user-level Task Scheduler registration (`schtasks /create /tn local-ai-relay /tr ... /sc ONLOGON`) without requiring Administrator elevation.
-2. **Stale PID Validation:** Update PID file management (`src/cli/install-service.ts`, `src/cli/start-windows-service.ts`) to store `{ pid, startTime }`. Validate live process start time on read to prevent PID reuse bugs.
-3. **Port & Configuration Handling:** Verify occupied port selection and Hermes/OpenCode configuration backup (`*.bak-local-ai-relay`) and non-destructive merge.
-4. **Zero-Duplicate Restart Verification:** Ensure SQLite ledger resumes observation for generation restarts without prompt resubmission.
+1. **Fault Injection Harness (`src/cli/fault-injection.ts`):** Create local fixture server/harness simulating challenge (Cloudflare turnstile), quota (rate limit UI), logged-out, and network-cut DOM states.
+2. **Classification Verification:** Verify typed `BrowserFailure` taxonomy correctly handles each injected fault path without unhandled rejections or silent fallbacks.
+3. **Sanitized Dogfood Report (`docs/e2e/dogfood-report.md`):** Commit aggregate sanitized evidence report tracking classification correctness ($\ge 95\%$) and user availability metrics.
 
 ## Acceptance
 
 Deterministic:
-- Full baseline passes cleanly on Linux and Windows CI.
-- Unit tests verify PID + start-time validation, Task Scheduler command parsing, and config backup.
+- `npm test` passes all fault-injection harness test cases.
+- Full 8-command baseline passes cleanly.
