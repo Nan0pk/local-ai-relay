@@ -4,6 +4,16 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+# Auto-detect local Node/npm installation if not in current PATH
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+  for candidate in "$HOME/.local/node/bin" "$HOME/.local/bin" "/usr/local/bin"; do
+    if [[ -x "$candidate/node" && -x "$candidate/npm" ]]; then
+      export PATH="$candidate:$PATH"
+      break
+    fi
+  done
+fi
+
 [[ "${RELAY_VERIFIED_RELEASE:-}" == 1 ]] || {
   echo 'ERROR: setup-linux.sh must run from an authenticated release bootstrap.' >&2
   exit 1
