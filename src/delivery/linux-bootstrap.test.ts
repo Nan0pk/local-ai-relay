@@ -30,7 +30,13 @@ async function fixture(setupBody = '#!/usr/bin/env bash\nset -Eeuo pipefail\ntou
   const payload = join(root, 'payload');
   const version = 'v1.2.3';
   const artifact = `local-ai-relay-${version}-linux-x64.tar.gz`;
-  await Promise.all([mkdir(home), mkdir(data), mkdir(assets), mkdir(bin), mkdir(payload)]);
+  await Promise.all([
+    mkdir(home, { recursive: true }),
+    mkdir(data, { recursive: true }),
+    mkdir(assets, { recursive: true }),
+    mkdir(bin, { recursive: true }),
+    mkdir(payload, { recursive: true }),
+  ]);
   await writeFile(join(payload, 'setup-linux.sh'), setupBody);
   await chmod(join(payload, 'setup-linux.sh'), 0o755);
   await writeFile(join(payload, 'package.json'), '{"name":"fixture"}\n');
