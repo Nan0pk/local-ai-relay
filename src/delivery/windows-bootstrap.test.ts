@@ -20,7 +20,13 @@ async function fixture(version: string, options: { tamper?: boolean; attestation
   const install = join(root, 'install');
   const ghLog = join(root, 'gh.log');
   const npmLog = join(root, 'npm.log');
-  await Promise.all([mkdir(release), mkdir(downloads), mkdir(bin), mkdir(install), mkdir(join(release, 'dist'))]);
+  await Promise.all([
+    mkdir(release, { recursive: true }),
+    mkdir(downloads, { recursive: true }),
+    mkdir(bin, { recursive: true }),
+    mkdir(install, { recursive: true }),
+    mkdir(join(release, 'dist'), { recursive: true }),
+  ]);
   await copyFile(setup, join(release, 'setup-windows.ps1'));
   await writeFile(join(release, '.env.example'), 'RELAY_FIXTURE=default\n');
   await writeFile(join(release, 'dist', 'index.js'), 'void 0;\n');
