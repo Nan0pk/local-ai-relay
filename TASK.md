@@ -1,13 +1,13 @@
-# Current task: U3-02 — Secondary provider pool verification
+# Current task: U3-03 — Publish v0.4.0 release preparation & multi-provider contract
 
 **Status:** Open  
-**Priority:** verify secondary provider pool (Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, Meta)  
-**Estimate:** 1 engineering day  
+**Priority:** reconcile v0.4.0 multi-provider expansion release contract  
+**Estimate:** 0.5 engineering days  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Verify all 7 secondary browser provider adapters (Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, Meta), nonced tool schema envelope translation, and capability tracker registration.
+Reconcile release documentation in `RELEASES.md` for v0.4.0 Multi-Provider Expansion release contract, verify SPDX SBOM Patchright provenance attestation, and run baseline validation.
 
 ## Baseline
 
@@ -26,11 +26,11 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Secondary Providers Matrix:** Verify `MinimaxBrowserProvider`, `QwenBrowserProvider`, `ZaiBrowserProvider`, `GrokBrowserProvider`, `KimiBrowserProvider`, `MistralBrowserProvider`, and `MetaBrowserProvider`.
-2. **Capability Registration:** Ensure capability tracker handles all 7 secondary providers cleanly.
+1. **v0.4.0 Release Notes (`RELEASES.md`):** Update `RELEASES.md` with v0.4.0 release notes documenting full 11-provider browser adapter pool (ChatGPT, Claude, Gemini, DeepSeek, Arena, Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, Meta).
+2. **Release Asset Validation:** Ensure `node scripts/validate-release.mjs` executes cleanly.
 
 ## Acceptance
 
 Deterministic:
-- `npm test` passes all 286+ unit tests across the provider matrix.
 - Full 8-command baseline passes.
+- `RELEASES.md` contains v0.4.0 contract.
