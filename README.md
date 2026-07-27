@@ -36,18 +36,10 @@ discovery remains readiness-gated.
 Run from your home directory (`~`):
 
 ```bash
-cd ~ && export PATH=$HOME/.local/node/bin:$PATH && { if [ -d "local-ai-relay" ]; then cd local-ai-relay && git pull origin main; else git clone https://github.com/Nan0pk/local-ai-relay.git && cd local-ai-relay; fi; } && npm ci && npm run dev
+cd ~ && export PATH=$HOME/.local/node/bin:$PATH && { if [ -d "local-ai-relay/.git" ]; then cd local-ai-relay && git pull origin main; else rm -rf local-ai-relay && git clone https://github.com/Nan0pk/local-ai-relay.git && cd local-ai-relay; fi; } && npm ci && npm run dev
 ```
 
 ### Step-by-Step Setup
-
-One-line setup (idempotent; works even if directory exists or `npm` is in `$HOME/.local/node/bin`):
-
-```bash
-export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] || git clone https://github.com/Nan0pk/local-ai-relay.git) && cd local-ai-relay && npm ci && npm run dev
-```
-
-Or step-by-step:
 
 ```bash
 # 1. Ensure working directory is user home
@@ -56,11 +48,12 @@ cd ~
 # 2. Add Node 22 to PATH if installed locally
 export PATH=$HOME/.local/node/bin:$PATH
 
-# 3. Pull latest code if directory exists, or clone fresh if missing
-if [ -d "local-ai-relay" ]; then
+# 3. Pull latest code if valid directory exists, or clone fresh if missing/corrupt
+if [ -d "local-ai-relay/.git" ]; then
   cd local-ai-relay
   git pull origin main
 else
+  rm -rf local-ai-relay
   git clone https://github.com/Nan0pk/local-ai-relay.git
   cd local-ai-relay
 fi
