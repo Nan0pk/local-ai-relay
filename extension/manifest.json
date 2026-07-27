@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Local AI Relay Sidecar",
+  "version": "0.1.0",
+  "description": "Manifest V3 browser extension sidecar for Local AI Relay.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
+      ],
+      "js": ["content.js"]
+    }
+  ]
+}

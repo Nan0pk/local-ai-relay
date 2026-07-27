@@ -1,13 +1,13 @@
-# Current task: U1-02 — Secondary stable browser backend (Claude Web adapter)
+# Current task: U1-03 — Web extension sidecar (MV3)
 
 **Status:** Open  
-**Priority:** add second stable web browser adapter to validate multi-provider browser abstraction  
+**Priority:** build Manifest V3 web extension sidecar for DOM interaction  
 **Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Implement the secondary stable browser backend adapter for Claude Web (`src/providers/claude.ts`), nonced tool schema handling, sticky session continuation, and capability registration.
+Build Manifest V3 web extension sidecar under `extension/` providing native browser tab connection, WebSocket/HTTP loopback to relay, and declarative permissions (`activeTab`, `storage`).
 
 ## Baseline
 
@@ -26,12 +26,12 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Claude Provider Adapter (`src/providers/claude.ts`):** Implement `claudeProvider` implementing `BrowserProvider` interface with model ID `claude-web`, batch transport metadata, nonced tool schema injection, and sticky session continuation.
-2. **Capability Registration:** Register `claude-web` in capability tracker and default model listing.
-3. **Unit & Integration Tests (`src/providers/claude.test.ts`):** Verify first-turn batch submission, delta continuation, nonced tool envelope parsing, and typed `BrowserFailure` handling.
+1. **MV3 Manifest (`extension/manifest.json`):** Define Manifest V3 configuration with minimum permissions (`activeTab`, `storage`) and background service worker.
+2. **Sidecar Bridge (`extension/background.js`):** Implement WebSocket loopback client connecting to local relay server.
+3. **Content Script (`extension/content.js`):** Implement isolated DOM event listener and prompt injector.
 
 ## Acceptance
 
 Deterministic:
-- `npm test` passes all Claude provider unit tests.
-- Full 8-command baseline passes cleanly.
+- `extension/manifest.json` parses as valid MV3 manifest.
+- Full 8-command baseline passes.
