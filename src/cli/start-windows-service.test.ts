@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import test from 'node:test';
 import {
   authenticatedIdentity,
+  buildWindowsTaskSchedulerCommand,
   terminateRecordedProcess,
   windowsConfigPath,
   windowsStateDirectory,
@@ -93,4 +94,17 @@ test('recorded process termination fails closed when a PID was reused', async ()
     /no longer belongs/i,
   );
   assert.equal(killed, false);
+});
+
+test('buildWindowsTaskSchedulerCommand builds non-admin ONLOGON task args', () => {
+  const { createArgs, deleteArgs } = buildWindowsTaskSchedulerCommand(
+    'C:\\Node\\node.exe',
+    'C:\\Relay\\versions\\v1.0.0',
+    'C:\\Relay\\config\\.env',
+  );
+  assert.ok(createArgs.includes('/create'));
+  assert.ok(createArgs.includes('local-ai-relay'));
+  assert.ok(createArgs.includes('ONLOGON'));
+  assert.ok(deleteArgs.includes('/delete'));
+  assert.ok(deleteArgs.includes('local-ai-relay'));
 });

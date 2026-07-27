@@ -18,6 +18,20 @@ export function windowsConfigPath(managedInstallRoot: string): string {
   return join(resolve(managedInstallRoot), 'config', '.env');
 }
 
+export function buildWindowsTaskSchedulerCommand(
+  execPath: string,
+  releaseRoot: string,
+  configPath: string,
+): { createArgs: string[]; deleteArgs: string[] } {
+  const taskName = 'local-ai-relay';
+  const targetScript = join(resolve(releaseRoot), 'dist', 'cli', 'start-windows-service.js');
+  const action = `"${execPath}" --env-file-if-exists="${configPath}" "${targetScript}"`;
+  return {
+    createArgs: ['/create', '/tn', taskName, '/tr', action, '/sc', 'ONLOGON', '/f'],
+    deleteArgs: ['/delete', '/tn', taskName, '/f'],
+  };
+}
+
 const stateDir = windowsStateDirectory(root, installRoot);
 const activePortPath = join(stateDir, 'active-port');
 const pidPath = join(stateDir, 'windows-relay.pid');
