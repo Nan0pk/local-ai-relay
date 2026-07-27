@@ -1,13 +1,13 @@
-# Current task: U1-01 — Complete evidence lifecycle & provider control plane
+# Current task: U1-02 — Secondary stable browser backend (Claude Web adapter)
 
 **Status:** Open  
-**Priority:** complete evidence expiration matrix, provider CLI verbs, and security gates  
+**Priority:** add second stable web browser adapter to validate multi-provider browser abstraction  
 **Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Implement the evidence lifecycle invalidation matrix, CLI control verbs (`status`, `reprobe`, `disable`, `enable`, `clear-evidence`), global provider kill switch, and CI secret scanning/audit gates.
+Implement the secondary stable browser backend adapter for Claude Web (`src/providers/claude.ts`), nonced tool schema handling, sticky session continuation, and capability registration.
 
 ## Baseline
 
@@ -26,13 +26,12 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Evidence Expiration & Invalidation Matrix:** Handle automatic invalidation on adapter, model, browser, transport, or relay configuration changes.
-2. **Provider Control CLI Verbs:** Implement `status`, `reprobe`, `disable`, `enable`, and `clear-evidence` CLI subcommands in `src/cli/provider-control.ts`.
-3. **Global Kill Switch:** Add global browser-provider kill switch (`RELAY_BROWSER_KILL_SWITCH=1`) and stable `provider_not_ready` error taxonomy.
-4. **CI Security Baseline:** Integrate gitleaks secret scanning and npm audit gate in `.github/workflows/ci.yml`.
+1. **Claude Provider Adapter (`src/providers/claude.ts`):** Implement `claudeProvider` implementing `BrowserProvider` interface with model ID `claude-web`, batch transport metadata, nonced tool schema injection, and sticky session continuation.
+2. **Capability Registration:** Register `claude-web` in capability tracker and default model listing.
+3. **Unit & Integration Tests (`src/providers/claude.test.ts`):** Verify first-turn batch submission, delta continuation, nonced tool envelope parsing, and typed `BrowserFailure` handling.
 
 ## Acceptance
 
 Deterministic:
-- Full 8-command baseline passes.
-- Unit tests verify CLI control verbs, kill switch, and invalidation rules.
+- `npm test` passes all Claude provider unit tests.
+- Full 8-command baseline passes cleanly.
