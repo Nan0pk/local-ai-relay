@@ -26,27 +26,39 @@ mean a provider is logged in or live-ready. All registered models appear in
 harness catalogs; OpenCode labels unready entries. Default `/v1/models`
 discovery remains readiness-gated.
 
-## Run from source
+## Quickstart — Run from Source
 
-Requirements: Node.js 22+, Git, and Chrome/Chromium for browser providers.
+### Requirements
+- **Node.js 22+**, Git, and Chrome/Chromium for browser providers.
+- **Node PATH Note**: If Node 22 is installed locally under `$HOME/.local/node/bin`, ensure your active PATH includes it: `export PATH=$HOME/.local/node/bin:$PATH`.
 
-One-line setup (idempotent; works even if directory exists or `npm` is in `$HOME/.local/node/bin`):
+### One-Line Setup (Fail-Safe & Idempotent)
+Run from your home directory (`~`):
 
 ```bash
-export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] || git clone https://github.com/Nan0pk/local-ai-relay.git) && cd local-ai-relay && npm ci && npm run dev
+cd ~ && export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] || git clone https://github.com/Nan0pk/local-ai-relay.git) && cd local-ai-relay && npm ci && npm run dev
 ```
 
-Or step-by-step:
+### Step-by-Step Setup
 
 ```bash
-export PATH=$HOME/.local/node/bin:$PATH  # Ensure Node 22 is in PATH if installed locally
-cd local-ai-relay                        # Enter folder (or git clone https://github.com/Nan0pk/local-ai-relay.git)
+# 1. Ensure working directory is user home to avoid Root (/) permission errors
+cd ~
+
+# 2. Add Node 22 to PATH if installed locally
+export PATH=$HOME/.local/node/bin:$PATH
+
+# 3. Clone repository (or enter existing directory)
+[ -d "local-ai-relay" ] && cd local-ai-relay || (git clone https://github.com/Nan0pk/local-ai-relay.git && cd local-ai-relay)
+
+# 4. Install dependencies & start dev server
 npm ci
 npm run dev
 ```
 
-`npm run dev` starts the relay on `http://127.0.0.1:8787` by default. Keep it
-running, then configure both supported harnesses:
+*Note: Programmatic `.env` loading inside `src/config.ts` ensures `npm run dev` starts cleanly without crashing if `.env` does not exist on disk.*
+
+`npm run dev` starts the relay on `http://127.0.0.1:8787` by default. Keep it running, then configure both supported harnesses:
 
 ```bash
 npm run harnesses:configure
