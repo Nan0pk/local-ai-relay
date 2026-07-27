@@ -1,13 +1,13 @@
-# Current task: U4-02 — Final release verification v0.5.0 General Availability (GA)
+# Current task: U5-01 — Automated Cron Health Monitoring & Diagnostic Polling
 
-**Status:** Completed  
-**Priority:** publish final v0.5.0 General Availability release contract  
-**Estimate:** 0.5 engineering days  
-**Deliverable:** one draft pull request against `main`; do not merge
+**Status:** In Progress  
+**Priority:** Implement scheduled health monitoring script and diagnostic polling  
+**Estimate:** 1 engineering day  
+**Deliverable:** `scripts/scheduled-health-check.ts` and automated diagnostic test suite
 
 ## Goal
 
-Final release verification for v0.5.0 General Availability (GA) release contract, reconciling full release documentation in `RELEASES.md`, verifying SPDX SBOM Patchright provenance attestation, and running 100% baseline verification.
+Implement automated health monitoring script `scripts/scheduled-health-check.ts` to poll `/health` and `/v1/providers/status`, writing structured diagnostics to `$RELAY_INSTALL_ROOT/diagnostics/health-audit.json`.
 
 ## Baseline
 
@@ -26,11 +26,12 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **v0.5.0 GA Release Notes (`RELEASES.md`):** Update `RELEASES.md` with final v0.5.0 GA release notes.
-2. **Release Asset Validation:** Ensure `node scripts/validate-release.mjs` executes cleanly for all 8 release assets.
+1. **Scheduled Health Monitoring Script (`scripts/scheduled-health-check.ts`):** Polls loopback relay status and logs JSON audit report.
+2. **Integration Test (`src/cli/scheduled-health-check.test.ts`):** Verify health check execution against active/mock server.
 
 ## Acceptance
 
 Deterministic:
-- Full 8-command baseline passes 100%.
-- `RELEASES.md` contains v0.5.0 GA contract.
+- `npm run typecheck` passes with 0 errors.
+- `npm test` passes all tests cleanly.
+- Full 8-command baseline passes.
