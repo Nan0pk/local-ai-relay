@@ -46,9 +46,11 @@
     "service:start:windows": "node --import tsx src/cli/start-windows-service.ts",
     "harnesses:configure": "node --import tsx src/cli/configure-harnesses.ts",
     "hermes:configure": "node --import tsx src/cli/configure-harnesses.ts --hermes",
+    "setup:native-host": "node --import tsx src/cli/setup-native-host.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "ajv": "^8.17.1",
     "fastify": "^5.2.1",
     "patchright": "^1.61.1",

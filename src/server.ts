@@ -12,6 +12,8 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerModelsRoutes } from './routes/models.js';
 import { registerChatRoutes } from './routes/chat.js';
 import { registerResponsesRoutes } from './routes/responses.js';
+import { registerUiRoutes } from './routes/ui.js';
+import { errorHandler } from './middleware/error-handler.js';
 import { closeProviders } from './providers/registry.js';
 import { registerAuthAndCors } from './auth/middleware.js';
 
@@ -23,12 +25,15 @@ export function buildApp(config: AppConfig = loadConfig()): FastifyInstance {
     },
   });
 
+  app.setErrorHandler(errorHandler);
+
   registerAuthAndCors(app);
 
   registerHealthRoutes(app);
   registerModelsRoutes(app);
   registerChatRoutes(app, config);
   registerResponsesRoutes(app, config);
+  void registerUiRoutes(app);
 
   app.addHook('onClose', async () => {
     await closeProviders();
