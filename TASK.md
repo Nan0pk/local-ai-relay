@@ -1,13 +1,13 @@
-# Current task: U1-04 — Publish v0.2.0 beta release preparation
+# Current task: U2-01 — Web Arena adapter & pairwise evaluation harness
 
 **Status:** Open  
-**Priority:** reconcile v0.2.0 beta release documentation & SBOM provenance  
-**Estimate:** 0.5 engineering days  
+**Priority:** implement Web Arena adapter and pairwise prompt evaluation harness  
+**Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Reconcile release documentation in `RELEASES.md` for v0.2.0 Beta, verify SPDX SBOM Patchright provenance attestation, and run baseline validation.
+Implement the Web Arena browser adapter (`src/providers/arena-browser.ts`) and pairwise prompt evaluation script (`scripts/arena-eval.ts`).
 
 ## Baseline
 
@@ -26,11 +26,11 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **v0.2.0 Beta Release Notes (`RELEASES.md`):** Update `RELEASES.md` with v0.2.0 Beta release notes documenting multi-provider readiness (ChatGPT + Claude Web), provider control CLI verbs, global kill switch, and MV3 extension sidecar.
-2. **Release Asset Validation:** Ensure `node scripts/validate-release.mjs` executes cleanly.
+1. **Web Arena Adapter (`src/providers/arena-browser.ts`):** Verify `ArenaBrowserProvider` implementation supporting `browser-arena` model ID and dual-response parsing.
+2. **Pairwise Evaluation CLI (`scripts/arena-eval.ts`):** Implement CLI tool for automated blind pairwise prompt evaluation across browser providers.
 
 ## Acceptance
 
 Deterministic:
+- `npm test` passes Arena browser tests.
 - Full 8-command baseline passes.
-- `RELEASES.md` contains v0.2.0 Beta contract.
