@@ -6,6 +6,7 @@
 import { buildApp } from './server.js';
 import { loadConfig } from './config.js';
 import { selectPort } from './startup/port-selection.js';
+import { runHarnessConfiguration } from './cli/configure-harnesses.js';
 
 async function main(): Promise<void> {
   const requestedConfig = loadConfig();
@@ -46,6 +47,10 @@ async function main(): Promise<void> {
       { host: config.host, port: config.port },
       'local-ai-relay listening',
     );
+    // Auto-configure agent harnesses (Hermes & OpenCode) on startup
+    void runHarnessConfiguration(config.port, true).catch((err) => {
+      app.log.warn({ err: err instanceof Error ? err.message : String(err) }, 'harness auto-configuration notice');
+    });
   } catch (err) {
     app.log.error({ err }, 'failed to start');
     process.exit(1);

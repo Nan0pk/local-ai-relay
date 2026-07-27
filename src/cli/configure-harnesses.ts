@@ -80,20 +80,26 @@ async function configureOpenCode(baseUrl: string, token: string, models: readonl
   return path;
 }
 
-async function main(): Promise<void> {
+export async function runHarnessConfiguration(overridePort?: number, silent = false): Promise<string[]> {
   const token = await getOrGenerateToken();
-  const baseUrl = `http://127.0.0.1:${await activePort()}/v1`;
+  const port = overridePort ?? await activePort();
+  const baseUrl = `http://127.0.0.1:${port}/v1`;
   const { models, source } = await discoverModels(baseUrl, token);
   if (models.length === 0) throw new Error('Relay returned no registered models.');
   const hermesOnly = process.argv.includes('--hermes');
   const paths = [await configureHermes(baseUrl, token, models)];
   if (!hermesOnly) paths.push(await configureOpenCode(baseUrl, token, models));
-  console.log(`PASS: populated ${models.length} model(s) using Responses API (${source} catalog).`);
-  for (const path of paths) console.log(`  ${path}`);
+  if (!silent) {
+    console.log(`PASS: populated ${models.length} model(s) using Responses API (${source} catalog).`);
+    for (const path of paths) console.log(`  ${path}`);
+  }
+  return paths;
 }
 
-main().catch((error: unknown) => {
-  console.error(`HARNESS SETUP FAILED: ${error instanceof Error ? error.message : String(error)}`);
-  console.error('Existing configs remain backed up.');
-  process.exitCode = 1;
-});
+if (process.argv[1]?.endsWith('configure-harnesses.ts') || process.argv[1]?.endsWith('configure-harnesses.js')) {
+  runHarnessConfiguration().catch((error: unknown) => {
+    console.error(`HARNESS SETUP FAILED: ${error instanceof Error ? error.message : String(error)}`);
+    console.error('Existing configs remain backed up.');
+    process.exitCode = 1;
+  });
+}
