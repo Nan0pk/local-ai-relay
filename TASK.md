@@ -1,13 +1,13 @@
-# Current task: U3-03 — Publish v0.4.0 release preparation & multi-provider contract
+# Current task: U4-01 — Production rate limiting & health monitoring
 
 **Status:** Open  
-**Priority:** reconcile v0.4.0 multi-provider expansion release contract  
-**Estimate:** 0.5 engineering days  
+**Priority:** add rate-limiting middleware and health monitoring endpoints  
+**Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Reconcile release documentation in `RELEASES.md` for v0.4.0 Multi-Provider Expansion release contract, verify SPDX SBOM Patchright provenance attestation, and run baseline validation.
+Implement sliding-window rate-limiting middleware (`src/middleware/rate-limit.ts`) and enhanced health monitoring diagnostics.
 
 ## Baseline
 
@@ -26,11 +26,11 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **v0.4.0 Release Notes (`RELEASES.md`):** Update `RELEASES.md` with v0.4.0 release notes documenting full 11-provider browser adapter pool (ChatGPT, Claude, Gemini, DeepSeek, Arena, Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, Meta).
-2. **Release Asset Validation:** Ensure `node scripts/validate-release.mjs` executes cleanly.
+1. **Rate-Limiting Middleware (`src/middleware/rate-limit.ts`):** Implement in-memory sliding window rate limiter configurable via environment variables (`RELAY_MAX_REQUESTS_PER_MINUTE`).
+2. **Unit Tests (`src/middleware/rate-limit.test.ts`):** Verify 429 response emission when request quota is exceeded.
 
 ## Acceptance
 
 Deterministic:
+- `npm test` passes rate-limiting tests.
 - Full 8-command baseline passes.
-- `RELEASES.md` contains v0.4.0 contract.
