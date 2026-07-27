@@ -36,7 +36,7 @@ discovery remains readiness-gated.
 Run from your home directory (`~`):
 
 ```bash
-cd ~ && export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] && (cd local-ai-relay && git pull origin main) || git clone https://github.com/Nan0pk/local-ai-relay.git && cd local-ai-relay) && npm ci && npm run dev
+cd ~ && export PATH=$HOME/.local/node/bin:$PATH && { if [ -d "local-ai-relay" ]; then cd local-ai-relay && git pull origin main; else git clone https://github.com/Nan0pk/local-ai-relay.git && cd local-ai-relay; fi; } && npm ci && npm run dev
 ```
 
 ### Step-by-Step Setup
