@@ -1,13 +1,13 @@
-# Current task: U2-03 — Publish v0.3.0 release preparation & documentation reconciliation
+# Current task: U3-01 — Multi-provider expansion (Gemini & DeepSeek adapters)
 
 **Status:** Open  
-**Priority:** reconcile v0.3.0 release documentation & release contract  
-**Estimate:** 0.5 engineering days  
+**Priority:** verify Gemini and DeepSeek browser adapters and registration  
+**Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Reconcile release documentation in `RELEASES.md` for v0.3.0 Web Arena & Model Router release contract, verify SPDX SBOM Patchright provenance attestation, and run baseline validation.
+Verify Gemini (`browser-gemini-free`) and DeepSeek (`browser-deepseek-free`) browser provider adapters, nonced tool schema handling, and capability registration.
 
 ## Baseline
 
@@ -26,11 +26,11 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **v0.3.0 Release Notes (`RELEASES.md`):** Update `RELEASES.md` with v0.3.0 release notes documenting Web Arena adapter (`browser-arena-free`), pairwise prompt evaluation harness (`src/eval/arena-eval.ts`), heuristic model router (`src/router/model-router.ts`), and alias routing (`auto`, `fast`, `smart`).
-2. **Release Asset Validation:** Ensure `node scripts/validate-release.mjs` executes cleanly.
+1. **Gemini & DeepSeek Adapters:** Verify `GeminiBrowserProvider` (`src/providers/gemini-browser.ts`) and `DeepSeekBrowserProvider` (`src/providers/deepseek-browser.ts`).
+2. **Capability Registration:** Ensure capability tracker handles `browser-gemini` and `browser-deepseek`.
 
 ## Acceptance
 
 Deterministic:
+- `npm test` passes all provider tests.
 - Full 8-command baseline passes.
-- `RELEASES.md` contains v0.3.0 contract.
