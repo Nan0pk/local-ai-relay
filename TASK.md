@@ -1,13 +1,13 @@
-# Current task: U3-01 — Multi-provider expansion (Gemini & DeepSeek adapters)
+# Current task: U3-02 — Secondary provider pool verification
 
 **Status:** Open  
-**Priority:** verify Gemini and DeepSeek browser adapters and registration  
+**Priority:** verify secondary provider pool (Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, Meta)  
 **Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Verify Gemini (`browser-gemini-free`) and DeepSeek (`browser-deepseek-free`) browser provider adapters, nonced tool schema handling, and capability registration.
+Verify all 7 secondary browser provider adapters (Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, Meta), nonced tool schema envelope translation, and capability tracker registration.
 
 ## Baseline
 
@@ -26,11 +26,11 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Gemini & DeepSeek Adapters:** Verify `GeminiBrowserProvider` (`src/providers/gemini-browser.ts`) and `DeepSeekBrowserProvider` (`src/providers/deepseek-browser.ts`).
-2. **Capability Registration:** Ensure capability tracker handles `browser-gemini` and `browser-deepseek`.
+1. **Secondary Providers Matrix:** Verify `MinimaxBrowserProvider`, `QwenBrowserProvider`, `ZaiBrowserProvider`, `GrokBrowserProvider`, `KimiBrowserProvider`, `MistralBrowserProvider`, and `MetaBrowserProvider`.
+2. **Capability Registration:** Ensure capability tracker handles all 7 secondary providers cleanly.
 
 ## Acceptance
 
 Deterministic:
-- `npm test` passes all provider tests.
+- `npm test` passes all 286+ unit tests across the provider matrix.
 - Full 8-command baseline passes.
