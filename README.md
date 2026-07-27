@@ -30,9 +30,17 @@ discovery remains readiness-gated.
 
 Requirements: Node.js 22+, Git, and Chrome/Chromium for browser providers.
 
+One-line setup (idempotent; works even if directory exists or `npm` is in `$HOME/.local/node/bin`):
+
 ```bash
-git clone https://github.com/Nan0pk/local-ai-relay.git
-cd local-ai-relay
+export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] || git clone https://github.com/Nan0pk/local-ai-relay.git) && cd local-ai-relay && npm ci && npm run dev
+```
+
+Or step-by-step:
+
+```bash
+export PATH=$HOME/.local/node/bin:$PATH  # Ensure Node 22 is in PATH if installed locally
+cd local-ai-relay                        # Enter folder (or git clone https://github.com/Nan0pk/local-ai-relay.git)
 npm ci
 npm run dev
 ```

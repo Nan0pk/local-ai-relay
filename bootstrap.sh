@@ -11,6 +11,16 @@ INSTALL_ROOT="${RELAY_INSTALL_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/local-a
 RELEASE_BASE_URL="${RELAY_RELEASE_BASE_URL:-https://github.com/$REPOSITORY/releases/download}"
 SERVICE_UNIT="$HOME/.config/systemd/user/local-ai-relay.service"
 
+# Auto-detect local Node/npm installation if not in current PATH
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+  for candidate in "$HOME/.local/node/bin" "$HOME/.local/bin" "/usr/local/bin"; do
+    if [[ -x "$candidate/node" && -x "$candidate/npm" ]]; then
+      export PATH="$candidate:$PATH"
+      break
+    fi
+  done
+fi
+
 usage() {
   echo 'Usage: bootstrap.sh --version vX.Y.Z [--no-browser] | --rollback' >&2
   exit 2
