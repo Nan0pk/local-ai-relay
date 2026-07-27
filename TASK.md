@@ -1,15 +1,14 @@
-# Current task: Phase U8 — Containerization & Secure Tunneling Infrastructure (v0.8.0)
+# Current task: Phase U9 — OpenAPI 3.1 Specification & SDK Compatibility (v0.9.0)
 
 **Status:** In Progress  
-**Priority:** Implement production Docker containerization and Compose orchestration  
+**Priority:** Generate OpenAPI 3.1 specification and verify multi-client SDK compatibility  
 **Estimate:** 1 engineering day  
-**Deliverable:** `Dockerfile`, `docker-compose.yml`, `.dockerignore`, and baseline verification on `main`
+**Deliverable:** `src/routes/openapi.ts`, `docs/openapi.json`, and compatibility test suite on `main`
 
 ## Goal
 
-1. **Production Dockerfile (`Dockerfile`):** Multi-stage Node 22 container image exposing port 8787 with non-root user security context.
-2. **Docker Compose Orchestration (`docker-compose.yml`):** Compose configuration with persistent volume mounts for `.local-ai-relay` tokens and browser profile evidence.
-3. **Docker Ignore (`.dockerignore`):** Exclude node_modules, build artifacts, and local diagnostics.
+1. **OpenAPI 3.1 Specification Generator (`src/routes/openapi.ts`):** Generate valid OpenAPI 3.1 schema documenting loopback API contracts (`/health`, `/v1/models`, `/v1/responses`, `/v1/chat/completions`).
+2. **OpenAPI Test Suite (`src/routes/openapi.test.ts`):** Verify OpenAPI document generation and schema compliance.
 
 ## Baseline
 
@@ -28,12 +27,12 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. Create `Dockerfile`, `docker-compose.yml`, `.dockerignore`.
+1. Create `src/routes/openapi.ts` and `src/routes/openapi.test.ts`.
 2. Run full 8-command baseline test suite.
 
 ## Acceptance
 
 Deterministic:
 - `npm run typecheck` passes with 0 errors.
-- `npm test` passes all 289+ unit tests.
+- All unit and delivery tests pass.
 - Full 8-command baseline passes 100%.
