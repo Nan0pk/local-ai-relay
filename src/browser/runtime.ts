@@ -1,4 +1,8 @@
 import type { BrowserContext } from 'patchright';
+import { spawn } from 'node:child_process';
+import { access, mkdir } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { join } from 'node:path';
 import { browserBinariesDir, findSystemBrowser } from './paths.js';
 
 interface PersistentContextOptions {
@@ -31,6 +35,28 @@ export function browserLaunchTarget(
   return {};
 }
 
+export async function ensureBrowserInstalled(): Promise<void> {
+  const discoveredExecutable = await findSystemBrowser();
+  if (discoveredExecutable || process.env.RELAY_BROWSER_EXECUTABLE) return;
+  const destination = browserBinariesDir();
+  process.env.PLAYWRIGHT_BROWSERS_PATH ??= destination;
+  const { chromium } = await import('patchright');
+  try {
+    await access(chromium.executablePath(), constants.X_OK);
+  } catch {
+    console.log(`[local-ai-relay] System browser not found. Auto-installing Chromium into ${destination}...`);
+    await mkdir(destination, { recursive: true });
+    const cli = join(process.cwd(), 'node_modules', 'patchright', 'cli.js');
+    const child = spawn(process.execPath, [cli, 'install', 'chromium'], {
+      stdio: 'inherit',
+      env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: destination },
+    });
+    await new Promise<number>((resolve) => {
+      child.once('exit', (code) => resolve(code ?? 0));
+    });
+  }
+}
+
 export async function launchPersistentRelayContext(
   userDataDir: string,
   options: PersistentContextOptions,
@@ -39,6 +65,7 @@ export async function launchPersistentRelayContext(
     const { MockBrowserContext } = await import('./mock-browser.js');
     return new MockBrowserContext() as unknown as BrowserContext;
   }
+  await ensureBrowserInstalled();
   const explicitExecutable = process.env.RELAY_BROWSER_EXECUTABLE;
   const discoveredExecutable = await findSystemBrowser();
   if (!discoveredExecutable) {
