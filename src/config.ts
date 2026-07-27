@@ -31,6 +31,11 @@ export function isLoopback(host: string): boolean {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  try {
+    process.loadEnvFile?.();
+  } catch {
+    // Ignore missing .env file
+  }
   const host = env.HOST ?? '127.0.0.1';
   if (!isLoopback(host)) {
     if (env.RELAY_UNSAFE_BIND_ACK !== '1') {

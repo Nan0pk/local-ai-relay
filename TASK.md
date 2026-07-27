@@ -1,13 +1,14 @@
-# Current task: U4-02 — Final release verification v0.5.0 General Availability (GA)
+# Current task: Phase U9 — OpenAPI 3.1 Specification & SDK Compatibility (v0.9.0)
 
-**Status:** Completed  
-**Priority:** publish final v0.5.0 General Availability release contract  
-**Estimate:** 0.5 engineering days  
-**Deliverable:** one draft pull request against `main`; do not merge
+**Status:** In Progress  
+**Priority:** Generate OpenAPI 3.1 specification and verify multi-client SDK compatibility  
+**Estimate:** 1 engineering day  
+**Deliverable:** `src/routes/openapi.ts`, `docs/openapi.json`, and compatibility test suite on `main`
 
 ## Goal
 
-Final release verification for v0.5.0 General Availability (GA) release contract, reconciling full release documentation in `RELEASES.md`, verifying SPDX SBOM Patchright provenance attestation, and running 100% baseline verification.
+1. **OpenAPI 3.1 Specification Generator (`src/routes/openapi.ts`):** Generate valid OpenAPI 3.1 schema documenting loopback API contracts (`/health`, `/v1/models`, `/v1/responses`, `/v1/chat/completions`).
+2. **OpenAPI Test Suite (`src/routes/openapi.test.ts`):** Verify OpenAPI document generation and schema compliance.
 
 ## Baseline
 
@@ -26,11 +27,12 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **v0.5.0 GA Release Notes (`RELEASES.md`):** Update `RELEASES.md` with final v0.5.0 GA release notes.
-2. **Release Asset Validation:** Ensure `node scripts/validate-release.mjs` executes cleanly for all 8 release assets.
+1. Create `src/routes/openapi.ts` and `src/routes/openapi.test.ts`.
+2. Run full 8-command baseline test suite.
 
 ## Acceptance
 
 Deterministic:
+- `npm run typecheck` passes with 0 errors.
+- All unit and delivery tests pass.
 - Full 8-command baseline passes 100%.
-- `RELEASES.md` contains v0.5.0 GA contract.
