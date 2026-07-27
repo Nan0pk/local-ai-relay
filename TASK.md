@@ -1,13 +1,13 @@
-# Current task: U3-02 — Secondary provider pool verification
+# Current task: U4-01 — Production rate limiting & health monitoring
 
 **Status:** Open  
-**Priority:** verify secondary provider pool (Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, Meta)  
+**Priority:** add rate-limiting middleware and health monitoring endpoints  
 **Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Verify all 7 secondary browser provider adapters (Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, Meta), nonced tool schema envelope translation, and capability tracker registration.
+Implement sliding-window rate-limiting middleware (`src/middleware/rate-limit.ts`) and enhanced health monitoring diagnostics.
 
 ## Baseline
 
@@ -26,11 +26,11 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Secondary Providers Matrix:** Verify `MinimaxBrowserProvider`, `QwenBrowserProvider`, `ZaiBrowserProvider`, `GrokBrowserProvider`, `KimiBrowserProvider`, `MistralBrowserProvider`, and `MetaBrowserProvider`.
-2. **Capability Registration:** Ensure capability tracker handles all 7 secondary providers cleanly.
+1. **Rate-Limiting Middleware (`src/middleware/rate-limit.ts`):** Implement in-memory sliding window rate limiter configurable via environment variables (`RELAY_MAX_REQUESTS_PER_MINUTE`).
+2. **Unit Tests (`src/middleware/rate-limit.test.ts`):** Verify 429 response emission when request quota is exceeded.
 
 ## Acceptance
 
 Deterministic:
-- `npm test` passes all 286+ unit tests across the provider matrix.
+- `npm test` passes rate-limiting tests.
 - Full 8-command baseline passes.
