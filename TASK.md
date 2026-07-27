@@ -1,13 +1,13 @@
-# Current task: U0-03 — Cross-platform dogfood & deterministic fault-injection harness
+# Current task: U0-04 — Publish v0.1.0 release preparation & wording reconciliation
 
 **Status:** Open  
-**Priority:** validate classification resilience before v0.1.0 publication  
-**Estimate:** 0.5–1 engineering days  
+**Priority:** prepare v0.1.0 personal alpha release contract  
+**Estimate:** 0.5 engineering days  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Build the deterministic local fault-injection harness for challenge/quota/network-cut DOM states and generate the aggregate sanitized dogfood evidence report.
+Reconcile release documentation, verify SBOM Patchright provenance attestation, enforce protected tag & protected release environment requirements, and update release notes for v0.1.0 personal alpha publication.
 
 ## Baseline
 
@@ -26,12 +26,11 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Fault Injection Harness (`src/cli/fault-injection.ts`):** Create local fixture server/harness simulating challenge (Cloudflare turnstile), quota (rate limit UI), logged-out, and network-cut DOM states.
-2. **Classification Verification:** Verify typed `BrowserFailure` taxonomy correctly handles each injected fault path without unhandled rejections or silent fallbacks.
-3. **Sanitized Dogfood Report (`docs/e2e/dogfood-report.md`):** Commit aggregate sanitized evidence report tracking classification correctness ($\ge 95\%$) and user availability metrics.
+1. **Release Notes Wording (`RELEASES.md`):** Reconcile v0.1.0 release notes to include mandatory maintainer-attested release wording.
+2. **Release Validation Verification:** Ensure `node scripts/validate-release.mjs` verifies all 8 release assets.
 
 ## Acceptance
 
 Deterministic:
-- `npm test` passes all fault-injection harness test cases.
 - Full 8-command baseline passes cleanly.
+- `RELEASES.md` contains exact release wording.
