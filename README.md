@@ -11,6 +11,10 @@ loopback API and routes model IDs to local mock or browser-backed providers.
 - `GET /v1/models?include=all` — complete registered model inventory and status.
 - `GET /v1/providers/status` — provider readiness diagnostics.
 - One command populates every registered model in Hermes and OpenCode.
+- SQLite WAL-mode Idempotency Ledger tracking generation requests across restarts.
+- Provider Control Plane CLI (`status`, `disable`, `enable`, `clear-evidence`) & global kill switch (`RELAY_BROWSER_KILL_SWITCH=1`).
+- Heuristic Model Router (`src/router/model-router.ts`) supporting `auto`, `fast`, `smart` model alias fallback chains.
+- Manifest V3 Web Extension Sidecar (`extension/`) for native browser loopback integration.
 - Separate persistent browser profiles, serialized requests, sticky sessions,
   tool-call translation, bearer auth, CORS checks, and redacted logs.
 
@@ -151,9 +155,14 @@ src/routes/         health, models, Chat Completions, Responses
 src/providers/      model registry and provider adapters
 src/browser/        Patchright browser drivers and profiles
 src/capabilities/   runtime readiness tracking
+src/ledger/         SQLite WAL-mode idempotency transaction ledger
+src/router/         heuristic model router and alias fallback chain
+src/middleware/     sliding window rate limiting middleware
+src/eval/           pairwise prompt evaluation harness
 src/hermes/         Hermes config merge
 src/opencode/       OpenCode config merge
-src/cli/            login, probe, service, harness commands
+src/cli/            login, probe, service, provider control, harness commands
+extension/          Manifest V3 web extension sidecar
 scripts/            release and probe tooling
 docs/               architecture, provider evidence, plans, ADRs
 ```
