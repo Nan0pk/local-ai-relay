@@ -1,13 +1,13 @@
-# Current task: U4-01 — Production rate limiting & health monitoring
+# Current task: U4-02 — Final release verification v0.5.0 General Availability (GA)
 
-**Status:** Open  
-**Priority:** add rate-limiting middleware and health monitoring endpoints  
-**Estimate:** 1 engineering day  
+**Status:** Completed  
+**Priority:** publish final v0.5.0 General Availability release contract  
+**Estimate:** 0.5 engineering days  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Implement sliding-window rate-limiting middleware (`src/middleware/rate-limit.ts`) and enhanced health monitoring diagnostics.
+Final release verification for v0.5.0 General Availability (GA) release contract, reconciling full release documentation in `RELEASES.md`, verifying SPDX SBOM Patchright provenance attestation, and running 100% baseline verification.
 
 ## Baseline
 
@@ -26,11 +26,11 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Rate-Limiting Middleware (`src/middleware/rate-limit.ts`):** Implement in-memory sliding window rate limiter configurable via environment variables (`RELAY_MAX_REQUESTS_PER_MINUTE`).
-2. **Unit Tests (`src/middleware/rate-limit.test.ts`):** Verify 429 response emission when request quota is exceeded.
+1. **v0.5.0 GA Release Notes (`RELEASES.md`):** Update `RELEASES.md` with final v0.5.0 GA release notes.
+2. **Release Asset Validation:** Ensure `node scripts/validate-release.mjs` executes cleanly for all 8 release assets.
 
 ## Acceptance
 
 Deterministic:
-- `npm test` passes rate-limiting tests.
-- Full 8-command baseline passes.
+- Full 8-command baseline passes 100%.
+- `RELEASES.md` contains v0.5.0 GA contract.
