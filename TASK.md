@@ -1,13 +1,13 @@
-# Current task: U0-04 — Publish v0.1.0 release preparation & wording reconciliation
+# Current task: U1-01 — Complete evidence lifecycle & provider control plane
 
 **Status:** Open  
-**Priority:** prepare v0.1.0 personal alpha release contract  
-**Estimate:** 0.5 engineering days  
+**Priority:** complete evidence expiration matrix, provider CLI verbs, and security gates  
+**Estimate:** 1 engineering day  
 **Deliverable:** one draft pull request against `main`; do not merge
 
 ## Goal
 
-Reconcile release documentation, verify SBOM Patchright provenance attestation, enforce protected tag & protected release environment requirements, and update release notes for v0.1.0 personal alpha publication.
+Implement the evidence lifecycle invalidation matrix, CLI control verbs (`status`, `reprobe`, `disable`, `enable`, `clear-evidence`), global provider kill switch, and CI secret scanning/audit gates.
 
 ## Baseline
 
@@ -26,11 +26,13 @@ node scripts/validate-release.mjs
 
 ## Required Work
 
-1. **Release Notes Wording (`RELEASES.md`):** Reconcile v0.1.0 release notes to include mandatory maintainer-attested release wording.
-2. **Release Validation Verification:** Ensure `node scripts/validate-release.mjs` verifies all 8 release assets.
+1. **Evidence Expiration & Invalidation Matrix:** Handle automatic invalidation on adapter, model, browser, transport, or relay configuration changes.
+2. **Provider Control CLI Verbs:** Implement `status`, `reprobe`, `disable`, `enable`, and `clear-evidence` CLI subcommands in `src/cli/provider-control.ts`.
+3. **Global Kill Switch:** Add global browser-provider kill switch (`RELAY_BROWSER_KILL_SWITCH=1`) and stable `provider_not_ready` error taxonomy.
+4. **CI Security Baseline:** Integrate gitleaks secret scanning and npm audit gate in `.github/workflows/ci.yml`.
 
 ## Acceptance
 
 Deterministic:
-- Full 8-command baseline passes cleanly.
-- `RELEASES.md` contains exact release wording.
+- Full 8-command baseline passes.
+- Unit tests verify CLI control verbs, kill switch, and invalidation rules.
