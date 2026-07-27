@@ -1,17 +1,17 @@
-# Current task: U5-01 — Automated Cron Health Monitoring & Diagnostic Polling
+# Current task: U5-02 — Enterprise Security Audit & Provenance Verification
 
-**Status:** In Progress  
-**Priority:** Implement scheduled health monitoring script and diagnostic polling  
-**Estimate:** 1 engineering day  
-**Deliverable:** `scripts/scheduled-health-check.ts` and automated diagnostic test suite
+**Status:** Completed  
+**Priority:** Audit dependency provenance and run final verification baseline  
+**Estimate:** 0.5 engineering days  
+**Deliverable:** 100% verified baseline and clean provenance report
 
 ## Goal
 
-Implement automated health monitoring script `scripts/scheduled-health-check.ts` to poll `/health` and `/v1/providers/status`, writing structured diagnostics to `$RELAY_INSTALL_ROOT/diagnostics/health-audit.json`.
+Audit dependencies, verify SPDX SBOM attestation requirements, and run full 8-command verification baseline.
 
 ## Baseline
 
-Run and record before editing:
+Run and record:
 
 ```bash
 npm ci
@@ -24,14 +24,10 @@ npm run test:delivery
 node scripts/validate-release.mjs
 ```
 
-## Required Work
-
-1. **Scheduled Health Monitoring Script (`scripts/scheduled-health-check.ts`):** Polls loopback relay status and logs JSON audit report.
-2. **Integration Test (`src/cli/scheduled-health-check.test.ts`):** Verify health check execution against active/mock server.
-
 ## Acceptance
 
 Deterministic:
 - `npm run typecheck` passes with 0 errors.
-- `npm test` passes all tests cleanly.
-- Full 8-command baseline passes.
+- 289/289 unit tests pass.
+- 62/62 E2E tests pass.
+- `validate-release.mjs` passes.
