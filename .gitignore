@@ -148,6 +148,7 @@ dist/
 build/
 .relay-browser/
 diagnostics/
+local-ai-relay/
 
 # Secrets — never commit credentials, tokens, or keys.
 .env
