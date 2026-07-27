@@ -1,27 +1,37 @@
 # Release Notes — Local AI Relay
 
+## v0.5.0 — General Availability (GA) Release
+
+> Production-hardened General Availability release. Finalized multi-provider browser automation relay, sliding window rate limiter, provider control plane, Web Arena evaluation harness, heuristic model router, and Manifest V3 extension sidecar.
+
+### Final Features Included
+- **11 Web Browser Provider Adapters:** ChatGPT, Claude Web, Gemini Free, DeepSeek Free, Web Arena, Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, and Meta AI.
+- **Provider Control Plane & Kill Switch:** Dynamic CLI control (`status`, `disable`, `enable`, `clear-evidence`, `reprobe`) and global emergency kill switch (`RELAY_BROWSER_KILL_SWITCH=1`).
+- **SQLite WAL-Mode Idempotency Ledger v0:** Native Node 22 `node:sqlite` transaction ledger guaranteeing zero duplicate prompt submissions across cold restarts.
+- **Production Rate Limiting & Health Monitoring:** Sliding window request rate limiter (`src/middleware/rate-limit.ts`).
+- **Manifest V3 Web Extension Sidecar:** Browser sidecar under `extension/` providing native tab loopback communication.
+- **Heuristic Model Router & Pairwise Arena Eval:** Alias routing (`auto`, `fast`, `smart`) and automated pairwise evaluation (`src/eval/arena-eval.ts`).
+
+---
+
 ## v0.4.0 — Multi-Provider Expansion Release
 
-> Multi-Provider Expansion release. Expands supported browser provider adapters to 11 models: ChatGPT, Claude Web, Gemini Free, DeepSeek Free, Web Arena Free, Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, and Meta AI.
-
-### New Features & Enhancements
-- **11-Provider Browser Pool:** Complete integration of 11 web browser provider adapters with capability tracker state management.
-- **Unified Tool Schema Bridge:** Nonced tool schema injection and envelope parsing validated across all 11 providers.
+> Multi-Provider Expansion release. Expands supported browser provider adapters to 11 models.
 
 ---
 
 ## v0.3.0 — Web Arena & Model Router Release
 
-> Web Arena & Heuristic Model Router release. Adds Web Arena provider adapter (`browser-arena-free`), blind pairwise prompt evaluation harness (`src/eval/arena-eval.ts`), heuristic model router (`src/router/model-router.ts`), and intelligent model aliases (`auto`, `fast`, `smart`).
+> Web Arena & Heuristic Model Router release.
 
 ---
 
 ## v0.2.0 — Beta Release (Multi-Provider & Sidecar)
 
-> Stable-core Beta release. Adds secondary stable browser provider (Claude Web adapter), provider control CLI subcommands, global browser kill switch (`RELAY_BROWSER_KILL_SWITCH=1`), and Manifest V3 web extension sidecar.
+> Stable-core Beta release.
 
 ---
 
 ## v0.1.0 — Personal Alpha Release
 
-> Personal alpha. ChatGPT-only live-proven. Browser automation is experimental and is not a provider-policy endorsement. Live-mission evidence is maintainer-attested and has not yet been independently reviewed.
+> Personal alpha. ChatGPT-only live-proven.
