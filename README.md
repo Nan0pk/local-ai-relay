@@ -32,11 +32,11 @@ discovery remains readiness-gated.
 - **Node.js 22+**, Git, and Chrome/Chromium for browser providers.
 - **Node PATH Note**: If Node 22 is installed locally under `$HOME/.local/node/bin`, ensure your active PATH includes it: `export PATH=$HOME/.local/node/bin:$PATH`.
 
-### One-Line Setup (Fail-Safe & Idempotent)
+### One-Line Setup (Fail-Safe, Auto-Updating & Idempotent)
 Run from your home directory (`~`):
 
 ```bash
-cd ~ && export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] || git clone https://github.com/Nan0pk/local-ai-relay.git) && cd local-ai-relay && npm ci && npm run dev
+cd ~ && export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] && (cd local-ai-relay && git pull origin main) || git clone https://github.com/Nan0pk/local-ai-relay.git && cd local-ai-relay) && npm ci && npm run dev
 ```
 
 ### Step-by-Step Setup
@@ -50,14 +50,20 @@ export PATH=$HOME/.local/node/bin:$PATH && ([ -d "local-ai-relay" ] || git clone
 Or step-by-step:
 
 ```bash
-# 1. Ensure working directory is user home to avoid Root (/) permission errors
+# 1. Ensure working directory is user home
 cd ~
 
 # 2. Add Node 22 to PATH if installed locally
 export PATH=$HOME/.local/node/bin:$PATH
 
-# 3. Clone repository (or enter existing directory)
-[ -d "local-ai-relay" ] && cd local-ai-relay || (git clone https://github.com/Nan0pk/local-ai-relay.git && cd local-ai-relay)
+# 3. Pull latest code if directory exists, or clone fresh if missing
+if [ -d "local-ai-relay" ]; then
+  cd local-ai-relay
+  git pull origin main
+else
+  git clone https://github.com/Nan0pk/local-ai-relay.git
+  cd local-ai-relay
+fi
 
 # 4. Install dependencies & start dev server
 npm ci
