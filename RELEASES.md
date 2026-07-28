@@ -1,37 +1,26 @@
-# Release Notes — Local AI Relay
+# Release status — Local AI Relay
 
-## v0.5.0 — General Availability (GA) Release
+No stable tagged release is currently published or advertised by the
+repository. Package, health, OpenAPI, extension, and release-validation
+metadata use version `0.1.0`.
 
-> Production-hardened General Availability release. Finalized multi-provider browser automation relay, sliding window rate limiter, provider control plane, Web Arena evaluation harness, heuristic model router, and Manifest V3 extension sidecar.
+The source checkout contains work originally labeled in commit messages as
+phases `v0.2.0` through `v0.9.0`. Those labels are development milestones, not
+proof that matching artifacts were released, that every feature is integrated,
+or that browser providers are live-ready.
 
-### Final Features Included
-- **11 Web Browser Provider Adapters:** ChatGPT, Claude Web, Gemini Free, DeepSeek Free, Web Arena, Minimax, Qwen, Z.ai, Grok, Kimi, Mistral, and Meta AI.
-- **Provider Control Plane & Kill Switch:** Dynamic CLI control (`status`, `disable`, `enable`, `clear-evidence`, `reprobe`) and global emergency kill switch (`RELAY_BROWSER_KILL_SWITCH=1`).
-- **SQLite WAL-Mode Idempotency Ledger v0:** Native Node 22 `node:sqlite` transaction ledger guaranteeing zero duplicate prompt submissions across cold restarts.
-- **Production Rate Limiting & Health Monitoring:** Sliding window request rate limiter (`src/middleware/rate-limit.ts`).
-- **Manifest V3 Web Extension Sidecar:** Browser sidecar under `extension/` providing native tab loopback communication.
-- **Heuristic Model Router & Pairwise Arena Eval:** Alias routing (`auto`, `fast`, `smart`) and automated pairwise evaluation (`src/eval/arena-eval.ts`).
+## Candidate `v0.1.0`
 
----
+The candidate contains:
 
-## v0.4.0 — Multi-Provider Expansion Release
+- authenticated loopback Chat Completions and Responses APIs;
+- deterministic mock models and readiness-gated browser adapters;
+- Patchright login/probe commands and isolated profiles;
+- Hermes and OpenCode configuration merge commands;
+- bounded MCP list/status/delegate tools;
+- an embedded operator dashboard and generated OpenAPI 3.1 document;
+- authenticated, version-pinned bootstrap and release asset validation.
 
-> Multi-Provider Expansion release. Expands supported browser provider adapters to 11 models.
-
----
-
-## v0.3.0 — Web Arena & Model Router Release
-
-> Web Arena & Heuristic Model Router release.
-
----
-
-## v0.2.0 — Beta Release (Multi-Provider & Sidecar)
-
-> Stable-core Beta release.
-
----
-
-## v0.1.0 — Personal Alpha Release
-
-> Personal alpha. ChatGPT-only live-proven.
+Before publishing a tag, both CI operating-system jobs must pass at the tagged
+commit and the maintainer must record current authenticated evidence for every
+browser provider claimed as ready.

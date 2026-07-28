@@ -8,6 +8,7 @@ export function parseProvider(argv: string[]): string {
 }
 
 async function main(): Promise<void> {
+  try { process.loadEnvFile?.(); } catch { /* optional .env */ }
   const descriptor = findBrowserProvider(parseProvider(process.argv.slice(2)));
   const driver = descriptor.factory();
   console.log(`Opening the dedicated ${descriptor.label} relay profile.`);
@@ -36,4 +37,3 @@ if (isMain) {
     process.exit(1);
   });
 }
-

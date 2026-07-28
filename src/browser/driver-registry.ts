@@ -21,60 +21,59 @@ export interface BrowserProviderDescriptor {
 
 const CHATGPT: BrowserProviderDescriptor = {
   name: 'chatgpt', label: 'ChatGPT', url: 'https://chatgpt.com/',
-  factory: (opts) => new ChatGptPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new ChatGptPlaywrightDriver(opts),
 };
 const CLAUDE: BrowserProviderDescriptor = {
   name: 'claude', label: 'Claude', url: 'https://claude.ai/',
-  factory: (opts) => new ClaudePlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new ClaudePlaywrightDriver(opts),
 };
 const GEMINI: BrowserProviderDescriptor = {
   name: 'gemini', label: 'Gemini', url: 'https://gemini.google.com/app',
-  factory: (opts) => new GeminiPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new GeminiPlaywrightDriver(opts),
 };
 const DEEPSEEK: BrowserProviderDescriptor = {
   name: 'deepseek', label: 'DeepSeek', url: 'https://chat.deepseek.com/',
-  factory: (opts) => new DeepSeekPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new DeepSeekPlaywrightDriver(opts),
 };
 const ZAI: BrowserProviderDescriptor = {
   name: 'zai', label: 'Z.ai', url: 'https://chat.z.ai/',
-  factory: (opts) => new ZaiPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new ZaiPlaywrightDriver(opts),
 };
 const MINIMAX: BrowserProviderDescriptor = {
   name: 'minimax', label: 'MiniMax Agent', url: 'https://agent.minimax.io/',
-  factory: (opts) => new MinimaxPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new MinimaxPlaywrightDriver(opts),
 };
 const KIMI: BrowserProviderDescriptor = {
   name: 'kimi', label: 'Kimi', url: 'https://kimi.com/',
-  factory: (opts) => new KimiPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new KimiPlaywrightDriver(opts),
 };
 const QWEN: BrowserProviderDescriptor = {
   name: 'qwen', label: 'Qwen Chat', url: 'https://chat.qwen.ai/',
-  factory: (opts) => new QwenPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new QwenPlaywrightDriver(opts),
 };
 const GROK: BrowserProviderDescriptor = {
   name: 'grok', label: 'Grok', url: 'https://grok.com/',
-  factory: (opts) => new GrokPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new GrokPlaywrightDriver(opts),
 };
 const MISTRAL: BrowserProviderDescriptor = {
   name: 'mistral', label: 'Mistral Le Chat', url: 'https://chat.mistral.ai/',
-  factory: (opts) => new MistralPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new MistralPlaywrightDriver(opts),
 };
 const ARENA: BrowserProviderDescriptor = {
   name: 'arena', label: 'LMSYS Chatbot Arena', url: 'https://chat.lmsys.org/',
-  factory: (opts) => new ArenaPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new ArenaPlaywrightDriver(opts),
 };
 const META: BrowserProviderDescriptor = {
   name: 'meta', label: 'Meta AI', url: 'https://www.meta.ai/',
-  factory: (opts) => new MetaPlaywrightDriver({ headless: false, ...opts }),
+  factory: (opts) => new MetaPlaywrightDriver(opts),
 };
 
 /**
  * Known browser drivers for the login and probe CLIs.
  *
- * Adding a driver here does NOT register it in `/v1/models` or Hermes. It
- * only makes the `--provider` flag work for `npm run login:<name>` and
- * `npm run probe:<name>`. A provider enters `/v1/models` only after
- * `registry.ts` lists it, which only happens after live E2E passes.
+ * Adding a driver here does NOT register it in the model inventory. It only
+ * makes the `--provider` flag work for login and probe commands. The provider
+ * registry owns inventory; current evidence controls default discovery.
  */
 const PROVIDERS: readonly BrowserProviderDescriptor[] = [
   CHATGPT, CLAUDE, GEMINI, DEEPSEEK, ZAI, MINIMAX, KIMI, QWEN, GROK, MISTRAL, META, ARENA,

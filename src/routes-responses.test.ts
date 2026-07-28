@@ -68,3 +68,30 @@ test('Responses API rejects media instead of silently dropping it', async () => 
     delete process.env.RELAY_API_TOKEN;
   }
 });
+
+test('Responses API rejects malformed runtime types with a 400', async () => {
+  process.env.RELAY_API_TOKEN = token;
+  const app = buildApp({ host: '127.0.0.1', port: 8787, logLevel: 'silent', defaultModel: 'mock-gpt-4o-mini' });
+  try {
+    for (const payload of [
+      { model: 42, input: 'hello' },
+      { model: 'mock-gpt-4o-mini', input: 42 },
+      { model: 'mock-gpt-4o-mini', input: [null] },
+      { model: 'mock-gpt-4o-mini', input: 'hello', tools: [{}] },
+      { model: 'mock-gpt-4o-mini', input: 'hello', max_output_tokens: 1.5 },
+      { model: 'mock-gpt-4o-mini', input: 'hello', stream: 'yes' },
+    ]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/responses',
+        headers,
+        payload,
+      });
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.json().error.type, 'invalid_request_error');
+    }
+  } finally {
+    await app.close();
+    delete process.env.RELAY_API_TOKEN;
+  }
+});

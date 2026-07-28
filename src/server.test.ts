@@ -77,3 +77,27 @@ test('streaming chat completions use OpenAI-compatible SSE', async () => {
     await app.close();
   }
 });
+
+test('chat completions reject malformed runtime types with a 400', async () => {
+  const app = buildApp({ host: '127.0.0.1', port: 0, logLevel: 'silent', defaultModel: 'mock-gpt-4o-mini' });
+  try {
+    for (const payload of [
+      { model: 42, messages: [{ role: 'user', content: 'hello' }] },
+      { model: 'mock-gpt-4o-mini', messages: [null] },
+      { model: 'mock-gpt-4o-mini', messages: [{ role: 'intruder', content: 'hello' }] },
+      { model: 'mock-gpt-4o-mini', messages: [{ role: 'user', content: 'hello' }], tools: [{}] },
+      { model: 'mock-gpt-4o-mini', messages: [{ role: 'user', content: 'hello' }], stream: 'yes' },
+    ]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/chat/completions',
+        headers: { authorization: 'Bearer test-token' },
+        payload,
+      });
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.json().error.type, 'invalid_request_error');
+    }
+  } finally {
+    await app.close();
+  }
+});

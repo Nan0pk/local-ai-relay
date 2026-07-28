@@ -1,11 +1,29 @@
-export function createDaemonClient(baseUrl: string, token: string) {
+import { normalizeLoopbackBaseUrl } from '../utils/loopback-url.js';
+
+type FetchImplementation = typeof fetch;
+
+interface ProviderStatusResponse {
+  object: 'list';
+  data: Array<{ provider_id: string } & Record<string, unknown>>;
+}
+
+export function createDaemonClient(
+  baseUrl: string,
+  token: string,
+  fetchImplementation: FetchImplementation = fetch,
+) {
+  const normalizedBaseUrl = normalizeLoopbackBaseUrl(baseUrl);
   const headers = {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   };
 
   const fetchJson = async (path: string, options?: RequestInit) => {
-    const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
+    const res = await fetchImplementation(`${normalizedBaseUrl}${path}`, {
+      ...options,
+      headers,
+      redirect: 'error',
+    });
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Daemon API error (${res.status}): ${text}`);
@@ -17,8 +35,13 @@ export function createDaemonClient(baseUrl: string, token: string) {
     listModels: (includeUnready?: boolean) =>
       fetchJson(`/v1/models${includeUnready ? '?include=all' : ''}`),
 
-    getProviderStatus: (providerId?: string) =>
-      fetchJson(`/api/providers/${providerId || ''}`),
+    getProviderStatus: async (providerId?: string) => {
+      const result = await fetchJson('/v1/providers/status') as ProviderStatusResponse;
+      if (!providerId) return result;
+      const record = result.data.find((item) => item.provider_id === providerId);
+      if (!record) throw new Error(`Unknown provider: ${providerId}`);
+      return record;
+    },
 
     delegateRequest: (model: string, input: string, tools?: unknown[]) =>
       fetchJson('/v1/responses', {
@@ -26,17 +49,6 @@ export function createDaemonClient(baseUrl: string, token: string) {
         body: JSON.stringify({ model, input, tools }),
       }),
 
-    openProviderLogin: (provider: string) =>
-      fetchJson(`/api/providers/${provider}/login`, { method: 'POST' }),
-
-    triggerProbe: (provider: string) =>
-      fetchJson(`/api/providers/${provider}/probe`, { method: 'POST' }),
-
-    clearEvidence: (provider: string) =>
-      fetchJson(`/api/providers/${provider}/evidence`, { method: 'DELETE' }),
-
-    getDiagnostics: (redacted: boolean = true) =>
-      fetchJson(`/api/diagnostics?redacted=${redacted}`),
   };
 }
 

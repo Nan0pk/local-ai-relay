@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
-import { rm, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { rm, readFile, stat } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { buildApp } from '../server.js';
 import { getOrGenerateToken, getTokenPath } from './token.js';
 import { loadConfig } from '../config.js';
@@ -25,6 +25,10 @@ describe('Authentication, Binding, and CORS safety checks', () => {
       const filePath = getTokenPath(tempEnv);
       const readContent = await readFile(filePath, 'utf8');
       assert.equal(readContent.trim(), token);
+      if (process.platform !== 'win32') {
+        assert.equal((await stat(filePath)).mode & 0o777, 0o600);
+        assert.equal((await stat(dirname(filePath))).mode & 0o777, 0o700);
+      }
 
       // 3. Verify it is persisted (second call returns the same token)
       const token2 = await getOrGenerateToken(tempEnv);
@@ -70,7 +74,7 @@ describe('Authentication, Binding, and CORS safety checks', () => {
       const res3 = await app.inject({
         method: 'GET',
         url: '/v1/models',
-        headers: { authorization: 'Bearer secure-test-token' }
+        headers: { authorization: 'bearer secure-test-token' }
       });
       assert.equal(res3.statusCode, 200);
     } finally {
@@ -89,7 +93,7 @@ describe('Authentication, Binding, and CORS safety checks', () => {
     });
 
     try {
-      // 1. Safe Chrome Extension Origin
+      // 1. Chrome extensions are rejected unless explicitly allowlisted.
       const res1 = await app.inject({
         method: 'GET',
         url: '/v1/models',
@@ -98,11 +102,23 @@ describe('Authentication, Binding, and CORS safety checks', () => {
           origin: 'chrome-extension://hjkashdkjashdjkashd'
         }
       });
-      assert.equal(res1.statusCode, 200);
-      assert.equal(res1.headers['access-control-allow-origin'], 'chrome-extension://hjkashdkjashdjkashd');
+      assert.equal(res1.statusCode, 403);
 
-      // 2. Safe Loopback Origin
+      // 2. An explicitly configured extension ID is allowed.
+      process.env.RELAY_EXTENSION_IDS = 'hjkashdkjashdjkashd';
       const res2 = await app.inject({
+        method: 'GET',
+        url: '/v1/models',
+        headers: {
+          authorization: 'Bearer secure-test-token',
+          origin: 'chrome-extension://hjkashdkjashdjkashd'
+        }
+      });
+      assert.equal(res2.statusCode, 200);
+      assert.equal(res2.headers['access-control-allow-origin'], 'chrome-extension://hjkashdkjashdjkashd');
+
+      // 3. Safe Loopback Origin
+      const res3 = await app.inject({
         method: 'GET',
         url: '/v1/models',
         headers: {
@@ -110,11 +126,11 @@ describe('Authentication, Binding, and CORS safety checks', () => {
           origin: 'http://localhost:3000'
         }
       });
-      assert.equal(res2.statusCode, 200);
-      assert.equal(res2.headers['access-control-allow-origin'], 'http://localhost:3000');
+      assert.equal(res3.statusCode, 200);
+      assert.equal(res3.headers['access-control-allow-origin'], 'http://localhost:3000');
 
-      // 3. Malicious Origin
-      const res3 = await app.inject({
+      // 4. Malicious Origin
+      const res4 = await app.inject({
         method: 'GET',
         url: '/v1/models',
         headers: {
@@ -122,12 +138,13 @@ describe('Authentication, Binding, and CORS safety checks', () => {
           origin: 'https://malicious.com'
         }
       });
-      assert.equal(res3.statusCode, 403);
-      const body3 = res3.json() as any;
-      assert.equal(body3.error.code, 'cors_blocked');
+      assert.equal(res4.statusCode, 403);
+      const body4 = res4.json() as any;
+      assert.equal(body4.error.code, 'cors_blocked');
     } finally {
       await app.close();
       delete process.env.RELAY_API_TOKEN;
+      delete process.env.RELAY_EXTENSION_IDS;
     }
   });
 
@@ -164,6 +181,28 @@ describe('Authentication, Binding, and CORS safety checks', () => {
     assert.equal(cfg.host, '0.0.0.0');
   });
 
+  test('Invalid TCP ports fail fast during configuration', () => {
+    for (const port of ['0', '-1', '65536', 'abc', '8787junk', '1.5']) {
+      assert.throws(() => loadConfig({ PORT: port }), /PORT must be an integer/);
+    }
+    assert.equal(loadConfig({ PORT: '8787' }).port, 8787);
+  });
+
+  test('Dashboard shell is public but its API calls remain authenticated', async () => {
+    const app = buildApp({
+      host: '127.0.0.1',
+      port: 8787,
+      logLevel: 'silent',
+      defaultModel: 'mock-gpt-4o-mini',
+    });
+    try {
+      assert.equal((await app.inject({ method: 'GET', url: '/ui' })).statusCode, 200);
+      assert.equal((await app.inject({ method: 'GET', url: '/v1/providers/status' })).statusCode, 401);
+    } finally {
+      await app.close();
+    }
+  });
+
   test('Exceptions for /health route bypass authentication', async () => {
     const app = buildApp({
       host: '127.0.0.1',
@@ -175,7 +214,7 @@ describe('Authentication, Binding, and CORS safety checks', () => {
     try {
       const res = await app.inject({
         method: 'GET',
-        url: '/health'
+        url: '/health?source=probe'
       });
       assert.equal(res.statusCode, 200);
       const body = res.json() as any;

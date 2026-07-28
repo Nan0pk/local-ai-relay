@@ -3,15 +3,14 @@
  * host/port, and wires graceful shutdown on SIGINT/SIGTERM.
  */
 
-import { buildApp } from './server.js';
 import { loadConfig } from './config.js';
 import { selectPort } from './startup/port-selection.js';
-import { ensureNodeInUserPath } from './startup/persist-path.js';
-import { runHarnessConfiguration } from './cli/configure-harnesses.js';
+import { getOrGenerateToken, getTokenPath } from './auth/token.js';
+import { clearActivePort, recordActivePort } from './startup/relay-location.js';
 
 async function main(): Promise<void> {
-  void ensureNodeInUserPath();
   const requestedConfig = loadConfig();
+  const { buildApp } = await import('./server.js');
   const portSelection = await selectPort(requestedConfig.host, requestedConfig.port);
   if (portSelection.existingRelay) {
     console.log(
@@ -21,6 +20,7 @@ async function main(): Promise<void> {
   }
   const config = { ...requestedConfig, port: portSelection.port };
   const app = buildApp(config);
+  await getOrGenerateToken();
 
   if (config.port !== requestedConfig.port) {
     app.log.warn(
@@ -32,6 +32,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');
     try {
+      await clearActivePort(config.port);
       await app.close();
       process.exit(0);
     } catch (err) {
@@ -45,18 +46,37 @@ async function main(): Promise<void> {
 
   try {
     await app.listen({ host: config.host, port: config.port });
+    await recordActivePort(config.port).catch((error: unknown) => {
+      app.log.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        'could not persist active relay port; explicit PORT clients remain available',
+      );
+    });
     app.log.info(
       { host: config.host, port: config.port },
       'local-ai-relay listening',
     );
-    // Auto-configure agent harnesses (Hermes & OpenCode) on startup
-    void runHarnessConfiguration(config.port, true).catch((err) => {
-      app.log.warn({ err: err instanceof Error ? err.message : String(err) }, 'harness auto-configuration notice');
-    });
+    app.log.info(
+      { tokenSource: process.env.RELAY_API_TOKEN ? 'RELAY_API_TOKEN' : getTokenPath() },
+      'relay bearer token ready',
+    );
+    if (config.autoConfigureHarnesses) {
+      void import('./cli/configure-harnesses.js')
+        .then(({ runHarnessConfiguration }) => runHarnessConfiguration(config.port, true))
+        .catch((err) => {
+          app.log.warn(
+            { err: err instanceof Error ? err.message : String(err) },
+            'harness auto-configuration failed',
+          );
+        });
+    }
   } catch (err) {
     app.log.error({ err }, 'failed to start');
     process.exit(1);
   }
 }
 
-void main();
+void main().catch((error: unknown) => {
+  console.error(`local-ai-relay failed to start: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+});

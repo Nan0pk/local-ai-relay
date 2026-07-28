@@ -1,11 +1,20 @@
 import type { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
+import { timingSafeEqual } from 'node:crypto';
 import { getOrGenerateToken } from './token.js';
 
-function isOriginAllowed(origin: string): boolean {
+function isOriginAllowed(origin: string, env: NodeJS.ProcessEnv = process.env): boolean {
   const normalized = origin.toLowerCase().trim();
-  // Allow chrome extensions
+  // Browser extensions use Native Messaging by default. Direct HTTP access is
+  // permitted only for extension IDs explicitly named by the operator.
   if (normalized.startsWith('chrome-extension://')) {
-    return true;
+    const extensionId = normalized.slice('chrome-extension://'.length).replace(/\/$/, '');
+    const allowedIds = new Set(
+      (env.RELAY_EXTENSION_IDS ?? '')
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    return allowedIds.has(extensionId);
   }
   // Allow loopback origins with optional port
   try {
@@ -15,6 +24,13 @@ function isOriginAllowed(origin: string): boolean {
   } catch {
     return false;
   }
+}
+
+function tokensMatch(actual: string, expected: string): boolean {
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  return actualBytes.length === expectedBytes.length
+    && timingSafeEqual(actualBytes, expectedBytes);
 }
 
 export function registerAuthAndCors(app: FastifyInstance): void {
@@ -47,14 +63,17 @@ export function registerAuthAndCors(app: FastifyInstance): void {
       return reply.code(204).send();
     }
 
-    // Skip token validation for liveness check
-    if (req.url === '/health') {
+    // Liveness and the dashboard shell contain no secrets. The dashboard asks
+    // for the token before making authenticated API calls.
+    const pathname = req.url.split('?', 1)[0];
+    if (pathname === '/health' || pathname === '/ui' || pathname === '/dashboard') {
       return;
     }
 
     // Validate Bearer Token
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const bearerMatch = authHeader?.match(/^Bearer\s+(.+)$/i);
+    if (!bearerMatch?.[1]?.trim()) {
       return reply.code(401).send({
         error: {
           message: 'Missing or malformed Authorization header. Bearer token required.',
@@ -65,10 +84,10 @@ export function registerAuthAndCors(app: FastifyInstance): void {
       });
     }
 
-    const token = authHeader.substring(7).trim();
+    const token = bearerMatch[1].trim();
     const expectedToken = await getOrGenerateToken();
 
-    if (token !== expectedToken) {
+    if (!tokensMatch(token, expectedToken)) {
       return reply.code(401).send({
         error: {
           message: 'Incorrect API key provided.',

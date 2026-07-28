@@ -26,3 +26,9 @@ test('executeControlVerb blocks operations when kill switch is active', async ()
   assert.equal(res.ok, false);
   assert.match(res.message, /kill switch is active/i);
 });
+
+test('reprobe fails explicitly instead of claiming nonexistent queued work', async () => {
+  const res = await executeControlVerb('reprobe', 'browser-chatgpt', {});
+  assert.equal(res.ok, false);
+  assert.match(res.message, /No probe was queued/);
+});

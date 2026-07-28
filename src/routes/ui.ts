@@ -1,262 +1,173 @@
 import type { FastifyInstance } from 'fastify';
 
-const UI_HTML = `<!DOCTYPE html>
-<html>
+const UI_HTML = `<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ Local AI Relay Dashboard</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Local AI Relay Dashboard</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; background: #f6f8fa; color: #1e293b; padding: 1.5rem; }
-    .container { max-width: 1200px; margin: 0 auto; }
-    h1 { font-size: 1.8rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-    .header-actions { margin-left: auto; display: flex; gap: 0.5rem; align-items: center; }
-    .token-display { background: #e2e8f0; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-family: monospace; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin: 1.5rem 0; }
-    .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1.25rem; transition: box-shadow 0.2s; }
-    .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
-    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
-    .status-ready { background: #dcfce7; color: #166534; }
-    .status-degraded { background: #fef9c3; color: #854d0e; }
-    .status-disabled { background: #fee2e2; color: #991b1b; }
-    .status-installed { background: #e2e8f0; color: #475569; }
-    .btn { background: #e2e8f0; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-primary:hover { background: #1d4ed8; }
-    .btn-danger { background: #dc2626; color: white; }
-    .btn-danger:hover { background: #b91c1c; }
-    .form-group { margin: 0.5rem 0; }
-    .form-group label { display: block; font-size: 0.8rem; font-weight: 500; color: #475569; }
-    .form-group input, .form-group select { width: 100%; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; }
-    .sandbox { margin-top: 2rem; }
-    .sandbox textarea { width: 100%; min-height: 80px; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-family: monospace; }
-    .sandbox .response { background: #f1f5f9; padding: 0.75rem; border-radius: 6px; white-space: pre-wrap; font-family: monospace; margin-top: 0.5rem; }
-    .flex-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #0b1220; color: #e5e7eb; }
+    main { max-width: 960px; margin: auto; padding: 24px; }
+    header, .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    header { justify-content: space-between; }
+    section { margin-top: 20px; padding: 18px; border: 1px solid #334155; border-radius: 12px; background: #111827; }
+    button, input, select, textarea { font: inherit; border: 1px solid #475569; border-radius: 7px; padding: 8px 10px; }
+    button { cursor: pointer; background: #2563eb; color: white; }
+    button.secondary { background: #334155; }
+    input, select, textarea { background: #0f172a; color: #e5e7eb; }
+    input { min-width: 320px; }
+    select, textarea { width: 100%; }
+    textarea { min-height: 90px; resize: vertical; margin: 10px 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 12px; }
+    .card { padding: 12px; border: 1px solid #334155; border-radius: 8px; }
+    .muted { color: #94a3b8; }
+    .ready { color: #4ade80; }
+    .degraded { color: #facc15; }
+    .error { color: #f87171; white-space: pre-wrap; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #020617; padding: 12px; border-radius: 8px; }
+    label { display: block; margin-bottom: 6px; }
   </style>
 </head>
 <body>
-<div class="container">
-  <h1>
-    ⚡ Local AI Relay
-    <span class="header-actions">
-      <span class="token-display" id="tokenDisplay">••••••••</span>
-      <button class="btn" id="toggleTokenBtn">Show</button>
-      <button class="btn btn-primary" id="regenerateTokenBtn">Regenerate</button>
-    </span>
-  </h1>
+<main>
+  <header>
+    <div><h1>Local AI Relay</h1><div class="muted">Authenticated loopback operator view</div></div>
+    <button class="secondary" id="forgetToken">Forget token</button>
+  </header>
 
-  <h2>Provider Status</h2>
-  <div id="providerCards" class="grid"></div>
+  <section id="auth">
+    <label for="token">Bearer token from ~/.local-ai-relay/token</label>
+    <div class="row">
+      <input id="token" type="password" autocomplete="off" spellcheck="false">
+      <button id="connect">Connect</button>
+    </div>
+    <p class="muted">Use the token file or your explicit RELAY_API_TOKEN value. The token stays in this tab only and is not written to localStorage.</p>
+    <div id="status" class="muted" aria-live="polite"></div>
+  </section>
 
-  <div class="card">
-    <h3>🔧 Local Upstream Configuration</h3>
-    <div class="form-group">
-      <label>Ollama Base URL</label>
-      <input type="text" id="ollamaUrl" value="http://127.0.0.1:11434" />
-    </div>
-    <div class="form-group">
-      <label>llama.cpp Base URL</label>
-      <input type="text" id="llamacppUrl" value="http://127.0.0.1:8080" />
-    </div>
-    <div class="flex-row">
-      <button class="btn btn-primary" id="saveLocalConfigBtn">Save Local Config</button>
-      <button class="btn" id="probeLocalBtn">Probe Local Engines</button>
-    </div>
-  </div>
+  <section>
+    <h2>Provider status</h2>
+    <div id="providers" class="grid"><span class="muted">Connect to load status.</span></div>
+  </section>
 
-  <div class="card">
-    <h3>🌐 Browser Login Launcher</h3>
-    <div id="loginButtons" class="flex-row"></div>
-  </div>
-
-  <div class="card sandbox">
-    <h3>🧪 Interactive Prompt Sandbox</h3>
-    <div class="form-group">
-      <label>Model</label>
-      <select id="modelSelect"></select>
-    </div>
-    <div class="form-group">
-      <label>Prompt</label>
-      <textarea id="promptInput" placeholder="Enter your prompt...">Explain quantum computing in simple terms.</textarea>
-    </div>
-    <div class="flex-row">
-      <button class="btn btn-primary" id="sendPromptBtn">Send Test Request</button>
-      <button class="btn" id="clearResponseBtn">Clear</button>
-    </div>
-    <div class="response" id="responseOutput">Response will appear here...</div>
-    <div id="latencyDisplay" style="font-size:0.8rem;color:#64748b;margin-top:0.25rem;"></div>
-  </div>
-</div>
-
+  <section>
+    <h2>Prompt smoke test</h2>
+    <label for="model">Ready model</label>
+    <select id="model" disabled></select>
+    <textarea id="prompt" placeholder="Enter a harmless test prompt"></textarea>
+    <button id="send" disabled>Send</button>
+    <pre id="output">No request sent.</pre>
+  </section>
+</main>
 <script>
-  let token = localStorage.getItem('relay_token') || '';
-  let providers = [];
-  let models = [];
+  let token = '';
+  const byId = (id) => document.getElementById(id);
 
-  async function apiFetch(path, options = {}) {
-    const headers = {
-      'Authorization': 'Bearer ' + token,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
-    const res = await fetch(path, { ...options, headers });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(\`API error \${res.status}: \${err}\`);
-    }
-    return res.json();
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        authorization: 'Bearer ' + token,
+        'content-type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + await response.text());
+    return response.json();
   }
 
-  function renderProviderCards() {
-    const container = document.getElementById('providerCards');
-    container.innerHTML = '';
-    for (const p of providers) {
-      const statusClass = p.status === 'ready' ? 'ready' : p.status === 'degraded' ? 'degraded' : p.status === 'disabled' ? 'disabled' : 'installed';
+  function showProviders(records) {
+    const root = byId('providers');
+    root.replaceChildren();
+    for (const record of records) {
       const card = document.createElement('div');
       card.className = 'card';
-      card.innerHTML = \`
-        <h3>
-          \${p.name || p.id}
-          <span class="status-badge status-\${statusClass}">\${p.status}</span>
-        </h3>
-        <div style="font-size:0.85rem;color:#64748b;">Evidence: \${p.evidence?.detail || 'N/A'}</div>
-        <div style="margin-top:0.5rem;" class="flex-row">
-          <button class="btn" data-provider="\${p.id}" data-action="login">Login</button>
-          <button class="btn" data-provider="\${p.id}" data-action="probe">Probe</button>
-          <button class="btn btn-danger" data-provider="\${p.id}" data-action="clear">Clear Evidence</button>
-        </div>
-      \`;
-      container.appendChild(card);
-    }
-
-    document.querySelectorAll('[data-action]').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const providerId = btn.dataset.provider;
-        const action = btn.dataset.action;
-        try {
-          if (action === 'login') {
-            await apiFetch(\`/api/providers/\${providerId}/login\`, { method: 'POST' });
-            alert('Login session launched. Check browser.');
-          } else if (action === 'probe') {
-            await apiFetch(\`/api/providers/\${providerId}/probe\`, { method: 'POST' });
-            await refreshProviders();
-          } else if (action === 'clear') {
-            await apiFetch(\`/api/providers/\${providerId}/evidence\`, { method: 'DELETE' });
-            await refreshProviders();
-          }
-        } catch (err) {
-          alert('Error: ' + err.message);
-        }
-      });
-    });
-  }
-
-  async function refreshProviders() {
-    try {
-      const data = await apiFetch('/api/providers');
-      providers = data.providers || [];
-      renderProviderCards();
-    } catch (err) {
-      console.error('Failed to fetch providers:', err);
+      const title = document.createElement('strong');
+      title.textContent = record.provider_id;
+      const state = document.createElement('div');
+      state.className = record.status === 'ready' ? 'ready' : record.status === 'degraded' ? 'degraded' : 'muted';
+      state.textContent = record.status + (record.evidence_expired ? ' (evidence expired)' : '');
+      const detail = document.createElement('div');
+      detail.className = 'muted';
+      detail.textContent = record.detail || 'No runtime evidence.';
+      card.append(title, state, detail);
+      root.append(card);
     }
   }
 
-  async function refreshModels() {
-    try {
-      const data = await apiFetch('/v1/models');
-      models = data.data || [];
-      const select = document.getElementById('modelSelect');
-      select.innerHTML = '';
-      for (const m of models) {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = m.id;
-        select.appendChild(opt);
-      }
-    } catch (err) {
-      console.error('Failed to fetch models:', err);
+  async function connect() {
+    token = byId('token').value.trim();
+    if (!token) throw new Error('Enter the relay bearer token.');
+    const [providerBody, modelBody] = await Promise.all([
+      api('/v1/providers/status'),
+      api('/v1/models'),
+    ]);
+    showProviders(providerBody.data || []);
+    const model = byId('model');
+    model.replaceChildren();
+    for (const item of modelBody.data || []) {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = item.id;
+      model.append(option);
     }
+    model.disabled = model.options.length === 0;
+    byId('send').disabled = model.disabled;
+    byId('status').className = model.disabled ? 'degraded' : 'ready';
+    byId('status').textContent = model.disabled ? 'Connected, but no models are currently ready.' : 'Connected.';
   }
 
-  document.getElementById('toggleTokenBtn').addEventListener('click', () => {
-    const display = document.getElementById('tokenDisplay');
-    if (display.textContent === '••••••••') {
-      display.textContent = token || 'No token';
-    } else {
-      display.textContent = '••••••••';
-    }
+  byId('connect').addEventListener('click', () => connect().catch((error) => {
+    byId('status').className = 'error';
+    byId('status').textContent = error.message;
+  }));
+  byId('token').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') byId('connect').click();
   });
-
-  document.getElementById('sendPromptBtn').addEventListener('click', async () => {
-    const model = document.getElementById('modelSelect').value;
-    const input = document.getElementById('promptInput').value;
-    if (!model) { alert('Please select a model.'); return; }
-    const output = document.getElementById('responseOutput');
-    const latency = document.getElementById('latencyDisplay');
-    output.textContent = 'Waiting for response...';
-    latency.textContent = '';
-    const start = performance.now();
-
+  byId('forgetToken').addEventListener('click', () => {
+    token = '';
+    byId('token').value = '';
+    byId('model').replaceChildren();
+    byId('model').disabled = true;
+    byId('send').disabled = true;
+    byId('providers').replaceChildren(document.createTextNode('Connect to load status.'));
+    byId('status').className = 'muted';
+    byId('status').textContent = 'Token forgotten.';
+  });
+  byId('send').addEventListener('click', async () => {
+    const output = byId('output');
+    output.textContent = 'Waiting…';
     try {
-      const res = await fetch('/v1/responses', {
+      const result = await api('/v1/responses', {
         method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ model, input, stream: false }),
+        body: JSON.stringify({
+          model: byId('model').value,
+          input: byId('prompt').value,
+        }),
       });
-      const elapsed = ((performance.now() - start) / 1000).toFixed(2);
-      if (!res.ok) {
-        const errText = await res.text();
-        output.textContent = \`Error \${res.status}: \${errText}\`;
-        latency.textContent = \`Elapsed: \${elapsed}s\`;
-        return;
-      }
-      const data = await res.json();
-      const content = data.choices?.[0]?.message?.content || JSON.stringify(data, null, 2);
-      output.textContent = content;
-      latency.textContent = \`Elapsed: \${elapsed}s | Model: \${model}\`;
-    } catch (err) {
-      output.textContent = 'Request failed: ' + err.message;
-      latency.textContent = '';
+      output.textContent = result.output_text || JSON.stringify(result, null, 2);
+    } catch (error) {
+      output.textContent = error.message;
     }
   });
-
-  document.getElementById('clearResponseBtn').addEventListener('click', () => {
-    document.getElementById('responseOutput').textContent = 'Response will appear here...';
-    document.getElementById('latencyDisplay').textContent = '';
-  });
-
-  async function init() {
-    if (!token) {
-      const input = prompt('Please enter your relay bearer token:');
-      if (input) {
-        token = input;
-        localStorage.setItem('relay_token', token);
-      } else {
-        alert('Token required for API calls.');
-        return;
-      }
-    }
-    document.getElementById('tokenDisplay').textContent = '••••••••';
-    await refreshProviders();
-    await refreshModels();
-  }
-
-  init().catch(console.error);
 </script>
 </body>
 </html>`;
 
-export async function registerUiRoutes(fastify: FastifyInstance) {
-  fastify.get('/ui', async (_, reply) => {
-    reply.type('text/html').send(UI_HTML);
+export function registerUiRoutes(fastify: FastifyInstance): void {
+  fastify.get('/ui', async (_request, reply) => {
+    reply
+      .header('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'")
+      .header('Cache-Control', 'no-store')
+      .header('Referrer-Policy', 'no-referrer')
+      .header('X-Content-Type-Options', 'nosniff')
+      .type('text/html')
+      .send(UI_HTML);
   });
 
-  fastify.get('/dashboard', async (_, reply) => {
+  fastify.get('/dashboard', async (_request, reply) => {
     reply.redirect('/ui');
   });
 }

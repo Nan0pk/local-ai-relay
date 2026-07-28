@@ -1,6 +1,8 @@
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import type { Readable } from 'node:stream';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 function captureOutput(stream: Readable, append: (text: string) => void): void {
   stream.on('data', (chunk: Buffer) => append(chunk.toString()));
@@ -88,6 +90,17 @@ async function main(): Promise<void> {
             };
             if (!completion.ok || !completionBody.choices?.[0]?.message?.content?.includes('startup smoke')) {
               throw new Error('Relay health passed but its OpenAI chat-completions route failed.');
+            }
+            let activePort = '';
+            const activePortPath = join(process.cwd(), '.relay-browser', 'active-port');
+            for (let attempt = 0; attempt < 20 && activePort !== String(port); attempt += 1) {
+              activePort = (await readFile(activePortPath, 'utf8').catch(() => '')).trim();
+              if (activePort !== String(port)) {
+                await new Promise((resolve) => setTimeout(resolve, 25));
+              }
+            }
+            if (activePort !== String(port)) {
+              throw new Error(`Relay reported port ${port} but persisted '${activePort}'.`);
             }
             console.log(`PASS: occupied-port startup selected ${port}; /health and /v1/chat/completions responded.`);
             return;

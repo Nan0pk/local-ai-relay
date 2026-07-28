@@ -1,166 +1,82 @@
 #!/usr/bin/env node
-import { NativeHost } from './native-host.js';
+import { NativeHost, NativeMessagingEofError } from './native-host.js';
 import { type BridgeFrame } from './native-protocol.js';
-import { createDaemonClient } from '../mcp/daemon-client.js';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const DAEMON_URL = process.env.LOCAL_AI_RELAY_DAEMON_URL || 'http://127.0.0.1:8787';
-const API_TOKEN = process.env.LOCAL_AI_RELAY_TOKEN || '';
+const sessions = new Map<string, { requestIds: Set<string> }>();
 
-if (!API_TOKEN) {
-  console.error('Missing LOCAL_AI_RELAY_TOKEN');
-  process.exit(1);
+function responseFrame(
+  frame: BridgeFrame,
+  eventType: BridgeFrame['event_type'],
+  payload: Record<string, unknown>,
+): BridgeFrame {
+  return {
+    protocol_version: '2.0',
+    request_id: frame.request_id,
+    session_id: frame.session_id,
+    page_generation: frame.page_generation,
+    sequence_number: frame.sequence_number,
+    event_type: eventType,
+    payload: JSON.stringify(payload),
+    payload_hash: '',
+  };
 }
 
-const host = new NativeHost();
-const daemon = createDaemonClient(DAEMON_URL, API_TOKEN);
-
-// Map request IDs to active sessions
-const sessions = new Map<string, { requests: unknown[] }>();
-
-async function handleFrame(frame: BridgeFrame) {
-  const { event_type, request_id, session_id, page_generation, payload } = frame;
-
-  switch (event_type) {
-    case 'hello': {
-      const session = sessions.get(session_id);
-      if (session) {
-        host.writeMessage({
-          protocol_version: '2.0',
-          request_id: `resume-${Date.now()}`,
-          session_id,
-          page_generation,
-          sequence_number: 0,
-          event_type: 'resume',
-          payload: JSON.stringify({
-            active_requests: session.requests,
-          }),
-          payload_hash: '',
-        });
-      } else {
-        sessions.set(session_id, { requests: [] });
-        host.writeMessage({
-          protocol_version: '2.0',
-          request_id: `ack-${Date.now()}`,
-          session_id,
-          page_generation,
-          sequence_number: 0,
-          event_type: 'ack',
-          payload: JSON.stringify({ status: 'hello_acknowledged' }),
-          payload_hash: '',
-        });
-      }
-      break;
+export function handleFrame(frame: BridgeFrame): BridgeFrame {
+  if (frame.event_type === 'hello') {
+    const existing = sessions.get(frame.session_id);
+    if (existing) {
+      return responseFrame(frame, 'resume', {
+        active_requests: [...existing.requestIds],
+      });
     }
+    sessions.set(frame.session_id, { requestIds: new Set() });
+    return responseFrame(frame, 'ack', { status: 'hello_acknowledged' });
+  }
 
-    case 'capabilities': {
-      try {
-        host.writeMessage({
-          protocol_version: '2.0',
-          request_id,
-          session_id,
-          page_generation,
-          sequence_number: 0,
-          event_type: 'ack',
-          payload: JSON.stringify({ status: 'capabilities_received' }),
-          payload_hash: '',
-        });
-      } catch (err: unknown) {
-        host.writeMessage({
-          protocol_version: '2.0',
-          request_id,
-          session_id,
-          page_generation,
-          sequence_number: 0,
-          event_type: 'error',
-          payload: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
-          payload_hash: '',
-        });
-      }
-      break;
-    }
+  const session = sessions.get(frame.session_id);
+  if (!session) {
+    return responseFrame(frame, 'error', { error: 'hello_required' });
+  }
 
+  switch (frame.event_type) {
+    case 'capabilities':
     case 'append':
     case 'replace':
     case 'snapshot':
-    case 'final': {
-      try {
-        const result = await daemon.delegateRequest('browser-default', payload, []);
-        host.writeMessage({
-          protocol_version: '2.0',
-          request_id,
-          session_id,
-          page_generation,
-          sequence_number: 0,
-          event_type: 'ack',
-          payload: JSON.stringify(result),
-          payload_hash: '',
-        });
-      } catch (err: unknown) {
-        host.writeMessage({
-          protocol_version: '2.0',
-          request_id,
-          session_id,
-          page_generation,
-          sequence_number: 0,
-          event_type: 'error',
-          payload: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
-          payload_hash: '',
-        });
-      }
-      break;
-    }
-
-    case 'cancel': {
-      host.writeMessage({
-        protocol_version: '2.0',
-        request_id,
-        session_id,
-        page_generation,
-        sequence_number: 0,
-        event_type: 'ack',
-        payload: JSON.stringify({ status: 'cancelled' }),
-        payload_hash: '',
-      });
-      break;
-    }
-
-    case 'heartbeat': {
-      host.writeMessage({
-        protocol_version: '2.0',
-        request_id,
-        session_id,
-        page_generation,
-        sequence_number: 0,
-        event_type: 'ack',
-        payload: JSON.stringify({ status: 'alive' }),
-        payload_hash: '',
-      });
-      break;
-    }
-
+      session.requestIds.add(frame.request_id);
+      return responseFrame(frame, 'ack', { status: `${frame.event_type}_received` });
+    case 'final':
+    case 'cancel':
+      session.requestIds.delete(frame.request_id);
+      return responseFrame(frame, 'ack', { status: frame.event_type === 'final' ? 'final_received' : 'cancelled' });
+    case 'heartbeat':
+      return responseFrame(frame, 'ack', { status: 'alive' });
+    case 'ack':
+    case 'error':
+    case 'resume':
+      return responseFrame(frame, 'error', { error: `unexpected_extension_event:${frame.event_type}` });
     default:
-      host.writeMessage({
-        protocol_version: '2.0',
-        request_id,
-        session_id,
-        page_generation,
-        sequence_number: 0,
-        event_type: 'error',
-        payload: JSON.stringify({ error: `Unknown event type: ${event_type}` }),
-        payload_hash: '',
-      });
+      return responseFrame(frame, 'error', { error: `unknown_event:${String(frame.event_type)}` });
   }
 }
 
-async function main() {
+async function main(): Promise<void> {
+  const host = new NativeHost();
   while (true) {
     try {
       const frame = await host.readMessage();
-      await handleFrame(frame);
-    } catch (err) {
-      console.error('Native host error:', err);
+      host.writeMessage(handleFrame(frame));
+    } catch (error) {
+      if (error instanceof NativeMessagingEofError) return;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Native host rejected a frame: ${message}`);
+      return;
     }
   }
 }
 
-main().catch(console.error);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  void main();
+}

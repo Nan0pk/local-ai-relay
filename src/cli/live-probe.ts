@@ -2,6 +2,10 @@ import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { findBrowserProvider } from '../browser/driver-registry.js';
 import { browserBinariesDir, findSystemBrowser } from '../browser/paths.js';
+import { persistCapability } from '../capabilities/evidence-store.js';
+import type { ProviderCapabilityRecord } from '../capabilities/tracker.js';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const EXPECTED = 'LOCAL AI RELAY READY';
 
@@ -32,8 +36,12 @@ async function distroName(): Promise<string> {
   }
 }
 
-async function main(): Promise<void> {
-  const descriptor = findBrowserProvider(parseProvider(process.argv.slice(2)));
+export async function runLiveProbe(providerName: string): Promise<{
+  providerId: string;
+  conversationUrl?: string;
+}> {
+  try { process.loadEnvFile?.(); } catch { /* optional .env */ }
+  const descriptor = findBrowserProvider(providerName);
   console.log(`Local AI Relay — ${descriptor.label} browser live probe`);
   console.log(`OS: ${await distroName()}`);
   console.log(`Node: ${process.version}`);
@@ -82,16 +90,36 @@ async function main(): Promise<void> {
     if (!result.text.toUpperCase().includes(EXPECTED)) {
       throw new Error(`A response was extracted, but it did not contain the expected marker. Received: ${result.text.slice(0, 160)}`);
     }
+    const recordedAt = new Date().toISOString();
+    const record: ProviderCapabilityRecord = {
+      providerId: `browser-${descriptor.name}`,
+      status: 'ready',
+      evidence: {
+        reference: `live-probe:${descriptor.name}:${recordedAt}`,
+        recordedAt,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      },
+      detail: `${descriptor.label} live submission, completion detection, and response extraction passed.`,
+      updatedAt: recordedAt,
+    };
+    await persistCapability(record);
     console.log(`PASS: ${descriptor.label} submission, completion detection, and response extraction worked.`);
     console.log(`Conversation: ${result.conversationUrl ?? 'URL unavailable'}`);
+    console.log('Readiness evidence recorded for 24 hours.');
+    return {
+      providerId: record.providerId,
+      ...(result.conversationUrl ? { conversationUrl: result.conversationUrl } : {}),
+    };
   } finally {
     await driver.close();
   }
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`FAIL: ${message}`);
-  console.error('If the browser opened, a local failure screenshot may have been saved.');
-  process.exitCode = 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  runLiveProbe(parseProvider(process.argv.slice(2))).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`FAIL: ${message}`);
+    console.error('If the browser opened, a local failure screenshot may have been saved.');
+    process.exitCode = 1;
+  });
+}

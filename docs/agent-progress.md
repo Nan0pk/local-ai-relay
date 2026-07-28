@@ -1,5 +1,9 @@
 # Agent Progress - local-ai-relay
 
+> Archived progress note from an earlier branch. Counts and readiness claims
+> below are historical and do not override the current task or
+> `docs/providers.md`.
+
 ## Current Objective
 Verify and register the Gemini browser provider, fix the word-count-based generation interruption bug that breaks short answers, update systemd and Hermes configurations, and ensure the entire E2E workflow is verified and operational.
 

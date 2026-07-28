@@ -15,6 +15,8 @@ export interface AppConfig {
   logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
   /** Default model returned when a request omits the `model` field. */
   defaultModel: string;
+  /** Opt in to writing Hermes/OpenCode configuration when the daemon starts. */
+  autoConfigureHarnesses?: boolean;
 }
 
 function parseLogLevel(raw: string | undefined): AppConfig['logLevel'] {
@@ -49,11 +51,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       );
     }
   }
-  const port = Number.parseInt(env.PORT ?? '8787', 10);
+  const parsedPort = Number(env.PORT ?? '8787');
+  if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
+    throw new Error(`PORT must be an integer between 1 and 65535; received '${env.PORT ?? ''}'.`);
+  }
   return {
     host,
-    port: Number.isFinite(port) ? port : 8787,
+    port: parsedPort,
     logLevel: parseLogLevel(env.LOG_LEVEL),
     defaultModel: env.DEFAULT_MODEL ?? 'mock-gpt-4o-mini',
+    autoConfigureHarnesses: env.RELAY_AUTO_CONFIGURE_HARNESSES === '1',
   };
 }

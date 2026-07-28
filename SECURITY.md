@@ -6,13 +6,13 @@
 
 1. **Malicious Browser Pages / Extensions**:
    - *Threat*: Malicious web pages or extensions running in the user's browser could attempt cross-origin requests to read completions or exhaust the user's API quota.
-   - *Mitigation*: The relay enforces a loopback bearer token via the `Authorization: Bearer <token>` header on all non-liveness endpoints, alongside strict CORS origin validation which blocks arbitrary web origins.
+   - *Mitigation*: The relay enforces a loopback bearer token via the `Authorization: Bearer <token>` header on every API and specification endpoint, alongside strict CORS origin validation which blocks arbitrary web origins. The public dashboard shell contains no provider data and must authenticate its API calls.
 2. **Local Processes & Multi-User Environments**:
    - *Threat*: Malicious local processes or other users on the same machine could try to access the relay or read the authentication token.
    - *Mitigation*: The relay defaults to binding to loopback (`127.0.0.1`/`localhost`), refusing non-loopback binds unless explicitly acknowledged. The bearer token is saved under the user's home directory (or temporary fallback directory) using restrictive `0o600` file permissions, preventing unauthorized local users from reading it.
 3. **Diagnostics and Logs**:
    - *Threat*: The bearer token or user credentials could be leaked through console logs or diagnostic files (screenshots, failure dumps).
-   - *Mitigation*: The logger is configured to redact the `Authorization` header. Screenshots capture only browser viewport snapshots, and no credential or token data is written to diagnostics.
+   - *Mitigation*: The logger redacts authorization and common secret fields. Diagnostics never intentionally export cookies, storage state, or request headers. Failure screenshots can contain visible prompt/response text and are documented as sensitive local artifacts.
 4. **Profile Data**:
    - *Threat*: Attackers or local processes reading the persistent automation browser profile directory containing active provider web sessions.
    - *Mitigation*: The browser profile directory is stored under the user's home directory (or temporary fallback) with permissions isolated to the current OS user, and is never pointed at everyday personal browser profiles.

@@ -21,6 +21,15 @@ import {
 } from '../providers/registry.js';
 import type { ModelListResponse, ModelCard } from '../types/openai.js';
 
+const invalidQuery = {
+  error: {
+    message: '`include` must be omitted or set to `all`.',
+    type: 'invalid_request_error',
+    param: 'include',
+    code: 'bad_request',
+  },
+};
+
 interface ModelsQuerystring {
   include?: string;
 }
@@ -57,7 +66,10 @@ export function registerModelsRoutes(app: FastifyInstance): void {
   // GET /v1/models — gated on readiness by default
   app.get<{ Querystring: ModelsQuerystring }>(
     '/v1/models',
-    async (request: FastifyRequest<{ Querystring: ModelsQuerystring }>) => {
+    async (request: FastifyRequest<{ Querystring: ModelsQuerystring }>, reply) => {
+      if (request.query.include !== undefined && request.query.include !== 'all') {
+        return reply.code(400).send(invalidQuery);
+      }
       if (request.query.include === 'all') {
         // Full diagnostic view: every registered model with capability metadata.
         const records = getAllCapabilityRecords();
@@ -86,7 +98,7 @@ export function registerModelsRoutes(app: FastifyInstance): void {
 
   // GET /v1/providers/status — diagnostic endpoint
   app.get('/v1/providers/status', async () => {
-    const statuses = capabilityTracker.getAllStatuses();
+    const statuses = getAllCapabilityRecords();
     return {
       object: 'list',
       data: statuses.map((record) => ({

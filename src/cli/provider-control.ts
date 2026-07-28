@@ -1,6 +1,8 @@
 import { capabilityTracker } from '../capabilities/tracker.js';
-import { capabilityEvidencePath } from '../capabilities/evidence-store.js';
-import { rm } from 'node:fs/promises';
+import {
+  capabilityEvidencePath,
+  clearPersistedCapability,
+} from '../capabilities/evidence-store.js';
 
 export type ControlVerb = 'status' | 'reprobe' | 'disable' | 'enable' | 'clear-evidence';
 
@@ -39,12 +41,14 @@ export async function executeControlVerb(
     }
     case 'clear-evidence': {
       const path = capabilityEvidencePath(env);
-      await rm(path, { force: true });
-      return { ok: true, message: `Capability evidence store cleared at ${path}.` };
+      await clearPersistedCapability(providerId, path);
+      return { ok: true, message: `Capability evidence for ${providerId} cleared at ${path}.` };
     }
     case 'reprobe': {
-      capabilityTracker.setStatus(providerId, 'authenticated', undefined, 'Reprobe queued via CLI control');
-      return { ok: true, message: `Provider ${providerId} reprobe queued.` };
+      return {
+        ok: false,
+        message: `No probe was queued. Run the explicit live probe for ${providerId} from an authenticated browser session.`,
+      };
     }
     default:
       return { ok: false, message: `Unknown control verb: ${verb}` };

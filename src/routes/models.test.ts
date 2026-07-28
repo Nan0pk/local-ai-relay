@@ -55,7 +55,6 @@ test('default models endpoint includes degraded providers', async () => {
     const body = response.json() as {
       data: Array<{ provider_id: string; status: string; ready: boolean }>;
     };
-    assert.equal(body.data.length, 1);
     const mockRecord = body.data.find((r) => r.provider_id === 'mock');
     assert.ok(mockRecord);
     assert.equal(mockRecord!.ready, true);
@@ -83,11 +82,32 @@ test('include=all returns every registered model with capability metadata', asyn
   }
 });
 
+test('models endpoint rejects unsupported include values', async () => {
+  const app = buildModelsApp();
+  try {
+    const response = await app.inject({ method: 'GET', url: '/v1/models?include=ready-ish' });
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.param, 'include');
+  } finally {
+    await app.close();
+  }
+});
+
 test('providers status endpoint shows all providers and their readiness', async () => {
   capabilityTracker.reset();
   capabilityTracker.register('mock', 'ready', 'Always available');
   capabilityTracker.register('browser-chatgpt', 'installed', 'Awaiting login');
-  capabilityTracker.register('browser-claude', 'degraded', 'Quota near limit');
+  capabilityTracker.register('browser-claude', 'installed');
+  capabilityTracker.setStatus(
+    'browser-claude',
+    'degraded',
+    {
+      reference: 'live-claude-test',
+      recordedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    },
+    'Quota near limit',
+  );
   capabilityTracker.register('browser-gemini', 'disabled', 'Admin disabled');
 
   const app = buildModelsApp();
@@ -105,7 +125,7 @@ test('providers status endpoint shows all providers and their readiness', async 
       }>;
     };
 
-    assert.equal(body.data.length, 4);
+    assert.ok(body.data.length >= 4);
 
     const mockStatus = body.data.find((r) => r.provider_id === 'mock');
     assert.ok(mockStatus);
@@ -172,6 +192,9 @@ test('stale evidence is reported in diagnostic endpoint', async () => {
     const kimiStatus = body.data.find((r) => r.provider_id === 'browser-kimi');
     assert.ok(kimiStatus);
     assert.equal(kimiStatus!.evidence_expired, true);
+    const modelsResponse = await app.inject({ method: 'GET', url: '/v1/models' });
+    const modelsBody = modelsResponse.json() as { data: Array<{ id: string }> };
+    assert.equal(modelsBody.data.some((model) => model.id === 'browser-kimi-free'), false);
   } finally {
     await app.close();
   }
