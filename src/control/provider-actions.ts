@@ -1,17 +1,19 @@
 import { clearPersistedCapability, loadPersistedCapability } from '../capabilities/evidence-store.js';
 import { capabilityTracker } from '../capabilities/tracker.js';
 import { findBrowserProvider, listBrowserProviders } from '../browser/driver-registry.js';
-import { runLiveProbe } from '../cli/live-probe.js';
+import { runLiveProbe, type LiveProbeStage } from '../cli/live-probe.js';
 import { getModelsForProvider } from '../providers/registry.js';
 import { controlEvents } from './events.js';
 
-export type ProviderJobStatus = 'running' | 'succeeded' | 'failed';
+export type ProviderJobStatus = 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface ProviderJob {
   id: string;
   providerId: string;
   action: 'connect';
   status: ProviderJobStatus;
+  stage: LiveProbeStage | 'cancelled' | 'failed';
+  detail: string;
   startedAt: string;
   finishedAt?: string;
   eventId?: string;
@@ -32,6 +34,7 @@ type ProbeRunner = typeof runLiveProbe;
 
 export class ProviderActionManager {
   private readonly jobs = new Map<string, ProviderJob>();
+  private readonly controllers = new Map<string, AbortController>();
 
   constructor(private readonly probeRunner: ProbeRunner = runLiveProbe) {}
 
@@ -65,9 +68,12 @@ export class ProviderActionManager {
       providerId,
       action: 'connect',
       status: 'running',
+      stage: 'checking_environment',
+      detail: 'Preparing the provider connection.',
       startedAt: new Date().toISOString(),
     };
     this.jobs.set(job.id, job);
+    this.controllers.set(job.id, new AbortController());
     const started = controlEvents.record({
       scope: 'provider',
       code: 'provider_connection_started',
@@ -77,6 +83,27 @@ export class ProviderActionManager {
     });
     job.eventId = started.id;
     void this.run(job.id, descriptor.name);
+    return { ...job };
+  }
+
+  cancel(providerId: string): ProviderJob {
+    findBrowserProvider(providerId.replace(/^browser-/, ''));
+    const job = [...this.jobs.values()].find(
+      (candidate) => candidate.providerId === providerId && candidate.status === 'running',
+    );
+    if (!job) throw new Error(`No active ${providerId} connection is running.`);
+    this.controllers.get(job.id)?.abort();
+    job.status = 'cancelled';
+    job.stage = 'cancelled';
+    job.detail = 'Connection cancelled by the operator.';
+    job.finishedAt = new Date().toISOString();
+    controlEvents.record({
+      scope: 'provider',
+      level: 'warning',
+      code: 'provider_connection_cancelled',
+      message: `${providerId} connection was cancelled.`,
+      providerId,
+    });
     return { ...job };
   }
 
@@ -122,7 +149,16 @@ export class ProviderActionManager {
     const job = this.jobs.get(jobId);
     if (!job) return;
     try {
-      const result = await this.probeRunner(providerName);
+      const controller = this.controllers.get(jobId);
+      const result = await this.probeRunner(providerName, {
+        signal: controller?.signal,
+        onStage: (stage, detail) => {
+          if (job.status !== 'running') return;
+          job.stage = stage;
+          job.detail = detail;
+        },
+      });
+      if (job.status === 'cancelled') return;
       const persisted = loadPersistedCapability(result.providerId);
       if (persisted) {
         capabilityTracker.setStatus(
@@ -133,6 +169,8 @@ export class ProviderActionManager {
         );
       }
       job.status = 'succeeded';
+      job.stage = 'ready';
+      job.detail = 'Connected and verified for real requests.';
       job.finishedAt = new Date().toISOString();
       const event = controlEvents.record({
         scope: 'provider',
@@ -143,8 +181,11 @@ export class ProviderActionManager {
       });
       job.eventId = event.id;
     } catch (error) {
+      if (job.status === 'cancelled') return;
       const message = error instanceof Error ? error.message : String(error);
       job.status = 'failed';
+      job.stage = 'failed';
+      job.detail = message;
       job.finishedAt = new Date().toISOString();
       job.error = message;
       const event = controlEvents.record({
@@ -156,6 +197,8 @@ export class ProviderActionManager {
         detail: message,
       });
       job.eventId = event.id;
+    } finally {
+      this.controllers.delete(jobId);
     }
   }
 }

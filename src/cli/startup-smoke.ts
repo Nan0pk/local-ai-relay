@@ -54,6 +54,7 @@ async function main(): Promise<void> {
       PORT: String(preferredPort),
       LOG_LEVEL: 'silent',
       RELAY_API_TOKEN: 'smoke-test-token',
+      RELAY_ENABLE_TEST_PROVIDERS: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

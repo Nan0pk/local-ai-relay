@@ -13,6 +13,7 @@ import {
   getAllCapabilityRecords,
 } from '../providers/registry.js';
 import { RELAY_VERSION } from '../version.js';
+import { runDoctor } from '../control/doctor.js';
 
 function badRequest(reply: FastifyReply, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -37,7 +38,9 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
     const providers = providerActions.catalog().map((entry) => {
       const status = statuses.get(entry.id);
       const latestJob = jobs.find((job) => job.providerId === entry.id);
-      const latestError = controlEvents.list({ providerId: entry.id, limit: 1 })[0];
+      const latestError = controlEvents
+        .list({ providerId: entry.id, limit: 100 })
+        .find((event) => event.level === 'error');
       return {
         ...entry,
         status: status?.status ?? 'installed',
@@ -84,6 +87,8 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
 
   app.get('/v1/control/routing', async () => routingManager.getConfig());
 
+  app.get('/v1/control/doctor', async () => runDoctor(config));
+
   app.put<{ Body: Partial<RoutingConfig> }>(
     '/v1/control/routing',
     async (request, reply) => {
@@ -104,6 +109,8 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
       switch (request.body?.action) {
         case 'connect':
           return reply.code(202).send(providerActions.startConnect(providerId));
+        case 'cancel':
+          return providerActions.cancel(providerId);
         case 'disable':
           await providerActions.disable(providerId);
           return { ok: true };
@@ -111,7 +118,7 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
           await providerActions.enable(providerId);
           return { ok: true };
         default:
-          throw new Error('Provider action must be connect, enable, or disable.');
+          throw new Error('Provider action must be connect, cancel, enable, or disable.');
       }
     } catch (error) {
       return badRequest(reply, error);
@@ -137,8 +144,10 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
           );
         case 'disconnect':
           return await harnessManager.disconnect(harnessId);
+        case 'launch':
+          return await harnessManager.launch(harnessId);
         default:
-          throw new Error('Harness action must be connect or disconnect.');
+          throw new Error('Harness action must be connect, disconnect, or launch.');
       }
     } catch (error) {
       return badRequest(reply, error);

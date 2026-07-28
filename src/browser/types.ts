@@ -27,7 +27,7 @@ export interface BrowserLoginDriver extends BrowserChatDriver {
   /** Open the persistent profile without submitting a prompt. */
   openForLogin(): Promise<void>;
   /** Wait until the site's composer is usable after login. */
-  waitUntilReady(timeoutMs?: number): Promise<void>;
+  waitUntilReady(timeoutMs?: number, signal?: AbortSignal): Promise<void>;
 }
 
 /**

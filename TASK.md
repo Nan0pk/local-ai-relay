@@ -1,50 +1,43 @@
-# Current task: ship the local Control Center
+# Current task: click-to-work productization
 
-**Status:** Complete locally on `agent/control-center`, awaiting stacked PR CI
-and maintainer-run authenticated provider sessions.
-**Priority:** Give newcomers a practical local GUI for provider sign-in,
-readiness, routing, diagnostics, and reversible harness integration.
+**Status:** Implemented on `feat/click-to-work`; deterministic verification and
+review remain before a draft pull request.
 
 ## Goal
 
-Build an authenticated, CSP-safe dashboard; persistent automatic/manual/priority
-routing with failover; provider connection jobs and redacted activity; optional
-browser-companion status; scoped harness credentials; disconnect-one/all
-cleanup; generic harness onboarding; a one-command dashboard launcher; tests,
-OpenAPI, and newcomer documentation.
+Make the repository useful to a first-time operator who wants to work in
+Hermes, OpenCode, or another OpenAI-compatible harness without developing this
+project. README is screen zero; the local Control Center is screen one.
 
-## Baseline
+## Required behavior
 
-The parent branch `fix/validate-v2-surfaces` passed `npm run verify` and GitHub
-Actions on Ubuntu and Windows. Authenticated live browser probes remain
-operator-run because provider credentials and a graphical login session are not
-available in CI.
+- Production never exposes or silently routes to deterministic mock providers.
+- The installer opens the dashboard rather than forcing provider login.
+- Authenticated installs create an OS launcher; source use remains one command.
+- Provider connection shows stages, login handoff, cancellation, readiness, and
+  linked redacted errors.
+- Real successful use refreshes evidence; known invalidating failures clear it.
+- Automatic routing uses only selected ready providers and retries only known
+  pre-submission failures.
+- Harness status distinguishes installed executable, existing config, and
+  relay-connected state.
+- Harness catalogs contain only `relay-auto` plus currently ready real models.
+- Hermes/OpenCode config is backed up, backup retention is bounded, and
+  relay-owned changes are reversible.
+- Installed harnesses can be launched from the dashboard in a visible terminal.
+- Setup doctor, in-dashboard test, generic client handoff, disconnect-one/all,
+  and no-change cleanup preview are available.
+- README starts with outcome, install truth, three-step flow, browser/login
+  boundary, status meanings, troubleshooting, switching, and removal.
 
 ## Acceptance
 
 ```bash
 npm ci
-npm run typecheck
-npm test
-npm run test:e2e
-npm run build
-npm run smoke:startup
-npm run test:delivery
-node scripts/validate-release.mjs
-npm audit --omit=dev
+npm run verify
+git diff --check
 ```
 
-All deterministic commands must pass. The final report must separately name
-the authenticated live-provider evidence that remains unavailable.
-
-## Acceptance behavior
-
-- The dashboard shell/assets are public but all state and actions require auth.
-- The bearer token is never persisted in Web Storage.
-- `relay-auto` selects only allowed ready/degraded providers and logs failover.
-- Provider Connect opens the isolated profile and persists only verified
-  readiness evidence; manual login controls remain manual.
-- Harness connections use separate revocable tokens.
-- Disconnect removes only relay-owned config and restores prior Hermes choice.
-- Existing-browser companion status must not be represented as inference.
-- Full deterministic acceptance remains `npm run verify`.
+Authenticated live provider and harness runs remain maintainer actions because
+CI has no personal provider credentials or graphical login session. The final
+report must distinguish deterministic proof from that owner-run evidence.

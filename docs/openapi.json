@@ -315,6 +315,7 @@
                     "type": "string",
                     "enum": [
                       "connect",
+                      "cancel",
                       "enable",
                       "disable"
                     ]
@@ -358,6 +359,24 @@
         }
       }
     },
+    "/v1/control/doctor": {
+      "get": {
+        "operationId": "runSetupDoctor",
+        "summary": "Check the local runtime, browser, providers, and harness setup",
+        "responses": {
+          "200": {
+            "description": "Actionable setup diagnostics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/control/harnesses": {
       "get": {
         "operationId": "listHarnessIntegrations",
@@ -379,7 +398,7 @@
     "/v1/control/harnesses/{harnessId}/actions": {
       "post": {
         "operationId": "runHarnessAction",
-        "summary": "Connect or disconnect one harness",
+        "summary": "Connect, launch, or disconnect one harness",
         "parameters": [
           {
             "name": "harnessId",
@@ -409,6 +428,7 @@
                     "type": "string",
                     "enum": [
                       "connect",
+                      "launch",
                       "disconnect"
                     ]
                   }
@@ -847,8 +867,6 @@
             "enum": [
               "reliable",
               "fast",
-              "free-first",
-              "quality-first",
               "custom"
             ]
           },
@@ -895,8 +913,6 @@
             "enum": [
               "reliable",
               "fast",
-              "free-first",
-              "quality-first",
               "custom"
             ]
           },

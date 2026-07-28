@@ -95,12 +95,12 @@ export class ArenaPlaywrightDriver extends BaseBrowserDriver {
     }
   }
 
-  override async waitUntilReady(timeoutMs?: number): Promise<void> {
+  override async waitUntilReady(timeoutMs?: number, signal?: AbortSignal): Promise<void> {
     const context = await (this as any).getContext();
     for (const page of context.pages()) {
       await this.preparePage(page);
     }
-    await super.waitUntilReady(timeoutMs);
+    await super.waitUntilReady(timeoutMs, signal);
   }
 
   /**

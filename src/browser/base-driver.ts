@@ -161,13 +161,16 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     await this.handleSsoLogin(page).catch(() => {});
   }
 
-  async waitUntilReady(timeoutMs = 10 * 60_000): Promise<void> {
+  async waitUntilReady(timeoutMs = 10 * 60_000, signal?: AbortSignal): Promise<void> {
     const cfg = this.config();
     const context = await this.getContext();
     const page = context.pages().find((p) => p.url().startsWith(cfg.url));
     if (!page) throw new BrowserFailure('login_required', `The ${cfg.name} login page is not open.`);
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
+      if (signal?.aborted) {
+        throw new BrowserFailure('cancelled', `${cfg.name} connection was cancelled.`);
+      }
       await this.handleSsoLogin(page).catch(() => {});
       const composer = await this.resolve(page, 'composer', cfg.composerSelectors, false);
       if (composer && await isComposerUsable(composer)) return;

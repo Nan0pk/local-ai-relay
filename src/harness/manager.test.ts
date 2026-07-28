@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, mkdtemp, writeFile } from 'node:fs/promises';
+import { readFile, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -36,6 +36,14 @@ test('harness manager connects and cleanly removes only relay-owned configuratio
     assert.equal(openCode.status.connected, true);
     assert.ok(hermes.backupPath);
     assert.ok(openCode.backupPath);
+
+    await manager.connect('hermes', 'http://127.0.0.1:8787/v1');
+    await manager.connect('hermes', 'http://127.0.0.1:8787/v1');
+    await manager.connect('hermes', 'http://127.0.0.1:8787/v1');
+    assert.equal(
+      (await readdir(hermesHome)).filter((name) => name.startsWith('config.yaml.backup-')).length,
+      3,
+    );
 
     await manager.disconnectAll();
     const restoredHermes = parse(await readFile(join(hermesHome, 'config.yaml'), 'utf8'));
