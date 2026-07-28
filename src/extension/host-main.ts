@@ -3,6 +3,7 @@ import { NativeHost, NativeMessagingEofError } from './native-host.js';
 import { type BridgeFrame } from './native-protocol.js';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { recordBrowserBridgeHeartbeat } from './bridge-status.js';
 
 const sessions = new Map<string, { requestIds: Set<string> }>();
 
@@ -25,6 +26,7 @@ function responseFrame(
 
 export function handleFrame(frame: BridgeFrame): BridgeFrame {
   if (frame.event_type === 'hello') {
+    recordBrowserBridgeHeartbeat(frame.session_id);
     const existing = sessions.get(frame.session_id);
     if (existing) {
       return responseFrame(frame, 'resume', {
@@ -52,6 +54,7 @@ export function handleFrame(frame: BridgeFrame): BridgeFrame {
       session.requestIds.delete(frame.request_id);
       return responseFrame(frame, 'ack', { status: frame.event_type === 'final' ? 'final_received' : 'cancelled' });
     case 'heartbeat':
+      recordBrowserBridgeHeartbeat(frame.session_id);
       return responseFrame(frame, 'ack', { status: 'alive' });
     case 'ack':
     case 'error':

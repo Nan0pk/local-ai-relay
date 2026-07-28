@@ -68,6 +68,128 @@ export function generateOpenAPISpec(): Record<string, unknown> {
           },
         },
       },
+      '/v1/control/overview': {
+        get: {
+          operationId: 'getControlOverview',
+          summary: 'Get the local control-center state',
+          responses: {
+            '200': json({ $ref: '#/components/schemas/ControlOverview' }, 'Relay, routing, provider, browser bridge, and harness state.'),
+            '401': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Bearer token missing or invalid.'),
+          },
+        },
+      },
+      '/v1/control/events': {
+        get: {
+          operationId: 'listControlEvents',
+          summary: 'List redacted relay activity and errors',
+          parameters: [
+            { name: 'provider_id', in: 'query', schema: { type: 'string' } },
+            { name: 'harness_id', in: 'query', schema: { type: 'string' } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 300 } },
+          ],
+          responses: {
+            '200': json({ type: 'object' }, 'Newest control events first.'),
+            '401': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Bearer token missing or invalid.'),
+          },
+        },
+      },
+      '/v1/control/routing': {
+        get: {
+          operationId: 'getRoutingPolicy',
+          summary: 'Get the active routing policy',
+          responses: {
+            '200': json({ $ref: '#/components/schemas/RoutingPolicy' }, 'Active routing policy.'),
+          },
+        },
+        put: {
+          operationId: 'updateRoutingPolicy',
+          summary: 'Update and persist the routing policy',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/RoutingPolicyUpdate' } } },
+          },
+          responses: {
+            '200': json({ $ref: '#/components/schemas/RoutingPolicy' }, 'Updated routing policy.'),
+            '400': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Unknown provider, model, or policy value.'),
+          },
+        },
+      },
+      '/v1/control/providers/{providerId}/actions': {
+        post: {
+          operationId: 'runProviderAction',
+          summary: 'Connect, enable, or disable a browser provider',
+          parameters: [{
+            name: 'providerId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+          }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['action'],
+              properties: { action: { type: 'string', enum: ['connect', 'enable', 'disable'] } },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'Enable or disable completed.'),
+            '202': json({ type: 'object' }, 'Guided connection probe started.'),
+            '400': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Unknown provider or action.'),
+          },
+        },
+      },
+      '/v1/control/harnesses': {
+        get: {
+          operationId: 'listHarnessIntegrations',
+          summary: 'List supported harness integrations',
+          responses: {
+            '200': json({ type: 'object' }, 'Harness detection and connection state.'),
+          },
+        },
+      },
+      '/v1/control/harnesses/{harnessId}/actions': {
+        post: {
+          operationId: 'runHarnessAction',
+          summary: 'Connect or disconnect one harness',
+          parameters: [{
+            name: 'harnessId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', enum: ['hermes', 'opencode', 'generic'] },
+          }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['action'],
+              properties: { action: { type: 'string', enum: ['connect', 'disconnect'] } },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'Harness connection result.'),
+            '400': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Unsupported harness or action.'),
+          },
+        },
+      },
+      '/v1/control/harnesses/disconnect-all': {
+        post: {
+          operationId: 'disconnectAllHarnesses',
+          summary: 'Remove every relay-owned harness integration',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['confirm'],
+              properties: { confirm: { const: true } },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'All relay harness entries removed and keys revoked.'),
+            '400': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Explicit confirmation is required.'),
+          },
+        },
+      },
       '/v1/responses': {
         post: {
           operationId: 'createResponse',
@@ -184,6 +306,46 @@ export function generateOpenAPISpec(): Record<string, unknown> {
             evidence_expired: { type: 'boolean' },
             detail: { type: ['string', 'null'] },
             updated_at: { type: 'string', format: 'date-time' },
+          },
+        },
+        RoutingPolicy: {
+          type: 'object',
+          required: ['version', 'enabled', 'mode', 'preset', 'selectedProviders', 'priorityProviders', 'manualModel', 'allowFallbacks', 'updatedAt'],
+          properties: {
+            version: { const: 1 },
+            enabled: { type: 'boolean' },
+            mode: { type: 'string', enum: ['manual', 'automatic', 'priority'] },
+            preset: { type: 'string', enum: ['reliable', 'fast', 'free-first', 'quality-first', 'custom'] },
+            selectedProviders: { type: 'array', items: { type: 'string' } },
+            priorityProviders: { type: 'array', items: { type: 'string' } },
+            manualModel: { type: 'string' },
+            allowFallbacks: { type: 'boolean' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        RoutingPolicyUpdate: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            mode: { type: 'string', enum: ['manual', 'automatic', 'priority'] },
+            preset: { type: 'string', enum: ['reliable', 'fast', 'free-first', 'quality-first', 'custom'] },
+            selectedProviders: { type: 'array', items: { type: 'string' } },
+            priorityProviders: { type: 'array', items: { type: 'string' } },
+            manualModel: { type: 'string' },
+            allowFallbacks: { type: 'boolean' },
+          },
+        },
+        ControlOverview: {
+          type: 'object',
+          required: ['relay', 'routing', 'routing_metrics', 'browser_bridge', 'providers', 'harnesses', 'jobs'],
+          properties: {
+            relay: { type: 'object' },
+            routing: { $ref: '#/components/schemas/RoutingPolicy' },
+            routing_metrics: { type: 'array', items: { type: 'object' } },
+            browser_bridge: { type: 'object' },
+            providers: { type: 'array', items: { type: 'object' } },
+            harnesses: { type: 'array', items: { type: 'object' } },
+            jobs: { type: 'array', items: { type: 'object' } },
           },
         },
         ChatMessage: {

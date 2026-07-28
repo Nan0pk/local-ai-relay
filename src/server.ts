@@ -14,6 +14,7 @@ import { registerChatRoutes } from './routes/chat.js';
 import { registerResponsesRoutes } from './routes/responses.js';
 import { registerUiRoutes } from './routes/ui.js';
 import { registerOpenApiRoutes } from './routes/openapi.js';
+import { registerControlRoutes } from './routes/control.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { closeProviders } from './providers/registry.js';
 import { registerAuthAndCors } from './auth/middleware.js';
@@ -35,6 +36,7 @@ export function buildApp(config: AppConfig = loadConfig()): FastifyInstance {
   registerChatRoutes(app, config);
   registerResponsesRoutes(app, config);
   registerOpenApiRoutes(app);
+  registerControlRoutes(app, config);
   registerUiRoutes(app);
 
   app.addHook('onClose', async () => {

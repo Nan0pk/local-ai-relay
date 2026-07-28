@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Manifest V3 browser extension sidecar for Local AI Relay.",
   "permissions": [
+    "alarms",
     "nativeMessaging",
     "storage"
   ],

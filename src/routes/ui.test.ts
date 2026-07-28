@@ -17,12 +17,20 @@ test('UI route serves dashboard HTML', async () => {
   assert.match(response.headers['content-security-policy'] ?? '', /default-src 'none'/);
   assert.equal(response.headers['referrer-policy'], 'no-referrer');
   assert.equal(response.headers['x-content-type-options'], 'nosniff');
-  assert.ok(response.payload.includes('Local AI Relay Dashboard'));
-  assert.ok(response.payload.includes('/v1/providers/status'));
+  assert.ok(response.payload.includes('Local AI Relay'));
+  assert.ok(response.payload.includes('/ui/app.js'));
+  assert.doesNotMatch(response.headers['content-security-policy'] ?? '', /unsafe-inline/);
   assert.doesNotMatch(
     response.payload,
     /\/api\/providers|localStorage\.(?:getItem|setItem)|Regenerate/,
   );
+
+  const script = await app.inject({ method: 'GET', url: '/ui/app.js' });
+  assert.equal(script.statusCode, 200);
+  assert.ok(script.headers['content-type']?.includes('application/javascript'));
+  assert.doesNotThrow(() => new Function(script.payload));
+  assert.ok(script.payload.includes('/v1/control/overview'));
+  assert.doesNotMatch(script.payload, /localStorage\.(?:getItem|setItem)/);
 });
 
 test('Dashboard route redirects to /ui', async () => {

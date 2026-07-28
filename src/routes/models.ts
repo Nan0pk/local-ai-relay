@@ -21,6 +21,20 @@ import {
 } from '../providers/registry.js';
 import type { ModelListResponse, ModelCard } from '../types/openai.js';
 
+const ROUTED_MODEL: ModelCard = {
+  id: 'relay-auto',
+  object: 'model',
+  created: 0,
+  owned_by: 'local-ai-relay',
+  x_relay: {
+    transport: 'local',
+    execution_style: 'direct',
+    supports_sessions: true,
+    supports_streaming: true,
+    max_parallel_requests: 1,
+  },
+};
+
 const invalidQuery = {
   error: {
     message: '`include` must be omitted or set to `all`.',
@@ -73,7 +87,7 @@ export function registerModelsRoutes(app: FastifyInstance): void {
       if (request.query.include === 'all') {
         // Full diagnostic view: every registered model with capability metadata.
         const records = getAllCapabilityRecords();
-        const allCards: ModelCard[] = [];
+        const allCards: ModelCard[] = [ROUTED_MODEL];
         for (const record of records) {
           const models = getModelsForProvider(record.providerId);
           for (const card of models) {
@@ -90,7 +104,7 @@ export function registerModelsRoutes(app: FastifyInstance): void {
       // Default: only ready models.
       const body: ModelListResponse = {
         object: 'list',
-        data: listReadyModels(),
+        data: [ROUTED_MODEL, ...listReadyModels()],
       };
       return body;
     },

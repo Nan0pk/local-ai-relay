@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { timingSafeEqual } from 'node:crypto';
 import { getOrGenerateToken } from './token.js';
+import { harnessTokens } from './harness-tokens.js';
 
 function isOriginAllowed(origin: string, env: NodeJS.ProcessEnv = process.env): boolean {
   const normalized = origin.toLowerCase().trim();
@@ -55,7 +56,7 @@ export function registerAuthAndCors(app: FastifyInstance): void {
       // Add CORS headers for authorized origins
       reply.header('Access-Control-Allow-Origin', origin);
       reply.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-relay-session');
-      reply.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
     }
 
     // Handle CORS preflight OPTIONS request
@@ -66,7 +67,13 @@ export function registerAuthAndCors(app: FastifyInstance): void {
     // Liveness and the dashboard shell contain no secrets. The dashboard asks
     // for the token before making authenticated API calls.
     const pathname = req.url.split('?', 1)[0];
-    if (pathname === '/health' || pathname === '/ui' || pathname === '/dashboard') {
+    if (
+      pathname === '/health'
+      || pathname === '/ui'
+      || pathname === '/ui/app.css'
+      || pathname === '/ui/app.js'
+      || pathname === '/dashboard'
+    ) {
       return;
     }
 
@@ -87,7 +94,7 @@ export function registerAuthAndCors(app: FastifyInstance): void {
     const token = bearerMatch[1].trim();
     const expectedToken = await getOrGenerateToken();
 
-    if (!tokensMatch(token, expectedToken)) {
+    if (!tokensMatch(token, expectedToken) && !harnessTokens.verify(token)) {
       return reply.code(401).send({
         error: {
           message: 'Incorrect API key provided.',

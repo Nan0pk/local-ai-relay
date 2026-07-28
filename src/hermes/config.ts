@@ -73,3 +73,30 @@ export function upsertHermesRelayConfig(
   };
   return config;
 }
+
+export function removeHermesRelayConfig(
+  source: unknown,
+  previousModel?: unknown,
+): ConfigMap {
+  const config = { ...record(source) };
+  const providers = Array.isArray(config.custom_providers)
+    ? config.custom_providers.filter((value) => (
+        !value
+        || typeof value !== 'object'
+        || Array.isArray(value)
+        || (value as ConfigMap).name !== HERMES_PROVIDER_NAME
+      ))
+    : [];
+  if (providers.length > 0) config.custom_providers = providers;
+  else delete config.custom_providers;
+
+  const currentModel = record(config.model);
+  if (currentModel.provider === `custom:${HERMES_PROVIDER_NAME}`) {
+    if (previousModel && typeof previousModel === 'object' && !Array.isArray(previousModel)) {
+      config.model = structuredClone(previousModel);
+    } else {
+      delete config.model;
+    }
+  }
+  return config;
+}

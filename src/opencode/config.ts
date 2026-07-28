@@ -48,3 +48,12 @@ export function upsertOpenCodeRelayConfig(
   config.provider = providers;
   return config;
 }
+
+export function removeOpenCodeRelayConfig(source: unknown): ConfigMap {
+  const config = { ...record(source) };
+  const providers = { ...record(config.provider) };
+  delete providers[OPENCODE_PROVIDER_ID];
+  if (Object.keys(providers).length > 0) config.provider = providers;
+  else delete config.provider;
+  return config;
+}
