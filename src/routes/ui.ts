@@ -54,7 +54,7 @@ const UI_HTML = `<!doctype html>
           <p id="heroSummary" class="quiet">Loading relay state…</p>
         </div>
         <div class="hero-actions">
-          <button id="connectAvailable" class="button primary">Connect login-free provider</button>
+          <button id="connectAvailable" class="button primary">Try easiest provider</button>
           <button id="runDoctor" class="button secondary">Check setup</button>
           <button id="openLogs" class="button secondary">Activity & errors</button>
         </div>
@@ -67,11 +67,34 @@ const UI_HTML = `<!doctype html>
         <article class="metric"><span class="metric-icon">◇</span><div><small>Harnesses</small><strong id="harnessCount">0 connected</strong><span>Scoped, removable integrations</span></div></article>
       </section>
 
+      <section class="browser-panel panel">
+        <div class="browser-copy">
+          <span class="status-dot" id="browserDot"></span>
+          <div>
+            <span class="eyebrow">Browser connection</span>
+            <h2 id="browserMode">Shared relay browser</h2>
+            <p id="browserDetail">Checking whether this Chrome profile is paired…</p>
+          </div>
+        </div>
+        <div class="browser-actions">
+          <button id="useThisBrowser" class="button primary">Use this Chrome</button>
+          <details id="extensionHelp">
+            <summary>Install the Chrome extension</summary>
+            <ol>
+              <li>Open <code>chrome://extensions</code>.</li>
+              <li>Enable <strong>Developer mode</strong> and choose <strong>Load unpacked</strong>.</li>
+              <li>Select <code id="extensionPath">extension</code> <button id="copyExtensionPath" class="button secondary" type="button">Copy path</button>, return here, then click <strong>Use this Chrome</strong>.</li>
+              <li>The extension controls only provider tabs opened by this relay. Remove it any time to stop existing-browser access.</li>
+            </ol>
+          </details>
+        </div>
+      </section>
+
       <div class="layout">
         <div class="main-column">
           <section class="panel">
             <div class="section-heading">
-              <div><span class="eyebrow">Step 1 · Connections</span><h2>Connect one provider</h2><p><strong>Connect and sign in</strong> opens the provider in a dedicated relay profile and waits for you. The account-site link opens your normal browser only for account management; its session is not copied.</p></div>
+              <div><span class="eyebrow">Step 1 · Connections</span><h2>Connect one provider</h2><p>Access is checked live because providers change anonymous use, regions, quotas, and sign-in rules without notice. If a usable composer is available, the relay connects immediately; otherwise the same tab stays open for sign-in.</p></div>
               <div class="legend"><span><i class="dot ready"></i>Ready</span><span><i class="dot warning"></i>Needs attention</span><a class="link-button" href="https://github.com/Nan0pk/local-ai-relay/issues/new?template=provider.yml" target="_blank" rel="noopener noreferrer">Request provider ↗</a></div>
             </div>
             <div id="providerGrid" class="provider-grid" aria-live="polite"></div>

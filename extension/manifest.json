@@ -1,18 +1,45 @@
 {
   "manifest_version": 3,
-  "name": "Local AI Relay Sidecar",
+  "name": "Local AI Relay — Use This Browser",
   "version": "0.1.0",
-  "description": "Manifest V3 browser extension sidecar for Local AI Relay.",
+  "description": "Use existing signed-in Chrome sessions with Local AI Relay.",
   "permissions": [
-    "alarms",
-    "nativeMessaging",
+    "scripting",
+    "tabs",
     "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://chat.deepseek.com/*",
+    "https://chat.z.ai/*",
+    "https://agent.minimax.io/*",
+    "https://kimi.com/*",
+    "https://www.kimi.com/*",
+    "https://chat.qwen.ai/*",
+    "https://grok.com/*",
+    "https://chat.mistral.ai/*",
+    "https://arena.ai/*",
+    "https://www.meta.ai/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "js": ["pair.js"],
+      "run_at": "document_start"
+    }
+  ],
   "action": {
-    "default_title": "Local AI Relay Sidecar",
+    "default_title": "Local AI Relay — Use This Browser",
     "default_popup": "popup.html"
   }
 }

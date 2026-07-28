@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Local AI Relay Sidecar</title>
+  <title>Local AI Relay — Use This Browser</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <main>
     <h1>Local AI Relay</h1>
-    <p>Experimental Native Messaging control bridge. Browser inference still uses Patchright.</p>
-    <button id="testHost" type="button">Test native host</button>
-    <output id="result" aria-live="polite">Not tested.</output>
+    <p>Use provider tabs in this Chrome profile without copying cookies or passwords.</p>
+    <button id="openDashboard" type="button">Open relay dashboard</button>
+    <button id="forget" class="secondary" type="button" hidden>Disconnect this browser</button>
+    <output id="result" aria-live="polite">Checking connection…</output>
   </main>
   <script src="popup.js"></script>
 </body>

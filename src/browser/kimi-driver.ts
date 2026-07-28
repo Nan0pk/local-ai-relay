@@ -1,11 +1,11 @@
 import { BaseBrowserDriver, type SiteConfig } from './base-driver.js';
 
-/** Kimi (kimi.com) webchat driver. */
+/** Kimi (www.kimi.com) webchat driver. */
 export class KimiPlaywrightDriver extends BaseBrowserDriver {
   protected config(): SiteConfig {
     return {
       name: 'kimi',
-      url: 'https://kimi.com/',
+      url: 'https://www.kimi.com/',
       profileEnvVar: 'RELAY_BROWSER_PROFILE_KIMI',
       composerSelectors: [
         'textarea#chat-input',

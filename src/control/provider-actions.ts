@@ -4,6 +4,7 @@ import { findBrowserProvider, listBrowserProviders } from '../browser/driver-reg
 import { runLiveProbe, type LiveProbeStage } from '../cli/live-probe.js';
 import { getModelsForProvider } from '../providers/registry.js';
 import { controlEvents } from './events.js';
+import { isExistingBrowserConnected } from '../browser/extension-driver.js';
 
 export type ProviderJobStatus = 'running' | 'succeeded' | 'failed' | 'cancelled';
 
@@ -25,7 +26,8 @@ export interface ProviderCatalogEntry {
   name: string;
   label: string;
   url: string;
-  authentication: 'required' | 'optional';
+  authentication: 'dynamic';
+  anonymousCandidate: boolean;
   transport: 'browser';
   models: string[];
 }
@@ -45,6 +47,7 @@ export class ProviderActionManager {
       label: descriptor.label,
       url: descriptor.url,
       authentication: descriptor.authentication,
+      anonymousCandidate: descriptor.anonymousCandidate,
       transport: 'browser',
       models: getModelsForProvider(`browser-${descriptor.name}`).map((model) => model.id),
     }));
@@ -74,12 +77,15 @@ export class ProviderActionManager {
     };
     this.jobs.set(job.id, job);
     this.controllers.set(job.id, new AbortController());
+    const existingBrowserConnected = isExistingBrowserConnected();
     const started = controlEvents.record({
       scope: 'provider',
       code: 'provider_connection_started',
       message: `Opened the ${descriptor.label} connection and sign-in flow.`,
       providerId,
-      detail: 'The official provider page uses the dedicated persistent relay browser profile.',
+      detail: existingBrowserConnected
+        ? 'The official provider page uses a relay-owned tab in the paired Chrome profile.'
+        : 'The official provider page uses the shared persistent relay-browser fallback.',
     });
     job.eventId = started.id;
     void this.run(job.id, descriptor.name);

@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   findBrowserProvider,
   listBrowserProviderNames,
+  listBrowserProviders,
 } from './driver-registry.js';
 
 test('browser provider registry exposes all unique live-probe targets', () => {
@@ -10,6 +11,15 @@ test('browser provider registry exposes all unique live-probe targets', () => {
   assert.equal(names.length, 12);
   assert.equal(new Set(names).size, names.length);
   for (const name of names) assert.equal(findBrowserProvider(name).name, name);
+});
+
+test('provider registry uses current canonical URLs and live access hints', () => {
+  const providers = listBrowserProviders();
+  assert.equal(findBrowserProvider('arena').url, 'https://arena.ai/');
+  assert.equal(findBrowserProvider('kimi').url, 'https://www.kimi.com/');
+  assert.ok(findBrowserProvider('chatgpt').anonymousCandidate);
+  assert.ok(findBrowserProvider('grok').anonymousCandidate);
+  assert.ok(providers.every((provider) => provider.authentication === 'dynamic'));
 });
 
 test('driver factories honor the headless environment default', async () => {

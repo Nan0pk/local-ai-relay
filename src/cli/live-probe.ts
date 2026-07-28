@@ -1,5 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import { findBrowserProvider } from '../browser/driver-registry.js';
+import {
+  createAdaptiveBrowserDriver,
+  findBrowserProvider,
+} from '../browser/driver-registry.js';
+import { isExistingBrowserConnected } from '../browser/extension-driver.js';
 import { ensureBrowserInstalled } from '../browser/runtime.js';
 import { persistCapability } from '../capabilities/evidence-store.js';
 import type { ProviderCapabilityRecord } from '../capabilities/tracker.js';
@@ -53,8 +57,10 @@ export async function runLiveProbe(providerName: string, options: LiveProbeOptio
 
   const major = Number(process.versions.node.split('.')[0]);
   if (major < 22) throw new Error('Node.js 22 or newer is required.');
+  const useExistingBrowser = isExistingBrowserConnected();
   if (
-    process.platform === 'linux'
+    !useExistingBrowser
+    && process.platform === 'linux'
     && process.env.RELAY_BROWSER_HEADLESS !== '1'
     && !process.env.DISPLAY
     && !process.env.WAYLAND_DISPLAY
@@ -62,25 +68,38 @@ export async function runLiveProbe(providerName: string, options: LiveProbeOptio
     throw new Error('No graphical Linux session was detected (DISPLAY/WAYLAND_DISPLAY is missing).');
   }
 
-  const browser = await ensureBrowserInstalled({
-    onInstallStart: (destination) => {
-      options.onStage?.(
-        'installing_browser',
-        `No compatible installed browser was found. Installing managed Chromium once into ${destination}.`,
-      );
-    },
-  });
-  console.log(
-    browser.source === 'system'
-      ? `Browser: using installed ${browser.executablePath} with the isolated relay profile`
-      : `Browser: using ${browser.installedNow ? 'newly installed' : 'existing'} managed Chromium at ${browser.executablePath}`,
-  );
+  if (useExistingBrowser) {
+    console.log('Browser: using a relay-owned tab in the paired, already signed-in Chrome profile');
+  } else {
+    const browser = await ensureBrowserInstalled({
+      onInstallStart: (destination) => {
+        options.onStage?.(
+          'installing_browser',
+          `No compatible installed browser was found. Installing managed Chromium once into ${destination}.`,
+        );
+      },
+    });
+    console.log(
+      browser.source === 'system'
+        ? `Browser: using installed ${browser.executablePath} with the shared relay profile`
+        : `Browser: using ${browser.installedNow ? 'newly installed' : 'existing'} managed Chromium at ${browser.executablePath}`,
+    );
+  }
 
-  const driver = descriptor.factory();
+  const driver = createAdaptiveBrowserDriver(descriptor.name);
   try {
     if (options.signal?.aborted) throw new Error('Connection was cancelled.');
-    options.onStage?.('opening_browser', `Opening the dedicated ${descriptor.label} browser profile.`);
-    console.log(`Opening the dedicated ${descriptor.label} profile. Sign in normally if asked.`);
+    options.onStage?.(
+      'opening_browser',
+      useExistingBrowser
+        ? `Opening ${descriptor.label} in this Chrome profile.`
+        : `Opening ${descriptor.label} in the shared relay browser.`,
+    );
+    console.log(
+      useExistingBrowser
+        ? `Opening a relay-owned ${descriptor.label} tab in this Chrome profile.`
+        : `Opening ${descriptor.label} in the shared relay browser. Sign in normally if asked.`,
+    );
     console.log('The probe will continue automatically when the composer becomes available.');
     await driver.openForLogin();
     options.onStage?.('waiting_for_login', 'Waiting for sign-in and a usable chat composer.');

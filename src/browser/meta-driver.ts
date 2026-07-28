@@ -8,6 +8,8 @@ export class MetaPlaywrightDriver extends BaseBrowserDriver {
       url: 'https://www.meta.ai/',
       profileEnvVar: 'RELAY_BROWSER_PROFILE_META',
       composerSelectors: [
+        'input[aria-label="Ask Meta AI"]',
+        'input[placeholder*="Ask Meta AI" i]',
         '[data-testid="composer-input"][contenteditable="true"]',
         '[data-testid="composer-input"]',
       ],

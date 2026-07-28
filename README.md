@@ -1,232 +1,199 @@
 # Local AI Relay
 
-**Use AI provider web chats from Hermes, OpenCode, or another
-OpenAI-compatible app through one private local dashboard.**
+**Open one local dashboard, connect an AI web chat, and use it from Hermes,
+OpenCode, or any OpenAI-compatible client.**
 
 [![CI](https://github.com/Nan0pk/local-ai-relay/actions/workflows/ci.yml/badge.svg)](https://github.com/Nan0pk/local-ai-relay/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-5ee6b0)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-5ee6b0)](#start-here)
+[![Platforms](https://img.shields.io/badge/source_preview-Linux_x64_%7C_Windows_x64-5ee6b0)](#install-and-open)
 
 > [!IMPORTANT]
-> **Available now:** source preview for Linux x64 and Windows x64.
-> **Not available yet:** a signed `v0.1.0` release. Do not use a versioned
-> release command until that version is visible on the
-> [Releases page](https://github.com/Nan0pk/local-ai-relay/releases).
+> This is currently a **source preview**, not a signed desktop release. There is
+> no standalone `bootstrap.sh` to download. Use the one command below from any
+> directory. After the first run, start Local AI Relay from your application
+> menu or desktop shortcut.
 
-## Start here
+## Install and open
 
-These commands work from any directory. They download the official starter,
-install or safely update one managed source checkout, create **Local AI Relay**
-in the application menu, and open the Control Center.
+You need Git and Node.js 22 or newer.
 
-### Linux
-
-Requires Git and Node.js 22 or newer.
+### Linux x64
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/start-source.sh -o /tmp/local-ai-relay-start.sh && bash /tmp/local-ai-relay-start.sh
 ```
 
-### Windows PowerShell
-
-Requires Git and 64-bit Node.js 22 or newer.
+### Windows x64 — PowerShell
 
 ```powershell
 $starter = Join-Path $env:TEMP 'local-ai-relay-start.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/Nan0pk/local-ai-relay/main/start-source.ps1' -OutFile $starter; powershell.exe -NoProfile -ExecutionPolicy Bypass -File $starter
 ```
 
-Want to inspect the starters first?
-[Linux](start-source.sh) · [Windows](start-source.ps1)
+The starter downloads or safely updates one managed checkout, installs locked
+dependencies when needed, creates **Local AI Relay** in the application menu,
+starts the loopback-only server, and opens the unlocked Control Center. It does
+not modify a random clone or force a provider login during installation.
 
-### What happens
+## Get to work
 
-1. The starter uses an isolated checkout under the current user's application
-   data directory. It never overwrites an unrelated folder or local changes.
-2. Dependencies install only on first start or when the lockfile changes.
-3. An application-menu launcher is created for later starts.
-4. The loopback-only relay starts and the authenticated Control Center opens.
-5. No provider login is forced during installation.
+The Control Center is the normal interface. No project coding is required.
 
-If a prerequisite is missing, the starter stops immediately with the missing
-item and leaves existing data untouched.
+1. **Choose browser mode.** Click **Use this Chrome** if you want the relay to
+   reuse logins already present in your normal Chrome profile. The dashboard
+   gives the one-time extension installation path. Skip this step to use the
+   isolated shared relay browser.
+2. **Connect one provider.** Click **Connect / check access**. The relay first
+   looks for a usable signed-out composer. If the provider asks for an account,
+   sign in on the official page that opened. The card changes to **Ready** only
+   after one transparent test request succeeds.
+3. **Connect your harness.** Choose Hermes, OpenCode, or **Generic
+   OpenAI-compatible client**. Launch the installed harness and use model
+   `relay-auto`.
 
-## Get working
+The dashboard shows the local server, browser mode, every provider's live
+connection stage, linked errors, harness integration state, routing policy,
+setup checks, and a test box.
 
-In the Control Center:
+## Your browser choices
 
-1. **Connections:** click **Connect** beside a provider. If the provider
-   requires an account, complete sign-in on its real website.
-2. Wait for **Ready**. The relay performs one real verification; it does not
-   call a provider ready merely because an adapter exists.
-3. **Work:** connect Hermes, OpenCode, or copy the generic OpenAI-compatible
-   settings. Launch the detected harness and select model `relay-auto`.
+| Mode | What it does | Best for |
+|---|---|---|
+| **This Chrome** | A small unpacked extension opens relay-owned provider tabs in the Chrome profile you are already using. Existing provider sessions are available. | Least login friction |
+| **Shared relay browser** | The relay opens one persistent browser profile shared by all providers. Sign in once there and the session survives restarts. | Isolation; no extension |
+| **Managed Chromium fallback** | If no compatible Chrome/Chromium is installed, the relay downloads its own browser automatically on the first connection. | Fresh systems |
 
-The dashboard shows relay health, provider connection stages, harness state,
-routing mode, recent activity, setup checks, and linked error details.
+The extension does not copy cookies, ask for passwords, or automate arbitrary
+personal tabs. It receives a narrowly scoped local key and can script only the
+listed provider domains. Provider tabs are created and tracked by the relay.
+OAuth, passkeys, 2FA, consent, and CAPTCHAs remain manual.
 
-## What is actually ready
+To stop using the existing profile, click **Disconnect this Chrome** in the
+dashboard or **Forget relay** in the extension popup. Removing the extension
+also removes its local key; re-pairing replaces any older server-side extension
+key.
 
-| Area | Current status |
-|---|---|
-| Local server and Control Center | Deterministically tested |
-| Production mock isolation | Deterministically tested; fake providers are not exposed |
-| ChatGPT browser adapter | Implemented; readiness is verified on the user's own account |
-| Claude, Gemini, DeepSeek, Z.ai, MiniMax, Kimi, Qwen, Grok, Mistral, Meta AI, Arena | Adapters exist; treat each as experimental until it passes a real request on the user's machine |
-| Hermes and OpenCode configuration | Reversible configuration logic tested; installed harness and account still require local proof |
-| Linux/Windows application launcher | Implemented; Windows execution is also checked in Windows CI |
-| Signed installer release | **Not published yet** |
+## Anonymous access changes—so the relay checks live
 
-Provider websites, account eligibility, quotas, regional access, and anti-bot
-checks can change independently of this repository. The dashboard reports the
-observed state instead of promising universal availability.
+Provider login rules vary by region, quota, rollout, and time. On 28 July 2026,
+a signed-out composer was visible during a non-submitting audit for ChatGPT,
+Gemini, Z.ai, Qwen, Meta AI, Kimi, Arena, MiniMax, and Grok. DeepSeek redirected
+to sign-in. Claude and Mistral presented site verification to the audit browser,
+so their signed-out state was inconclusive.
 
-## Sign-in and browser behavior
+Those observations are only connection-order hints. The dashboard never treats
+them as readiness evidence. It checks the page you actually receive and adapts:
 
-**Connect and sign in** opens the official provider chat in a dedicated,
-persistent relay browser profile. Passwords, passkeys, 2FA, consent, and
-CAPTCHAs are handled directly on the provider's page. Local AI Relay does not
-ask for or store the account password.
+- usable composer → verify immediately;
+- login page → keep the official page open while you sign in;
+- CAPTCHA or site verification → ask you to complete it manually;
+- quota, rate limit, layout change, timeout, or interrupted generation → show
+  the classified error and a link to its event log.
 
-The relay intentionally does **not** automate the everyday Chrome profile.
-Sharing an active personal profile with automation risks browser locking,
-profile corruption, and unnecessary cookie exposure.
-
-No Chrome extension is required. The optional extension in this repository is
-an experimental status companion; it does not carry prompts or provider
-sessions.
-
-## Provider status
-
-- **Available / Sign in:** an adapter exists but has no current real evidence.
-- **Connecting:** browser setup, login wait, or verification is running.
-- **Ready:** a real response succeeded. Evidence remains current for seven days
-  and refreshes after successful use.
-- **Needs attention / Error:** open the linked activity entry for the exact
-  classified failure and recovery action.
-
-A connection attempt can be cancelled. CAPTCHA, login, quota, rate-limit,
-layout-change, timeout, and interrupted-generation failures are reported
-separately.
+Provider sites can still change independently of this project.
 
 ## Routing
 
-Leave automatic routing on and use `relay-auto` for the simplest setup. It
-routes only among selected providers with current readiness evidence.
+Leave **Auto routing** enabled and request `relay-auto` for the simplest setup.
+It selects only providers with current successful-use evidence.
 
-Advanced controls allow:
+Open **Provider choice and advanced routing** to:
 
-- reliability-first or speed-first routing;
-- an explicit provider priority;
-- manual lock to one provider model;
-- safe pre-submission fallback on or off.
+- allow only selected providers;
+- prefer reliability, speed, or your own priority order;
+- lock requests to one provider model;
+- allow or disable safe pre-submission fallback.
 
-The relay does not retry ambiguous timeouts or interrupted generations on a
-different provider, which avoids accidentally submitting the same work twice.
+The relay does not fail over after an ambiguous timeout or interrupted
+generation, avoiding accidental duplicate submissions.
 
-## Harnesses
+## Harnesses and removal
 
 ### Hermes
 
-The dashboard detects `hermes` in `PATH`, adds one `local-ai-relay` provider to
-`~/.hermes/config.yaml`, preserves unrelated settings, retains bounded backups,
-and restores the prior model choice when disconnected.
-
-If Hermes is missing, follow its
-[official installation guide](https://hermes-agent.nousresearch.com/docs/getting-started/installation)
-and refresh the dashboard.
+The dashboard detects the executable and adds one `local-ai-relay` provider to
+`~/.hermes/config.yaml`. It preserves other settings, keeps bounded backups, and
+restores the prior model choice when disconnected.
 
 ### OpenCode
 
-The dashboard detects `opencode` in `PATH` and adds only the
-`local-ai-relay` provider entry to
-`~/.config/opencode/opencode.json`.
+The dashboard adds only the `local-ai-relay` provider entry to
+`~/.config/opencode/opencode.json` and preserves unrelated configuration.
 
-If OpenCode is missing, follow its
-[official installation guide](https://opencode.ai/docs/)
-and refresh the dashboard.
+### Any other client
 
-### Another harness
+Choose **Generic OpenAI-compatible client → Get settings**. You receive:
 
-Choose **Generic OpenAI-compatible client → Get settings**. The dashboard
-provides:
-
-- a loopback base URL such as `http://127.0.0.1:8787/v1`;
-- a dedicated revocable API key;
+- base URL `http://127.0.0.1:8787/v1` (or the active local port);
+- a dedicated revocable key;
 - model `relay-auto`.
 
-No unknown harness files are modified automatically.
+### Remove or test another harness
 
-## Stop, switch, or remove
-
-- Connect several harnesses at once; each receives a separate revocable key.
-- Click **Disconnect** beside one harness to remove only relay-owned settings.
-- Use **Disconnect all** to remove all known harness integrations and revoke
-  their keys without deleting provider browser profiles.
-- Preview cleanup from a terminal:
+- **Disconnect** removes only the selected harness integration and revokes its
+  key.
+- **Disconnect all** removes every relay-owned harness entry and revokes all
+  harness keys. Provider browser sessions are left intact.
+- You can connect a different harness immediately; each integration has its own
+  key and does not depend on the previous harness.
+- To preview cleanup in a terminal:
 
   ```bash
   cd "${XDG_DATA_HOME:-$HOME/.local/share}/local-ai-relay/source"
   npm run integrations:remove
   ```
 
-- Apply that cleanup:
+- To apply the previewed cleanup:
 
   ```bash
-  cd "${XDG_DATA_HOME:-$HOME/.local/share}/local-ai-relay/source"
   npm run integrations:remove -- --yes
   ```
 
-To stop the background relay without removing configuration:
+## If something goes wrong
 
-```bash
-systemctl --user stop local-ai-relay.service
-```
+Start with **Check setup** and **Activity & errors** in the dashboard.
 
-On Windows, use the dashboard cleanup controls and stop the Local AI Relay
-process from the user session if it is still running.
-
-## If something fails
-
-1. Open **Setup doctor** in the dashboard.
-2. Open the error link beside the affected provider or harness.
-3. Check the local relay log:
-   - Linux/macOS: `~/.local-ai-relay/relay.log`
-   - Windows: `%USERPROFILE%\.local-ai-relay\relay.log`
-4. Run the same start command again. The starter updates safely and skips
-   dependency installation when nothing changed.
-
-Common recoveries:
-
-| Symptom | Action |
+| Symptom | What to do |
 |---|---|
-| Starter says Git or Node is missing | Install Git and Node.js 22+, then rerun the same command |
-| Browser does not open | Copy the dashboard URL printed in the terminal into the same local machine's browser |
-| Provider requests sign-in | Complete sign-in in the dedicated relay browser window |
-| CAPTCHA or verification loop | Complete it manually; the relay does not bypass it |
-| Provider shows quota/rate limit | Wait for the provider's stated recovery time or use another ready provider |
-| Harness says not installed | Install the harness from its official guide, then refresh |
-| Harness says installed but not connected | Click **Connect** after at least one real provider is Ready |
+| `bootstrap.sh: No such file or directory` | Do not run `bootstrap.sh`; use the complete source-preview command under **Install and open** |
+| Git or Node is missing | Install Git and Node.js 22+, then rerun the same starter command |
+| Dashboard did not open | Open the `Dashboard:` URL printed by the starter on the same computer |
+| **Use this Chrome** cannot find the extension | Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the exact path shown by the dashboard |
+| Provider opens in a separate browser | Pair the extension with **Use this Chrome**; otherwise the shared relay browser is the intentional fallback |
+| No Chrome/Chromium is installed | Retry **Connect**; the relay automatically installs its managed Chromium fallback |
+| Provider asks for sign-in | Finish sign-in in the visible official-provider tab; never paste cookies or passwords into the relay |
+| CAPTCHA or verification loop | Complete it manually. The relay does not bypass provider safeguards |
+| Provider reports quota or rate limit | Wait for its stated reset time or connect another provider |
+| Harness is missing | Use the linked official install guide, install it, then refresh |
 
-## Privacy and security
+Local logs:
 
-- The API binds to `127.0.0.1` by default and requires a bearer token.
-- Provider profiles, tokens, prompts, and diagnostics stay local.
-- Diagnostics are opt-in and redacted.
+- Linux: `~/.local-ai-relay/relay.log`
+- Windows: `%USERPROFILE%\.local-ai-relay\relay.log`
+
+Rerunning the starter is safe: it updates the managed checkout, preserves
+unexpected folders and local changes, and skips dependency installation when
+the lockfile is unchanged.
+
+## Privacy and current proof
+
+- The API binds to `127.0.0.1` by default and requires authentication.
+- Extension keys and harness keys are scoped and revocable.
+- Provider passwords and cookies are never copied into relay configuration.
+- Diagnostics stay local and may contain page content; disable screenshots with
+  `RELAY_DIAGNOSTICS=0`.
 - No remote telemetry is sent by Local AI Relay.
-- Provider terms, quotas, safety systems, and access controls still apply.
+- Provider terms, quotas, access controls, and safety systems still apply.
 
-## Signed releases
+Deterministic tests cover the server, dashboard, extension bridge, routing,
+reversible harness configuration, launchers, delivery paths, and mock isolation.
+Real provider readiness still requires a successful request in the operator's
+own browser and region. A signed `v0.1.0` installer is not advertised until its
+artifacts, checksums, and attestations exist on the
+[Releases page](https://github.com/Nan0pk/local-ai-relay/releases).
 
-A signed installer is intentionally not advertised as runnable until an actual
-stable release exists. When one is published, the
-[Releases page](https://github.com/Nan0pk/local-ai-relay/releases) will contain
-the exact Linux and Windows bootstrap assets, checksums, attestations, and
-versioned packages. The authenticated delivery design is documented in
-[docs/release-policy.md](docs/release-policy.md).
+## Developers
 
-## Developers and contributors
-
-This is not required for normal use.
+Normal operators can stop reading here.
 
 ```bash
 git clone https://github.com/Nan0pk/local-ai-relay.git
@@ -235,9 +202,7 @@ npm ci
 npm run verify
 ```
 
-- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Provider behavior: [docs/providers.md](docs/providers.md)
-- OpenAPI document: [docs/openapi.json](docs/openapi.json)
-- Current productization task: [TASK.md](TASK.md)
-
-Apache-2.0 licensed.
+[Provider architecture](docs/providers.md) ·
+[Browser connection details](docs/login-solution.md) ·
+[OpenAPI](docs/openapi.json) ·
+[Contributing](CONTRIBUTING.md)

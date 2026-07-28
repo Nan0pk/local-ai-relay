@@ -9,9 +9,8 @@ Adapter: `src/providers/kimi-browser.ts`. Tests: 9/9 pass via the shared
 browser-provider test matrix. CLI: `npm run login:kimi`, `npm run
 probe:kimi`.
 
-`browser-kimi-free` is NOT registered in `src/providers/registry.ts` or
-`/v1/models` until the live authenticated E2E below passes and is
-recorded here.
+`browser-kimi-free` is registered in the diagnostic inventory. It appears in
+the default `/v1/models` response only while current live evidence exists.
 
 ## Required live verification
 
@@ -22,17 +21,16 @@ authenticated Kimi account:
 cd ~/local-ai-relay   # (or %HOME%\local-ai-relay on Windows)
 git pull --ff-only
 npm ci                 # npm install on Windows
-npm run login:kimi   # sign in to kimi.com normally, Ctrl+C when composer visible
+npm run login:kimi   # sign in to www.kimi.com normally, Ctrl+C when composer visible
 npm run probe:kimi   # prints PASS + conversation URL
 ```
 
-Paste back the `PASS:` line and `Conversation:` URL. After PASS, the
-provider is registered in `registry.ts`, this file is filled with
-sanitized evidence, and the README status flips to "E2E verified".
+Paste back the `PASS:` line and `Conversation:` URL. After PASS, this file is
+filled with sanitized evidence and current runtime readiness becomes available.
 
 ## Patchright baseline review — code PASS, authenticated E2E pending
 
 Patchright 1.61.1 now supplies the shared Chromium runtime; 122/122 tests,
 TypeScript build, and startup smoke pass. No local diagnostics or recorded
 Kimi failures were available, so no detection-related fix is claimed.
-Authenticated E2E remains required and the provider remains unregistered.
+Authenticated E2E remains required before the adapter can be called ready.

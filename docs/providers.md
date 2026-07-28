@@ -29,7 +29,7 @@ another dependency layer.
 | 9 | `browser-grok-free` | Grok | Distinct frontier model family and live-information strength | Mock E2E; live pending |
 | 10 | `browser-mistral-free` | Mistral Le Chat | Fast EU-hosted alternative and open-weight ecosystem | Mock E2E; live pending |
 | 11 | `browser-meta-free` | Meta AI | First-party Llama-family assistant and Meta ecosystem integration | Historical live probe; refresh required |
-| 12 | `browser-arena-free` | LMSYS Chatbot Arena | Login-free access to a diverse pool of models | Mock E2E; live pending |
+| 12 | `browser-arena-free` | Arena | Anonymous access is often available; diverse model pool | Mock E2E; live pending |
 
 Mock E2E validates relay plumbing against the in-process fake DOM; it does not
 validate a provider's current site, authentication, quota, or selectors.
@@ -44,12 +44,12 @@ validate a provider's current site, authentication, quota, or selectors.
 | DeepSeek | <https://chat.deepseek.com> |
 | Z.ai | <https://chat.z.ai> |
 | MiniMax Agent | <https://agent.minimax.io> |
-| Kimi | <https://kimi.com> |
+| Kimi | <https://www.kimi.com> |
 | Qwen Chat | <https://chat.qwen.ai> |
 | Grok | <https://grok.com> |
 | Mistral Le Chat | <https://chat.mistral.ai> |
 | Meta AI | <https://www.meta.ai> |
-| LMSYS Chatbot Arena | <https://chat.lmsys.org> |
+| Arena | <https://arena.ai> |
 
 ## Adapter contract
 
@@ -57,10 +57,10 @@ Every new browser provider must have:
 
 1. Its own driver containing only site-specific URL, composer, send, response,
    login, rate-limit, and completion-detection logic.
-2. A dedicated persistent profile below
-   `~/.local-ai-relay/browser-profiles/<provider>`.
-3. Native Patchright/Playwright-compatible input; no direct `textContent` mutation or deprecated
-   `execCommand` insertion.
+2. A serializable automation contract that works through the paired Chrome
+   extension and the shared persistent relay-browser fallback.
+3. Native Patchright/Playwright-compatible input in the fallback and
+   framework-compatible DOM input events in the extension; no cookie copying.
 4. Shared conversation planning and compact tool-schema handling.
 5. Explicit cancellation, timeout, serialized access, and redacted local
    diagnostics.

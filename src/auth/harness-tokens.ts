@@ -68,11 +68,16 @@ export class HarnessTokenRegistry {
   }
 
   verify(token: string): boolean {
+    return this.resolve(token) !== undefined;
+  }
+
+  resolve(token: string): { id: string; harnessId: string } | undefined {
     const actual = digest(token);
-    return loadStore(this.path).tokens.some((record) => {
-      const expected = Buffer.from(record.digest, 'hex');
+    const record = loadStore(this.path).tokens.find((candidate) => {
+      const expected = Buffer.from(candidate.digest, 'hex');
       return actual.length === expected.length && timingSafeEqual(actual, expected);
     });
+    return record ? { id: record.id, harnessId: record.harnessId } : undefined;
   }
 
   async revokeHarness(harnessId: string): Promise<void> {
@@ -89,6 +94,11 @@ export class HarnessTokenRegistry {
 
   async retainHarnessToken(harnessId: string, tokenId: string): Promise<void> {
     const store = loadStore(this.path);
+    if (!store.tokens.some(
+      (record) => record.harnessId === harnessId && record.id === tokenId,
+    )) {
+      throw new Error(`Unknown ${harnessId} token.`);
+    }
     store.tokens = store.tokens.filter(
       (record) => record.harnessId !== harnessId || record.id === tokenId,
     );

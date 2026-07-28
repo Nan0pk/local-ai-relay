@@ -50,7 +50,6 @@
     "harnesses:configure": "node --import tsx src/cli/configure-harnesses.ts",
     "hermes:configure": "node --import tsx src/cli/configure-harnesses.ts --hermes",
     "integrations:remove": "node --import tsx src/cli/remove-integrations.ts",
-    "setup:native-host": "node --import tsx src/cli/setup-native-host.ts",
     "mcp": "node --import tsx src/mcp/index.ts",
     "generate:openapi": "node --import tsx scripts/generate-openapi.ts",
     "verify": "node scripts/verify.mjs",

@@ -1,29 +1,29 @@
-const button = document.getElementById('testHost');
-const result = document.getElementById('result');
+const status = document.getElementById('result');
+const openDashboard = document.getElementById('openDashboard');
+const forget = document.getElementById('forget');
 
-button.addEventListener('click', () => {
-  button.disabled = true;
-  result.textContent = 'Connecting…';
-  const timeout = setTimeout(() => {
-    result.textContent = 'Timed out waiting for the native host.';
-    button.disabled = false;
-  }, 5000);
-
-  chrome.runtime.sendMessage({
-    type: 'RELAY_EVENT',
-    payload: {
-      request_id: crypto.randomUUID(),
-      page_generation: 0,
-      sequence_number: 0,
-      event_type: 'heartbeat',
-      payload: {},
-    },
-  }, (response) => {
-    clearTimeout(timeout);
-    const runtimeError = chrome.runtime.lastError?.message;
-    if (runtimeError) result.textContent = `Unavailable: ${runtimeError}`;
-    else if (!response?.ok) result.textContent = `Unavailable: ${response?.error || 'Native host rejected the request.'}`;
-    else result.textContent = 'Native host handshake passed.';
-    button.disabled = false;
+function refresh() {
+  chrome.runtime.sendMessage({ type: 'GET_RELAY_STATUS' }, (value) => {
+    if (value?.paired) {
+      status.textContent = value.lastError
+        ? `Paired with ${value.relayOrigin}. Reconnecting: ${value.lastError}`
+        : `Paired with ${value.relayOrigin}. Existing-browser mode is available.`;
+      forget.hidden = false;
+    } else {
+      status.textContent = 'Not paired. Open the relay dashboard and choose “Use this Chrome”.';
+      forget.hidden = true;
+    }
   });
+}
+
+openDashboard.addEventListener('click', async () => {
+  const stored = await chrome.storage.local.get('relayConnection');
+  const origin = stored.relayConnection?.relayOrigin || 'http://127.0.0.1:8787';
+  chrome.tabs.create({ url: `${origin}/ui` });
 });
+
+forget.addEventListener('click', () => {
+  chrome.runtime.sendMessage({ type: 'FORGET_RELAY' }, refresh);
+});
+
+refresh();

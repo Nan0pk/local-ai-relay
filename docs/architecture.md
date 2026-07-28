@@ -1,6 +1,8 @@
 # Architecture
 
-Architecture decisions: [ADR 0001 — Patchright browser runtime](adr/0001-patchright-browser-runtime.md).
+Architecture decisions:
+[ADR 0001 — Patchright browser runtime](adr/0001-patchright-browser-runtime.md) and
+[ADR 0005 — existing-browser extension](adr/0005-existing-browser-extension.md).
 
 ## Request path
 
@@ -16,7 +18,7 @@ Fastify routes ──► provider registry ──► selected provider
 OpenAI JSON/SSE              local/API         browser driver
                                                   │
                                                   ▼
-                                      user-authenticated webchat
+                                      current official webchat
 ```
 
 Routes never select sites directly. The registry is the only model-to-provider
@@ -33,8 +35,10 @@ back to another service.
 | `src/providers/conversation-planner.ts` | Full first turn, delta continuations, fork detection |
 | `src/providers/tool-bridge.ts` | Compact tool definitions and translate tagged tool calls |
 | `src/browser/types.ts` | Site-independent browser driver contract |
-| `src/browser/runtime.ts` | Patchright launch policy and Chrome/Chromium selection |
+| `src/browser/runtime.ts` | Patchright fallback launch policy and Chrome/Chromium selection |
 | `src/browser/*-driver.ts` | Site-specific page interaction and response extraction |
+| `src/extension/browser-bridge.ts` | Scoped command transport to a paired Chrome extension |
+| `extension/` | Existing-profile tab ownership, page inspection, and dashboard pairing |
 | `src/hermes/` | Preserve and update Hermes configuration |
 | `src/service/` | Generate the systemd user unit |
 | `src/startup/` | Select/reuse a safe local port |
@@ -50,16 +54,18 @@ with current runtime evidence appear in default model discovery.
 2. Tool definitions are compacted and included on the first turn only.
 3. A continuation sends only new messages; the existing website thread holds
    prior context and tools.
-4. The driver enters text with native Patchright/Playwright-compatible keyboard input, waits for an
-   enabled send control, and waits for the final assistant message to stabilize.
+4. The adaptive driver chooses the paired Chrome extension when connected or
+   the shared Patchright profile otherwise, enters text, waits for an enabled
+   send control, and waits for the final assistant message to stabilize.
 5. Tagged tool requests are translated into OpenAI `tool_calls`.
 6. JSON is returned normally, or reconstructed as OpenAI-compatible SSE when
    the client requested `stream: true`.
 
 Browser operations are serialized per browser driver because consumer webchats
 are stateful. Provider rate-limit and quota responses are classified as typed
-failures; the relay does not bypass them. Profiles are isolated under
-`~/.local-ai-relay/browser-profiles/` and never exported.
+failures; the relay does not bypass them. Existing-browser mode owns only tabs
+it creates. Fallback state stays in the shared relay profile and is never
+exported.
 
 ## Trust boundary
 
