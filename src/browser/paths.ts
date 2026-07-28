@@ -1,4 +1,4 @@
-import { join, win32 } from 'node:path';
+import { delimiter, join, win32 } from 'node:path';
 import { access } from 'node:fs/promises';
 import { constants, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -14,6 +14,16 @@ const LINUX_BROWSER_CANDIDATES = [
   '/usr/bin/google-chrome',
   '/usr/bin/chromium',
   '/usr/bin/chromium-browser',
+  '/opt/google/chrome/google-chrome',
+  '/usr/lib64/chromium-browser/chromium-browser',
+  '/snap/bin/chromium',
+] as const;
+
+const LINUX_BROWSER_COMMANDS = [
+  'google-chrome-stable',
+  'google-chrome',
+  'chromium',
+  'chromium-browser',
 ] as const;
 
 /** Known Chrome/Chromium locations without downloading a managed browser. */
@@ -36,14 +46,22 @@ export function systemBrowserCandidates(
       '/Applications/Chromium.app/Contents/MacOS/Chromium',
     ].filter((candidate): candidate is string => Boolean(candidate));
   }
-  return platform === 'linux' ? [...LINUX_BROWSER_CANDIDATES] : [];
+  if (platform !== 'linux') return [];
+  const fromPath = (env.PATH ?? '')
+    .split(delimiter)
+    .filter(Boolean)
+    .flatMap((directory) => LINUX_BROWSER_COMMANDS.map((name) => join(directory, name)));
+  return [...new Set([...LINUX_BROWSER_CANDIDATES, ...fromPath])];
 }
 
 /** Prefer an explicit executable, then an installed Chrome/Chromium. */
-export async function findSystemBrowser(): Promise<string | undefined> {
+export async function findSystemBrowser(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | undefined> {
   const candidates = [
-    process.env.RELAY_BROWSER_EXECUTABLE,
-    ...systemBrowserCandidates(),
+    env.RELAY_BROWSER_EXECUTABLE,
+    ...systemBrowserCandidates(platform, env),
   ].filter((candidate): candidate is string => Boolean(candidate));
   for (const candidate of candidates) {
     try {

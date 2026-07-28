@@ -29,3 +29,14 @@ test('discovers normal Chrome installs on Windows and macOS without a browser do
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   );
 });
+
+test('discovers Fedora and other Linux browser commands through known paths and PATH', () => {
+  const candidates = systemBrowserCandidates('linux', {
+    PATH: '/home/person/.local/bin:/usr/local/bin:/usr/bin',
+  });
+  assert.equal(candidates[0], '/usr/bin/google-chrome-stable');
+  assert.ok(candidates.includes('/opt/google/chrome/google-chrome'));
+  assert.ok(candidates.includes('/home/person/.local/bin/google-chrome-stable'));
+  assert.ok(candidates.includes('/usr/local/bin/chromium'));
+  assert.equal(candidates.length, new Set(candidates).size);
+});
