@@ -28,7 +28,10 @@ export const DASHBOARD_JS = String.raw`
     return provider.latest_job?.status === "failed" ? "failed" : "idle";
   }
   function statusLabel(provider) {
-    if (provider.latest_job?.status === "running") return provider.latest_job.stage === "waiting_for_login" ? "Waiting for sign-in" : "Connecting";
+    if (provider.latest_job?.status === "running") {
+      if (provider.latest_job.stage === "installing_browser") return "Installing browser";
+      return provider.latest_job.stage === "waiting_for_login" ? "Waiting for sign-in" : "Connecting";
+    }
     if (provider.ready) return "Ready";
     if (provider.status === "disabled") return "Disabled";
     if (provider.latest_job?.status === "failed") return "Error";

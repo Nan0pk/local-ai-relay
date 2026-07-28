@@ -1,7 +1,6 @@
-import { access, readFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { findBrowserProvider } from '../browser/driver-registry.js';
-import { browserBinariesDir, findSystemBrowser } from '../browser/paths.js';
+import { ensureBrowserInstalled } from '../browser/runtime.js';
 import { persistCapability } from '../capabilities/evidence-store.js';
 import type { ProviderCapabilityRecord } from '../capabilities/tracker.js';
 import { resolve } from 'node:path';
@@ -12,6 +11,7 @@ const READINESS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type LiveProbeStage =
   | 'checking_environment'
+  | 'installing_browser'
   | 'opening_browser'
   | 'waiting_for_login'
   | 'verifying'
@@ -27,15 +27,6 @@ function parseProvider(argv: string[]): string {
   if (idx >= 0 && argv[idx + 1]) return argv[idx + 1]!;
   if (argv[0] && !argv[0].startsWith('-')) return argv[0];
   return 'chatgpt';
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await access(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function distroName(): Promise<string> {
@@ -71,23 +62,19 @@ export async function runLiveProbe(providerName: string, options: LiveProbeOptio
     throw new Error('No graphical Linux session was detected (DISPLAY/WAYLAND_DISPLAY is missing).');
   }
 
-  const systemBrowser = await findSystemBrowser();
-  if (systemBrowser) {
-    console.log(`Browser: using installed ${systemBrowser} with the isolated relay profile`);
-  }
-  let hasRelayBrowser = false;
-  try {
-    process.env.PLAYWRIGHT_BROWSERS_PATH ??= browserBinariesDir();
-    const { chromium } = await import('patchright');
-    hasRelayBrowser = await exists(chromium.executablePath());
-  } catch {
-    hasRelayBrowser = false;
-  }
-  if (!systemBrowser && !hasRelayBrowser) {
-    throw new Error(
-      'No installed Chrome/Chromium was found. Install Google Chrome (recommended), set RELAY_BROWSER_EXECUTABLE, or explicitly run `npm run browser:install` for the optional managed Chromium download.',
-    );
-  }
+  const browser = await ensureBrowserInstalled({
+    onInstallStart: (destination) => {
+      options.onStage?.(
+        'installing_browser',
+        `No compatible installed browser was found. Installing managed Chromium once into ${destination}.`,
+      );
+    },
+  });
+  console.log(
+    browser.source === 'system'
+      ? `Browser: using installed ${browser.executablePath} with the isolated relay profile`
+      : `Browser: using ${browser.installedNow ? 'newly installed' : 'existing'} managed Chromium at ${browser.executablePath}`,
+  );
 
   const driver = descriptor.factory();
   try {
