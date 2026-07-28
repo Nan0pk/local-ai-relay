@@ -12,7 +12,6 @@ export class MockLocator {
   ) {}
 
   async count(): Promise<number> {
-    console.log('[MockLocator] count called for selector:', this.selector, 'activePrompt:', activePromptStorage.getStore());
     const activePrompt = activePromptStorage.getStore() || '';
 
     // Assistant message selectors
@@ -39,7 +38,7 @@ export class MockLocator {
     if (this.isStopSelector()) {
       if (this.page.sendTriggeredAt) {
         const elapsed = Date.now() - this.page.sendTriggeredAt;
-        if (elapsed < 1000) {
+        if (elapsed < 100) {
           return 1;
         }
       }
@@ -137,7 +136,6 @@ export class MockLocator {
   }
 
   async innerText(): Promise<string> {
-    console.log('[MockLocator] innerText called for selector:', this.selector, 'index:', this.index);
     const activePrompt = activePromptStorage.getStore() || '';
     if (this.selector.includes('body')) {
       if (activePrompt.includes('trigger:rate_limit')) {

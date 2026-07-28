@@ -4,10 +4,22 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { DaemonClient } from './daemon-client.js';
+import { RELAY_VERSION } from '../version.js';
+
+function requiredString(
+  args: Record<string, unknown> | undefined,
+  name: string,
+): string {
+  const value = args?.[name];
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`'${name}' must be a non-empty string.`);
+  }
+  return value;
+}
 
 export function createMcpServer(daemonClient: DaemonClient) {
   const server = new Server(
-    { name: 'local-ai-relay-mcp', version: '0.2.0' },
+    { name: 'local-ai-relay-mcp', version: RELAY_VERSION },
     { capabilities: { tools: {} } },
   );
 
@@ -21,6 +33,7 @@ export function createMcpServer(daemonClient: DaemonClient) {
           properties: {
             include_unready: { type: 'boolean', description: 'Include unready/disabled models' },
           },
+          additionalProperties: false,
         },
       },
       {
@@ -29,8 +42,9 @@ export function createMcpServer(daemonClient: DaemonClient) {
         inputSchema: {
           type: 'object',
           properties: {
-            provider_id: { type: 'string', description: 'Optional provider ID (e.g., chatgpt, ollama)' },
+            provider_id: { type: 'string', description: 'Optional provider ID (e.g., browser-chatgpt)' },
           },
+          additionalProperties: false,
         },
       },
       {
@@ -39,54 +53,12 @@ export function createMcpServer(daemonClient: DaemonClient) {
         inputSchema: {
           type: 'object',
           properties: {
-            model: { type: 'string', description: 'Model ID (e.g., browser-chatgpt-free, ollama-llama3:8b)' },
+            model: { type: 'string', description: 'Registered model ID (e.g., browser-chatgpt-free)' },
             input: { type: 'string', description: 'User prompt text' },
-            tools: { type: 'array', description: 'Optional tools array' },
+            tools: { type: 'array', items: { type: 'object' }, description: 'Optional tools array' },
           },
           required: ['model', 'input'],
-        },
-      },
-      {
-        name: 'relay_open_provider_login',
-        description: 'Launch a browser window for manual login to a web provider.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            provider: { type: 'string', description: 'Provider ID (e.g., chatgpt, claude, gemini)' },
-          },
-          required: ['provider'],
-        },
-      },
-      {
-        name: 'relay_trigger_probe',
-        description: "Force a live probe to refresh a provider's capability evidence.",
-        inputSchema: {
-          type: 'object',
-          properties: {
-            provider: { type: 'string', description: 'Provider ID' },
-          },
-          required: ['provider'],
-        },
-      },
-      {
-        name: 'relay_clear_evidence',
-        description: "Reset a provider's evidence store, setting status to installed.",
-        inputSchema: {
-          type: 'object',
-          properties: {
-            provider: { type: 'string', description: 'Provider ID' },
-          },
-          required: ['provider'],
-        },
-      },
-      {
-        name: 'relay_get_diagnostics',
-        description: 'Export system diagnostics (logs, systemd status, ledger stats).',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            redacted: { type: 'boolean', description: 'Redact sensitive info (default true)' },
-          },
+          additionalProperties: false,
         },
       },
     ],
@@ -99,30 +71,28 @@ export function createMcpServer(daemonClient: DaemonClient) {
       let result: unknown;
       switch (name) {
         case 'relay_list_models':
-          result = await daemonClient.listModels(args?.include_unready as boolean | undefined);
+          if (args?.include_unready !== undefined && typeof args.include_unready !== 'boolean') {
+            throw new Error("'include_unready' must be a boolean.");
+          }
+          result = await daemonClient.listModels(args?.include_unready);
           break;
         case 'relay_get_provider_status':
-          result = await daemonClient.getProviderStatus(args?.provider_id as string | undefined);
+          if (args?.provider_id !== undefined && typeof args.provider_id !== 'string') {
+            throw new Error("'provider_id' must be a string.");
+          }
+          result = await daemonClient.getProviderStatus(args?.provider_id);
           break;
-        case 'relay_delegate_request':
+        case 'relay_delegate_request': {
+          if (args?.tools !== undefined && !Array.isArray(args.tools)) {
+            throw new Error("'tools' must be an array.");
+          }
           result = await daemonClient.delegateRequest(
-            args?.model as string,
-            args?.input as string,
-            args?.tools as unknown[] | undefined,
+            requiredString(args, 'model'),
+            requiredString(args, 'input'),
+            args?.tools,
           );
           break;
-        case 'relay_open_provider_login':
-          result = await daemonClient.openProviderLogin(args?.provider as string);
-          break;
-        case 'relay_trigger_probe':
-          result = await daemonClient.triggerProbe(args?.provider as string);
-          break;
-        case 'relay_clear_evidence':
-          result = await daemonClient.clearEvidence(args?.provider as string);
-          break;
-        case 'relay_get_diagnostics':
-          result = await daemonClient.getDiagnostics(args?.redacted !== false);
-          break;
+        }
         default:
           throw new Error(`Unknown tool: ${name}`);
       }

@@ -1,84 +1,121 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import os from 'node:os';
-import { execSync } from 'node:child_process';
+import { access, chmod, mkdir, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { homedir, platform as currentPlatform } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const MANIFEST_TEMPLATE = {
-  name: 'com.local_ai_relay.host',
-  description: 'Local AI Relay Native Messaging Host',
-  path: '',
-  type: 'stdio',
-  allowed_origins: [] as string[],
-};
+const HOST_NAME = 'com.local_ai_relay.host';
 
-async function getManifestPath(): Promise<string> {
-  const platform = os.platform();
-  const home = os.homedir();
-  let dir: string;
-  switch (platform) {
-    case 'linux':
-      dir = path.join(home, '.config', 'google-chrome', 'NativeMessagingHosts');
-      break;
-    case 'darwin':
-      dir = path.join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts');
-      break;
-    case 'win32':
-      return 'registry';
-    default:
-      throw new Error(`Unsupported platform: ${platform}`);
-  }
-  await fs.mkdir(dir, { recursive: true });
-  return path.join(dir, 'com.local_ai_relay.host.json');
-}
-
-async function installOnWindows(extensionId: string, hostPath: string) {
-  const regKey = `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.local_ai_relay.host`;
-  const manifestPath = path.join(os.tmpdir(), 'com.local_ai_relay.host.json');
-  const manifest = {
-    ...MANIFEST_TEMPLATE,
-    path: hostPath,
-    allowed_origins: [`chrome-extension://${extensionId}/`],
+export interface NativeHostInstallPlan {
+  manifestPath: string;
+  launcherPath: string;
+  manifest: {
+    name: string;
+    description: string;
+    path: string;
+    type: 'stdio';
+    allowed_origins: string[];
   };
-  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
-  execSync(`reg add "${regKey}" /ve /t REG_SZ /d "${manifestPath}" /f`);
-  console.log(`Installed Windows registry key: ${regKey}`);
+  launcher: string;
 }
 
-async function installPosix(extensionId: string, hostPath: string) {
-  const manifestPath = await getManifestPath();
-  const manifest = {
-    ...MANIFEST_TEMPLATE,
-    path: hostPath,
-    allowed_origins: [`chrome-extension://${extensionId}/`],
-  };
-  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
-  console.log(`Installed manifest at ${manifestPath}`);
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  const extensionIdArg = args.find((a) => a.startsWith('--extension-id='));
-  if (!extensionIdArg) {
-    console.error('Usage: node setup-native-host.js --extension-id=<CHROME_EXTENSION_ID>');
-    process.exit(1);
+function extensionIdFrom(args: string[]): string {
+  const value = args.find((argument) => argument.startsWith('--extension-id='))
+    ?.slice('--extension-id='.length);
+  if (!value || !/^[a-p]{32}$/.test(value)) {
+    throw new Error('Provide a valid Chrome extension ID with --extension-id=<32 lowercase a-p characters>.');
   }
-  const extensionId = extensionIdArg.split('=')[1];
-  if (!extensionId) {
-    console.error('Extension ID must be provided.');
-    process.exit(1);
+  return value;
+}
+
+async function existingHostEntry(): Promise<string> {
+  const currentFile = fileURLToPath(import.meta.url);
+  const sourceEntry = resolve(dirname(currentFile), '..', 'extension', 'host-main.ts');
+  try {
+    await access(sourceEntry, constants.R_OK);
+    return sourceEntry;
+  } catch {
+    return resolve(dirname(currentFile), '..', 'extension', 'host-main.js');
   }
+}
 
-  const hostPath = process.argv[1].replace('setup-native-host.js', 'host-main.js');
-  const absoluteHostPath = path.resolve(hostPath);
-
-  const platform = os.platform();
+export async function buildNativeHostInstallPlan(
+  extensionId: string,
+  options: {
+    platform?: NodeJS.Platform;
+    home?: string;
+    nodePath?: string;
+    hostEntry?: string;
+    tsxImport?: string;
+  } = {},
+): Promise<NativeHostInstallPlan> {
+  const platform = options.platform ?? currentPlatform();
   if (platform === 'win32') {
-    await installOnWindows(extensionId, absoluteHostPath);
-  } else {
-    await installPosix(extensionId, absoluteHostPath);
+    throw new Error(
+      'Windows Native Messaging setup is not yet supported: Chrome requires a real executable launcher, not a .js or .cmd path.',
+    );
   }
-  console.log('Native messaging host installed successfully.');
+  if (platform !== 'linux' && platform !== 'darwin') {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+
+  const home = options.home ?? homedir();
+  const installDir = join(home, '.local-ai-relay', 'native-host');
+  const launcherPath = join(installDir, HOST_NAME);
+  const hostEntry = options.hostEntry ?? await existingHostEntry();
+  const nodePath = options.nodePath ?? process.execPath;
+  const usesTypeScript = hostEntry.endsWith('.ts');
+  const tsxImport = options.tsxImport
+    ?? (usesTypeScript ? fileURLToPath(import.meta.resolve('tsx')) : undefined);
+  const launcher = [
+    '#!/usr/bin/env sh',
+    'set -eu',
+    `exec ${shellQuote(nodePath)}${tsxImport ? ` --import ${shellQuote(tsxImport)}` : ''} ${shellQuote(hostEntry)}`,
+    '',
+  ].join('\n');
+  const manifestDir = platform === 'darwin'
+    ? join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts')
+    : join(home, '.config', 'google-chrome', 'NativeMessagingHosts');
+  const manifestPath = join(manifestDir, `${HOST_NAME}.json`);
+
+  return {
+    manifestPath,
+    launcherPath,
+    launcher,
+    manifest: {
+      name: HOST_NAME,
+      description: 'Local AI Relay Native Messaging Host (experimental control bridge)',
+      path: launcherPath,
+      type: 'stdio',
+      allowed_origins: [`chrome-extension://${extensionId}/`],
+    },
+  };
 }
 
-main().catch(console.error);
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const extensionId = extensionIdFrom(args);
+  const plan = await buildNativeHostInstallPlan(extensionId);
+  if (args.includes('--dry-run')) {
+    process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
+    return;
+  }
+  await mkdir(dirname(plan.launcherPath), { recursive: true, mode: 0o700 });
+  await mkdir(dirname(plan.manifestPath), { recursive: true, mode: 0o700 });
+  await writeFile(plan.launcherPath, plan.launcher, { mode: 0o700 });
+  await chmod(plan.launcherPath, 0o700);
+  await writeFile(plan.manifestPath, `${JSON.stringify(plan.manifest, null, 2)}\n`, { mode: 0o600 });
+  process.stdout.write(`Installed Native Messaging host manifest at ${plan.manifestPath}\n`);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}

@@ -129,7 +129,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       diagnosticsDir: options.diagnosticsDir ?? defaultDiagnosticsDir(),
       headless: options.headless ?? process.env.RELAY_BROWSER_HEADLESS === '1',
       timeoutMs: options.timeoutMs ?? Number(process.env.RELAY_BROWSER_TIMEOUT_MS ?? 180_000),
-      stableMs: options.stableMs ?? 2_000,
+      stableMs: options.stableMs ?? (process.env.RELAY_MOCK_BROWSER === 'true' ? 0 : 2_000),
       maxSessions: options.maxSessions ?? Number(process.env.RELAY_BROWSER_MAX_SESSIONS ?? 8),
     };
   }
@@ -501,4 +501,3 @@ async function hasPageInterruptionError(page: Page): Promise<boolean> {
   const interruptionKeywords = /error occurred|something went wrong|failed to generate|violates.*policies|network error|unable to load|please try again/i;
   return interruptionKeywords.test(bodyText);
 }
-

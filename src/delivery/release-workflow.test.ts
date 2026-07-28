@@ -9,6 +9,7 @@ test('CI pins actions and runs delivery tests on Ubuntu and Windows', async () =
   const ci = await readFile(join(workflows, 'ci.yml'), 'utf8');
   assert.match(ci, /os: \[ubuntu-latest, windows-latest\]/);
   assert.match(ci, /run: npm run test:delivery/);
+  assert.match(ci, /run: npm audit --omit=dev --audit-level=high/);
   assert.match(ci, /run: node scripts\/validate-release\.mjs/);
   assert.doesNotMatch(ci, /uses:\s+\S+@(?![a-f0-9]{40}(?:\s|$))/);
 });

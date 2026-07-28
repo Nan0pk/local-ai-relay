@@ -105,13 +105,25 @@ class CapabilityTracker {
   isReady(providerId: string): boolean {
     const record = this.records.get(providerId);
     if (!record) return false;
-    return READY_STATUSES.has(record.status);
+    if (!READY_STATUSES.has(record.status)) return false;
+    if (!providerId.startsWith('browser-') || process.env.RELAY_MOCK_BROWSER === 'true') {
+      return true;
+    }
+    if (
+      !record.evidence
+      || !Number.isFinite(Date.parse(record.evidence.recordedAt))
+      || !record.evidence.expiresAt
+      || !Number.isFinite(Date.parse(record.evidence.expiresAt))
+    ) return false;
+    return !this.isEvidenceExpired(providerId);
   }
 
   /** Check whether evidence has expired for a provider. */
   isEvidenceExpired(providerId: string): boolean {
     const record = this.records.get(providerId);
-    if (!record || !record.evidence?.expiresAt) return false;
+    if (!record || !record.evidence) return false;
+    if (!record.evidence.expiresAt) return providerId.startsWith('browser-');
+    if (!Number.isFinite(Date.parse(record.evidence.expiresAt))) return true;
     return new Date(record.evidence.expiresAt) <= new Date();
   }
 
@@ -129,7 +141,7 @@ class CapabilityTracker {
   getReadyProviderIds(): string[] {
     const result: string[] = [];
     for (const record of this.records.values()) {
-      if (READY_STATUSES.has(record.status)) {
+      if (this.isReady(record.providerId)) {
         result.push(record.providerId);
       }
     }

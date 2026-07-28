@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { browserBinariesDir } from '../browser/paths.js';
 
 async function main(): Promise<void> {
+  try { process.loadEnvFile?.(); } catch { /* optional .env */ }
   const destination = browserBinariesDir();
   await mkdir(destination, { recursive: true });
   console.log(`Installing relay Chromium into ${destination}`);
@@ -20,4 +21,7 @@ async function main(): Promise<void> {
   if (exitCode !== 0) process.exitCode = exitCode;
 }
 
-void main();
+void main().catch((error: unknown) => {
+  console.error(`Browser installation failed: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+});

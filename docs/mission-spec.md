@@ -1,5 +1,8 @@
 # Canary Mission Specification (v0)
 
+> Target dogfood/release gate, not a description of the current HTTP runtime.
+> In particular, the SQLite ledger primitive is not yet wired into requests.
+
 This document defines the specification for live and synthetic **canary missions** in **Local AI Relay**.
 
 ---

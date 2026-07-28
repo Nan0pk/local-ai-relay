@@ -37,6 +37,28 @@ test('ready provider is ready', () => {
   assert.equal(capabilityTracker.isReady('test-provider'), true);
 });
 
+test('browser readiness requires fresh evidence outside mock mode', () => {
+  const original = process.env.RELAY_MOCK_BROWSER;
+  delete process.env.RELAY_MOCK_BROWSER;
+  capabilityTracker.reset();
+  capabilityTracker.register('browser-test', 'ready');
+  assert.equal(capabilityTracker.isReady('browser-test'), false);
+  capabilityTracker.setStatus('browser-test', 'ready', {
+    reference: 'live-probe:test',
+    recordedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  });
+  assert.equal(capabilityTracker.isReady('browser-test'), true);
+  capabilityTracker.setStatus('browser-test', 'ready', {
+    reference: 'non-expiring-evidence',
+    recordedAt: new Date().toISOString(),
+  });
+  assert.equal(capabilityTracker.isReady('browser-test'), false);
+  assert.equal(capabilityTracker.isEvidenceExpired('browser-test'), true);
+  if (original === undefined) delete process.env.RELAY_MOCK_BROWSER;
+  else process.env.RELAY_MOCK_BROWSER = original;
+});
+
 test('degraded provider is still ready (partially usable)', () => {
   capabilityTracker.reset();
   capabilityTracker.register('test-provider', 'degraded');
@@ -152,7 +174,12 @@ test('logged-out browser provider stays in installed state', () => {
 
 test('provider encountering a challenge page is degraded', () => {
   capabilityTracker.reset();
-  capabilityTracker.register('browser-gemini', 'degraded', 'Challenge page detected — manual intervention needed.');
+  capabilityTracker.register('browser-gemini', 'installed');
+  capabilityTracker.setStatus('browser-gemini', 'degraded', {
+    reference: 'live-probe:gemini',
+    recordedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  }, 'Challenge page detected — manual intervention needed.');
 
   assert.equal(capabilityTracker.isReady('browser-gemini'), true); // degraded is still partially usable
   const status = capabilityTracker.getStatus('browser-gemini');
@@ -164,7 +191,12 @@ test('provider encountering a challenge page is degraded', () => {
 
 test('provider near quota is degraded', () => {
   capabilityTracker.reset();
-  capabilityTracker.register('browser-deepseek', 'degraded', 'Usage quota nearing limit.');
+  capabilityTracker.register('browser-deepseek', 'installed');
+  capabilityTracker.setStatus('browser-deepseek', 'degraded', {
+    reference: 'live-probe:deepseek',
+    recordedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  }, 'Usage quota nearing limit.');
 
   assert.equal(capabilityTracker.isReady('browser-deepseek'), true);
   const status = capabilityTracker.getStatus('browser-deepseek');
@@ -198,9 +230,7 @@ test('stale evidence is detected by the tracker', () => {
   });
 
   assert.equal(capabilityTracker.isEvidenceExpired('browser-kimi'), true);
-  // The provider is still marked ready, but evidence is stale.
-  // Consumers should re-verify before trusting readiness.
-  assert.equal(capabilityTracker.isReady('browser-kimi'), true);
+  assert.equal(capabilityTracker.isReady('browser-kimi'), false);
 });
 
 test('reset clears all state', () => {

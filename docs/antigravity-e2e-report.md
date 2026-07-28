@@ -1,5 +1,10 @@
 # Antigravity E2E Integration Report
 
+> Historical report, not current fleet readiness evidence. “E2E” below mixes
+> deterministic mock-browser coverage with a limited earlier authenticated
+> run. Current default discovery requires fresh per-provider live-probe
+> evidence; see `docs/providers.md`.
+
 ## Environment Details
 - **Operating System**: Fedora Linux 44
 - **Node.js Version**: v22.23.1
@@ -16,7 +21,7 @@
 | **Occupied-Port Smoke Test** | **PASS** | `npm run smoke:startup` successfully runs and responds to requests. |
 | **systemd Service Installation** | **PASS** | systemd user service runs built relay locally. |
 | **Hermes Configuration Backup** | **PASS** | Config backed up to `~/.hermes/config.yaml.bak`. |
-| **Model Registration** | **PASS** | All 12 browser models are successfully registered and E2E verified. |
+| **Model Registration** | **HISTORICAL / NOT CURRENT EVIDENCE** | All adapters were registered; fleet-wide authenticated live E2E was not established by this report. |
 | **In-session Model Switching** | **PASS** | Model switching works seamlessly. |
 | **End-to-End Tool Execution** | **PASS** | Mock browser E2E session runs successfully. |
 

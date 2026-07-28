@@ -24,8 +24,13 @@ export function capabilityEvidencePath(env: NodeJS.ProcessEnv = process.env): st
 }
 
 export function isEvidenceCurrent(evidence: CapabilityEvidence | null): boolean {
-  if (!evidence || !validIsoDate(evidence.recordedAt)) return false;
-  return !evidence.expiresAt || (validIsoDate(evidence.expiresAt) && Date.parse(evidence.expiresAt) > Date.now());
+  if (
+    !evidence
+    || !validIsoDate(evidence.recordedAt)
+    || !validIsoDate(evidence.expiresAt)
+  ) return false;
+  return Date.parse(evidence.expiresAt) > Date.now()
+    && Date.parse(evidence.expiresAt) > Date.parse(evidence.recordedAt);
 }
 
 export function loadPersistedCapability(
@@ -48,6 +53,19 @@ export async function persistCapability(
     const records = store.records.filter((existing) => existing.providerId !== record.providerId);
     records.push(record);
     await writeStore({ version: STORE_VERSION, records }, path);
+  });
+}
+
+export async function clearPersistedCapability(
+  providerId: string,
+  path = capabilityEvidencePath(),
+): Promise<void> {
+  await withStoreLock(path, async () => {
+    const store = readStore(path);
+    await writeStore({
+      version: STORE_VERSION,
+      records: store.records.filter((record) => record.providerId !== providerId),
+    }, path);
   });
 }
 
@@ -119,7 +137,7 @@ function validEvidence(value: unknown): value is CapabilityEvidence {
   const evidence = value as Partial<CapabilityEvidence>;
   return typeof evidence.reference === 'string'
     && validIsoDate(evidence.recordedAt)
-    && (evidence.expiresAt === undefined || validIsoDate(evidence.expiresAt));
+    && validIsoDate(evidence.expiresAt);
 }
 
 function validIsoDate(value: unknown): value is string {

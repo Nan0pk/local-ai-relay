@@ -51,9 +51,13 @@ export async function ensureBrowserInstalled(): Promise<void> {
       stdio: 'inherit',
       env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: destination },
     });
-    await new Promise<number>((resolve) => {
-      child.once('exit', (code) => resolve(code ?? 0));
+    const exitCode = await new Promise<number>((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', (code) => resolve(code ?? 1));
     });
+    if (exitCode !== 0) {
+      throw new Error(`Patchright Chromium installation failed with exit code ${exitCode}.`);
+    }
   }
 }
 

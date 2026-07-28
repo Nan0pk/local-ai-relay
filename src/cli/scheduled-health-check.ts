@@ -1,6 +1,9 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { resolveRelayPort } from '../startup/relay-location.js';
+import { getOrGenerateToken } from '../auth/token.js';
+import { normalizeLoopbackBaseUrl } from '../utils/loopback-url.js';
 
 export interface HealthAuditReport {
   timestamp: string;
@@ -11,21 +14,29 @@ export interface HealthAuditReport {
 }
 
 export async function runHealthCheck(
-  relayUrl = 'http://127.0.0.1:8787',
+  relayUrl?: string,
   outputDir = join(homedir(), '.local', 'share', 'local-ai-relay', 'diagnostics'),
 ): Promise<HealthAuditReport> {
+  const resolvedRelayUrl = relayUrl ?? `http://127.0.0.1:${await resolveRelayPort()}`;
   const timestamp = new Date().toISOString();
   let report: HealthAuditReport;
 
   try {
-    const healthRes = await fetch(`${relayUrl}/health`, { signal: AbortSignal.timeout(5000) });
+    const loopbackRelayUrl = normalizeLoopbackBaseUrl(resolvedRelayUrl);
+    const healthRes = await fetch(`${loopbackRelayUrl}/health`, {
+      signal: AbortSignal.timeout(5000),
+      redirect: 'error',
+    });
     if (!healthRes.ok) {
-      report = { timestamp, status: 'degraded', relayUrl, error: `HTTP ${healthRes.status}` };
+      report = { timestamp, status: 'degraded', relayUrl: resolvedRelayUrl, error: `HTTP ${healthRes.status}` };
     } else {
       let providersStatus: Record<string, unknown> | undefined;
       try {
-        const tokenRes = await fetch(`${relayUrl}/v1/providers/status`, {
+        const token = await getOrGenerateToken();
+        const tokenRes = await fetch(`${loopbackRelayUrl}/v1/providers/status`, {
           signal: AbortSignal.timeout(5000),
+          headers: { Authorization: `Bearer ${token}` },
+          redirect: 'error',
         });
         if (tokenRes.ok) {
           providersStatus = (await tokenRes.json()) as Record<string, unknown>;
@@ -37,7 +48,7 @@ export async function runHealthCheck(
       report = {
         timestamp,
         status: 'ok',
-        relayUrl,
+        relayUrl: resolvedRelayUrl,
         providersStatus,
       };
     }
@@ -45,7 +56,7 @@ export async function runHealthCheck(
     report = {
       timestamp,
       status: 'unreachable',
-      relayUrl,
+      relayUrl: resolvedRelayUrl,
       error: err instanceof Error ? err.message : String(err),
     };
   }

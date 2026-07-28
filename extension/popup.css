@@ -1,0 +1,35 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-width: 300px;
+}
+
+main {
+  padding: 16px;
+}
+
+h1 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+p,
+output {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+button {
+  cursor: pointer;
+  padding: 7px 10px;
+}
+
+output {
+  display: block;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}

@@ -18,21 +18,21 @@ another dependency layer.
 
 | Priority | Relay model ID | Webchat | Why it earns a slot | Status |
 |---:|---|---|---|---|
-| 1 | `browser-chatgpt-free` | ChatGPT | Proven reference adapter and broad tool-use ability | E2E verified |
-| 2 | `browser-claude-free` | Claude | Strong coding, writing, and long-horizon work | E2E verified |
-| 3 | `browser-gemini-free` | Gemini | Large context, multimodal work, Google account access | E2E verified |
-| 4 | `browser-deepseek-free` | DeepSeek | High-value reasoning/coding and open-weight lineage | E2E verified |
-| 5 | `browser-zai-glm-5.2` | Z.ai | GLM 5.2 access and strong agent/coding capability | E2E verified |
-| 6 | `browser-minimax-m3` | MiniMax Agent | M3 agent workflow and long-context value | E2E verified |
-| 7 | `browser-kimi-free` | Kimi | Long-context research and coding | E2E verified |
-| 8 | `browser-qwen-free` | Qwen Chat | Broad open-weight model family and multilingual ability | E2E verified |
-| 9 | `browser-grok-free` | Grok | Distinct frontier model family and live-information strength | E2E verified |
-| 10 | `browser-mistral-free` | Mistral Le Chat | Fast EU-hosted alternative and open-weight ecosystem | E2E verified |
-| 11 | `browser-meta-free` | Meta AI | First-party Llama-family assistant and Meta ecosystem integration | E2E verified |
-| 12 | `browser-arena-free` | LMSYS Chatbot Arena | Login-free access to a diverse pool of models | E2E verified |
+| 1 | `browser-chatgpt-free` | ChatGPT | Proven reference adapter and broad tool-use ability | Mock E2E; live refresh required |
+| 2 | `browser-claude-free` | Claude | Strong coding, writing, and long-horizon work | Mock E2E; live pending |
+| 3 | `browser-gemini-free` | Gemini | Large context, multimodal work, Google account access | Mock E2E; live pending |
+| 4 | `browser-deepseek-free` | DeepSeek | High-value reasoning/coding and open-weight lineage | Mock E2E; live pending |
+| 5 | `browser-zai-glm-5.2` | Z.ai | GLM 5.2 access and strong agent/coding capability | Mock E2E; live pending |
+| 6 | `browser-minimax-m3` | MiniMax Agent | M3 agent workflow and long-context value | Mock E2E; live pending |
+| 7 | `browser-kimi-free` | Kimi | Long-context research and coding | Mock E2E; live pending |
+| 8 | `browser-qwen-free` | Qwen Chat | Broad open-weight model family and multilingual ability | Mock E2E; live pending |
+| 9 | `browser-grok-free` | Grok | Distinct frontier model family and live-information strength | Mock E2E; live pending |
+| 10 | `browser-mistral-free` | Mistral Le Chat | Fast EU-hosted alternative and open-weight ecosystem | Mock E2E; live pending |
+| 11 | `browser-meta-free` | Meta AI | First-party Llama-family assistant and Meta ecosystem integration | Historical live probe; refresh required |
+| 12 | `browser-arena-free` | LMSYS Chatbot Arena | Login-free access to a diverse pool of models | Mock E2E; live pending |
 
-“E2E verified” means planned adapter is fully implemented and passes mock E2E validation. A model ID enters `/v1/models` only
-after its adapter passes unit tests and its capabilities status is ready.
+Mock E2E validates relay plumbing against the in-process fake DOM; it does not
+validate a provider's current site, authentication, quota, or selectors.
 
 ## Canonical web surfaces
 
@@ -86,8 +86,8 @@ of usability.
 | `installed` | Adapter code exists; never verified at runtime | No |
 | `authenticated` | Login succeeded; reachability not confirmed | No |
 | `reachable` | Network-level contact confirmed | No |
-| `ready` | Full end-to-end capability verified with evidence | **Yes** |
-| `degraded` | Partially working (quota nearing limit, intermittent) | **Yes** |
+| `ready` | Full end-to-end capability verified with fresh evidence | **Yes** |
+| `degraded` | Partially working with fresh evidence | **Yes** |
 | `disabled` | Administratively turned off by the operator | No |
 
 ### Discovery endpoints
@@ -101,11 +101,11 @@ of usability.
 
 ### Evidence lifecycle
 
-When a provider passes a live probe or authenticated E2E run, the tracker
-records a reference to the evidence (test ID, commit SHA, probe result)
-with a timestamp. Evidence can expire, prompting re-verification. A
-provider with stale evidence remains `ready` but the diagnostic endpoint
-reports `evidence_expired: true` so operators can trigger a refresh.
+When a provider passes a live probe, the tracker records a reference with a
+timestamp and 24-hour expiry. Current evidence is restored on daemon restart.
+Expired evidence remains visible in diagnostics but removes the provider from
+the default `/v1/models` catalog until it is re-verified. Mock canaries never
+persist live readiness.
 
 ## Experimental nature & streaming mode
 

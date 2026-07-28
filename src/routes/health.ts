@@ -5,13 +5,14 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { RELAY_VERSION } from '../version.js';
 
 export function registerHealthRoutes(app: FastifyInstance): void {
   app.get('/health', async () => {
     return {
       status: 'ok',
       service: 'local-ai-relay',
-      version: '0.1.0',
+      version: RELAY_VERSION,
       timestamp: new Date().toISOString(),
     };
   });

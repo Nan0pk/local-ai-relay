@@ -14,13 +14,16 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV HOST=0.0.1
+ENV HOST=127.0.0.1
 ENV PORT=8787
 
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+
+RUN mkdir -p /home/node/.local-ai-relay \
+    && chown -R node:node /home/node/.local-ai-relay
 
 USER node
 

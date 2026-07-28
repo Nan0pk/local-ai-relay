@@ -11,9 +11,63 @@ import {
   type ErrorResponse,
   type ResponseRequest,
 } from '../types/openai.js';
+import { redactSensitive } from '../utils/redact.js';
 
 function errorBody(message: string, code: string, param: string | null = null): ErrorResponse {
   return { error: { message, type: 'invalid_request_error', param, code } };
+}
+
+function validateRequest(body: ResponseRequest): { message: string; code: string; param: string } | null {
+  if (
+    (typeof body.input !== 'string' && !Array.isArray(body.input))
+    || (typeof body.input === 'string' && body.input.trim() === '')
+    || (Array.isArray(body.input) && (
+      body.input.length === 0
+      || body.input.some((item) => typeof item !== 'object' || item === null)
+    ))
+  ) {
+    return { message: '`input` must be non-empty text or an array of input items.', code: 'invalid_input', param: 'input' };
+  }
+  if (body.model !== undefined && (typeof body.model !== 'string' || body.model.trim() === '')) {
+    return { message: '`model` must be a non-empty string.', code: 'invalid_model', param: 'model' };
+  }
+  if (body.instructions !== undefined && typeof body.instructions !== 'string') {
+    return { message: '`instructions` must be a string.', code: 'invalid_instructions', param: 'instructions' };
+  }
+  if (
+    body.tools !== undefined
+    && (
+      !Array.isArray(body.tools)
+      || body.tools.some((tool) => (
+        typeof tool !== 'object'
+        || tool === null
+        || tool.type !== 'function'
+        || typeof tool.name !== 'string'
+        || tool.name.trim() === ''
+      ))
+    )
+  ) {
+    return { message: '`tools` must contain valid function definitions.', code: 'invalid_tools', param: 'tools' };
+  }
+  if (body.stream !== undefined && typeof body.stream !== 'boolean') {
+    return { message: '`stream` must be a boolean.', code: 'invalid_stream', param: 'stream' };
+  }
+  for (const name of ['temperature', 'top_p'] as const) {
+    if (body[name] !== undefined && (typeof body[name] !== 'number' || !Number.isFinite(body[name]))) {
+      return { message: `\`${name}\` must be a finite number.`, code: `invalid_${name}`, param: name };
+    }
+  }
+  if (
+    body.max_output_tokens !== undefined
+    && (!Number.isInteger(body.max_output_tokens) || body.max_output_tokens < 1)
+  ) {
+    return {
+      message: '`max_output_tokens` must be a positive integer.',
+      code: 'invalid_max_output_tokens',
+      param: 'max_output_tokens',
+    };
+  }
+  return null;
 }
 
 function textFromContent(content: unknown): string {
@@ -237,6 +291,10 @@ export function registerResponsesRoutes(app: FastifyInstance, config: AppConfig)
     '/v1/responses',
     async (req: FastifyRequest<{ Body: ResponseRequest }>, reply: FastifyReply) => {
       const body = req.body ?? ({} as ResponseRequest);
+      const invalid = validateRequest(body);
+      if (invalid) {
+        return reply.code(400).send(errorBody(invalid.message, invalid.code, invalid.param));
+      }
       if (hasUnsupportedMedia(body)) {
         return reply.code(400).send(errorBody(
           'Image and file input are not supported by the current provider contract.',
@@ -245,7 +303,7 @@ export function registerResponsesRoutes(app: FastifyInstance, config: AppConfig)
         ));
       }
       const messages = toMessages(body);
-      if (!body.input || messages.length === 0) {
+      if (messages.length === 0) {
         return reply.code(400).send(errorBody('`input` must contain at least one message.', 'invalid_input', 'input'));
       }
       const model = (body.model ?? config.defaultModel).trim();
@@ -284,7 +342,10 @@ export function registerResponsesRoutes(app: FastifyInstance, config: AppConfig)
             const mapped = browserFailureErrorBody(error.kind, error.message);
             if (mapped) return reply.code(mapped.status).send(mapped.body);
           }
-          req.log.error({ error, model }, 'responses provider failed');
+          req.log.error({
+            error: redactSensitive(error instanceof Error ? error.message : String(error)),
+            model,
+          }, 'responses provider failed');
           return reply.code(500).send({
             error: { message: 'Provider returned an unexpected error.', type: 'server_error', code: 'internal_error' },
           });

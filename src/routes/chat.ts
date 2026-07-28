@@ -25,6 +25,7 @@ import type {
   ErrorResponse,
 } from '../types/openai.js';
 import type { AppConfig } from '../config.js';
+import { redactSensitive } from '../utils/redact.js';
 
 function errorBody(
   message: string,
@@ -33,6 +34,62 @@ function errorBody(
   param: string | null = null,
 ): ErrorResponse {
   return { error: { message, type, param, code } };
+}
+
+function validateRequest(body: ChatCompletionRequest): { message: string; param: string } | null {
+  if (!Array.isArray(body.messages) || body.messages.length === 0) {
+    return { message: '`messages` must be a non-empty array.', param: 'messages' };
+  }
+  const roles = new Set(['system', 'user', 'assistant', 'tool']);
+  for (const message of body.messages as unknown[]) {
+    if (
+      typeof message !== 'object'
+      || message === null
+      || !roles.has(String((message as { role?: unknown }).role))
+      || !['string', 'object'].includes(typeof (message as { content?: unknown }).content)
+      || (
+        (message as { content?: unknown }).content !== null
+        && typeof (message as { content?: unknown }).content !== 'string'
+      )
+    ) {
+      return {
+        message: 'Each message must have a supported role and string or null content.',
+        param: 'messages',
+      };
+    }
+  }
+  if (body.model !== undefined && (typeof body.model !== 'string' || body.model.trim() === '')) {
+    return { message: '`model` must be a non-empty string.', param: 'model' };
+  }
+  if (
+    body.tools !== undefined
+    && (
+      !Array.isArray(body.tools)
+      || body.tools.some((tool) => (
+        typeof tool !== 'object'
+        || tool === null
+        || tool.type !== 'function'
+        || typeof tool.function !== 'object'
+        || tool.function === null
+        || typeof tool.function.name !== 'string'
+        || tool.function.name.trim() === ''
+      ))
+    )
+  ) {
+    return { message: '`tools` must contain valid function definitions.', param: 'tools' };
+  }
+  if (body.stream !== undefined && typeof body.stream !== 'boolean') {
+    return { message: '`stream` must be a boolean.', param: 'stream' };
+  }
+  for (const name of ['temperature', 'top_p'] as const) {
+    if (body[name] !== undefined && (typeof body[name] !== 'number' || !Number.isFinite(body[name]))) {
+      return { message: `\`${name}\` must be a finite number.`, param: name };
+    }
+  }
+  if (body.max_tokens !== undefined && (!Number.isInteger(body.max_tokens) || body.max_tokens < 1)) {
+    return { message: '`max_tokens` must be a positive integer.', param: 'max_tokens' };
+  }
+  return null;
 }
 
 /**
@@ -65,10 +122,11 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
 
       const promptTrigger = body.messages?.[body.messages.length - 1]?.content || '';
       return activePromptStorage.run(promptTrigger, async () => {
-        if (!Array.isArray(body.messages) || body.messages.length === 0) {
+        const invalid = validateRequest(body);
+        if (invalid) {
           return reply
             .code(400)
-            .send(errorBody('`messages` must be a non-empty array.', 'invalid_request_error', null, 'messages'));
+            .send(errorBody(invalid.message, 'invalid_request_error', null, invalid.param));
         }
 
       const model = (body.model ?? config.defaultModel).trim();
@@ -100,7 +158,10 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
           // Unknown BrowserFailureKind — fall through to generic 500.
           req.log.error({ err, model, kind: err.kind }, 'unmapped BrowserFailure kind');
         } else {
-          req.log.error({ err, model }, 'provider.complete failed');
+          req.log.error({
+            error: redactSensitive(err instanceof Error ? err.message : String(err)),
+            model,
+          }, 'provider.complete failed');
         }
         return reply
           .code(500)

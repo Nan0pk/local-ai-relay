@@ -16,6 +16,7 @@ import { ClaudePlaywrightDriver } from '../src/browser/claude-driver.js';
 import { BrowserFailure } from '../src/browser/types.js';
 
 async function main(): Promise<void> {
+  try { process.loadEnvFile?.(); } catch { /* optional .env */ }
   const driver = new ClaudePlaywrightDriver({
     headless: true,
     timeoutMs: 60_000,
@@ -66,4 +67,7 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+void main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

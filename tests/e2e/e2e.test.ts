@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict';
 import test, { describe, before, after } from 'node:test';
-import { buildApp } from '../../src/server.js';
-import { loadConfig } from '../../src/config.js';
-import { activePromptStorage } from '../../src/browser/mock-browser.js';
-import { BrowserContextManager } from '../../src/browser/context-manager.js';
 
 // Activate mock browser environment
 process.env.RELAY_MOCK_BROWSER = 'true';
 process.env.RELAY_BROWSER_HEADLESS = '1';
 process.env.RELAY_BROWSER_MAX_SESSIONS = '2'; // Small count to test session eviction
 process.env.RELAY_API_TOKEN = 'test-token';
+
+// Load relay modules only after the mock environment is active. Browser drivers
+// read their timing and runtime defaults during construction.
+const { buildApp } = await import('../../src/server.js');
+const { loadConfig } = await import('../../src/config.js');
+const { activePromptStorage } = await import('../../src/browser/mock-browser.js');
+const { BrowserContextManager } = await import('../../src/browser/context-manager.js');
 
 let app: any;
 let baseUrl = '';

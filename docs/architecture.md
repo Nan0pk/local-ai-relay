@@ -41,7 +41,8 @@ back to another service.
 
 As more adapters land, site-specific drivers remain in `src/browser/`, while
 shared planning, tool translation, OpenAI shaping, and routing stay outside
-them. A provider is not registered until live validation succeeds.
+them. Registered adapters appear in the diagnostic inventory; only providers
+with current runtime evidence appear in default model discovery.
 
 ## Browser conversation flow
 
@@ -55,8 +56,9 @@ them. A provider is not registered until live validation succeeds.
 6. JSON is returned normally, or reconstructed as OpenAI-compatible SSE when
    the client requested `stream: true`.
 
-Browser operations are serialized per running relay because consumer webchats
-are stateful and rate-limited. Profiles are isolated under
+Browser operations are serialized per browser driver because consumer webchats
+are stateful. Provider rate-limit and quota responses are classified as typed
+failures; the relay does not bypass them. Profiles are isolated under
 `~/.local-ai-relay/browser-profiles/` and never exported.
 
 ## Trust boundary
@@ -74,5 +76,8 @@ are stateful and rate-limited. Profiles are isolated under
 - Browser SSE is compatibility streaming after the website response completes,
   not upstream token streaming.
 - Browser selectors can change without notice.
-- There is no bearer-token middleware or multi-user isolation yet.
-- There is no persistent request database or remote telemetry.
+- Bearer authentication protects APIs, but this remains a single-operator
+  local service rather than a multi-user authorization system.
+- Ledger, alias-router, and sliding-window rate-limit primitives exist but are
+  not integrated into the HTTP request path.
+- There is no remote telemetry.

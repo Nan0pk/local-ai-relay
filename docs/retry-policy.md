@@ -1,5 +1,8 @@
 # Centralized Retry Policy Specification (v0)
 
+> Proposed policy for the future ledger-backed execution path. The current HTTP
+> routes do not yet persist request state or perform these retries.
+
 This document defines the central retry policy for **Local AI Relay**. This policy is binding for all tasks, adapters, and execution phases.
 
 ---

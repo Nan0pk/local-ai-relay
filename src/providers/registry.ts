@@ -30,6 +30,7 @@ import { MistralBrowserProvider } from './mistral-browser.js';
 import { ClaudeBrowserProvider } from './claude-browser.js';
 import { MetaBrowserProvider } from './meta-browser.js';
 import { capabilityTracker } from '../capabilities/tracker.js';
+import { loadPersistedCapability } from '../capabilities/evidence-store.js';
 
 const mockProvider = new MockProvider();
 const chatGptBrowserProvider = new ChatGptBrowserProvider();
@@ -90,11 +91,16 @@ function ensureProviderInitialized(providerId: string): void {
         'Mock browser active — provider available for testing.',
       );
     } else {
-      capabilityTracker.register(
-        providerId,
-        'installed',
-        'Adapter compiled; awaiting login and live verification.',
-      );
+      const persisted = loadPersistedCapability(providerId);
+      capabilityTracker.register(providerId, 'installed', 'Adapter compiled; awaiting login and live verification.');
+      if (persisted) {
+        capabilityTracker.setStatus(
+          providerId,
+          persisted.status,
+          persisted.evidence ?? undefined,
+          persisted.detail ?? undefined,
+        );
+      }
     }
   }
 }

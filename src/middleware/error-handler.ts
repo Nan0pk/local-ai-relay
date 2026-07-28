@@ -19,8 +19,6 @@ const ERROR_MAP: Record<string, { status: number; code: string }> = {
 };
 
 export function errorHandler(err: CustomError, _req: FastifyRequest, reply: FastifyReply) {
-  const redactedMessage = redactSensitive(err.message || 'Internal server error');
-
   let status = err.statusCode || 500;
   let errorCode = 'internal_error';
   if (err.validation) {
@@ -34,11 +32,19 @@ export function errorHandler(err: CustomError, _req: FastifyRequest, reply: Fast
     errorCode = mapping.code;
   }
 
+  const exposeMessage = status < 500;
+  const redactedMessage = exposeMessage
+    ? redactSensitive(err.message || 'Request failed.')
+    : 'Internal server error.';
+  if (!exposeMessage) {
+    _req.log.error({ err: redactSensitive(err.message) }, 'request failed');
+  }
+
   reply.status(status).send({
     error: {
       message: redactedMessage,
       type: errorCode,
-      code: status,
+      code: errorCode,
     },
   });
 }

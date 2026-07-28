@@ -1,59 +1,43 @@
-import { listBrowserProviderNames, findBrowserProvider } from '../src/browser/driver-registry.js';
-import { BrowserFailure } from '../src/browser/types.js';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { listBrowserProviderNames } from '../src/browser/driver-registry.js';
+import { runLiveProbe } from '../src/cli/live-probe.js';
 
-import { classifyProbeError, type ProbeStatus } from '../src/browser/probe-utils.js';
+export async function probeAllProviders(
+  names = listBrowserProviderNames(),
+  probe = runLiveProbe,
+): Promise<{ passed: string[]; failed: Array<{ provider: string; error: string }> }> {
+  const passed: string[] = [];
+  const failed: Array<{ provider: string; error: string }> = [];
 
-async function probeProvider(name: string): Promise<ProbeStatus> {
-  const descriptor = findBrowserProvider(name);
-  // Respect user choice or default to headful for bot-sensitive ones (except gemini which is tested headless)
-  const isHeadless = process.env.RELAY_BROWSER_HEADLESS === '1' || name === 'gemini';
-  const driver = descriptor.factory({
-    headless: isHeadless,
-    timeoutMs: 15_000,
-  });
+  console.log(`Verifying ${names.length} browser providers sequentially.`);
+  console.log('Each provider opens its isolated profile. Sign in normally if prompted; the probe then continues automatically.\n');
 
-  try {
-    await driver.openForLogin();
-    // Wait up to 10 seconds for the composer to be visible
-    await driver.waitUntilReady(10_000);
-    
-    // Try sending a harmless prompt
-    const result = await driver.send({
-      prompt: 'Reply with exactly: LOCAL AI RELAY READY',
-      sessionId: `probe-${name}`,
-      resetSession: true,
-    });
-    
-    if (result.text.toUpperCase().includes('READY')) {
-      return 'operational';
-    }
-    return 'layout_changed';
-  } catch (error) {
-    return classifyProbeError(error);
-  } finally {
-    await driver.close().catch(() => {});
-  }
-}
-
-async function main() {
-  const names = listBrowserProviderNames();
-  console.log(`Probing all ${names.length} providers...\n`);
-  
-  for (const name of names) {
-    console.log(`Probing ${name}...`);
+  for (const [index, name] of names.entries()) {
+    console.log(`\n[${index + 1}/${names.length}] ${name}`);
     try {
-      const status = await probeProvider(name);
-      console.log(`RESULT: ${name} -> ${status}\n`);
-    } catch (e) {
-      console.log(`RESULT: ${name} -> failed with unexpected error: ${e}\n`);
+      await probe(name);
+      passed.push(name);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`FAIL: ${name}: ${message}`);
+      failed.push({ provider: name, error: message });
     }
   }
+
+  console.log('\nBrowser provider verification summary');
+  console.log(`PASS (${passed.length}): ${passed.join(', ') || 'none'}`);
+  console.log(`FAIL (${failed.length}): ${failed.map(({ provider }) => provider).join(', ') || 'none'}`);
+  return { passed, failed };
 }
 
-const isMain = import.meta.url.startsWith('file:') && 
-  (process.argv[1] === new URL(import.meta.url).pathname || 
-   (process.argv[1] && (process.argv[1].endsWith('probe-all.ts') || process.argv[1].endsWith('probe-all.js'))));
-
-if (isMain) {
-  main().catch(console.error);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  probeAllProviders()
+    .then(({ failed }) => {
+      if (failed.length > 0) process.exitCode = 1;
+    })
+    .catch((error: unknown) => {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    });
 }

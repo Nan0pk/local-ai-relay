@@ -1,17 +1,19 @@
-import { getDefaultLedger } from '../ledger/sqlite-ledger.js';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { findBrowserProvider } from '../browser/driver-registry.js';
+import { BrowserFailure, type BrowserLoginDriver } from '../browser/types.js';
 import { persistCapability } from '../capabilities/evidence-store.js';
 import type { ProviderCapabilityRecord } from '../capabilities/tracker.js';
+import { getDefaultLedger } from '../ledger/sqlite-ledger.js';
 
 export type TypedCanaryFailureClass =
-  | 'hermes_unavailable'
   | 'browser_unavailable'
   | 'no_display'
   | 'login_required'
   | 'captcha'
   | 'rate_limited'
   | 'quota_exhausted'
-  | 'timeout'
-  | 'restart_unobservable';
+  | 'timeout';
 
 export interface CanaryPreflightResult {
   ok: boolean;
@@ -20,82 +22,133 @@ export interface CanaryPreflightResult {
 }
 
 export function checkCanaryEnvironment(env: NodeJS.ProcessEnv = process.env): CanaryPreflightResult {
-  if (process.platform === 'linux' && !env.DISPLAY && !env.ALLOW_HEADLESS) {
+  if (
+    process.platform === 'linux'
+    && !env.DISPLAY
+    && !env.WAYLAND_DISPLAY
+    && env.RELAY_BROWSER_HEADLESS !== '1'
+  ) {
     return {
       ok: false,
       failureClass: 'no_display',
-      message: 'FAIL: DISPLAY environment variable is missing in Linux environment; browser cannot launch in headful mode.',
+      message: 'FAIL: no graphical Linux session was detected. Set RELAY_BROWSER_HEADLESS=1 only if the provider supports headless login.',
     };
   }
   return { ok: true, message: 'Preflight environment check passed.' };
 }
 
+function failureClass(error: unknown): TypedCanaryFailureClass {
+  if (error instanceof BrowserFailure) {
+    const mapped: Partial<Record<BrowserFailure['kind'], TypedCanaryFailureClass>> = {
+      login_required: 'login_required',
+      captcha: 'captcha',
+      rate_limit: 'rate_limited',
+      quota_exhausted: 'quota_exhausted',
+      timeout: 'timeout',
+    };
+    return mapped[error.kind] ?? 'browser_unavailable';
+  }
+  return /timeout/i.test(error instanceof Error ? error.message : String(error))
+    ? 'timeout'
+    : 'browser_unavailable';
+}
+
+function simulateCanaryMissions(consecutiveTarget: number): void {
+  const ledger = getDefaultLedger();
+  const requestIdPrefix = `canary-simulation-${Date.now()}-${crypto.randomUUID()}`;
+  for (let index = 1; index <= consecutiveTarget; index += 1) {
+    const requestId = `${requestIdPrefix}-${index}`;
+    ledger.createRequest(requestId, 'browser-chatgpt-free', `Simulation ${index}: ORANGE`);
+    ledger.updateRequestState(requestId, 'SUBMITTED');
+    ledger.updateRequestState(requestId, 'COMPLETED');
+  }
+}
+
 export async function runChatGptCanary(opts: {
   mockMode?: boolean;
   consecutiveTarget?: number;
+  driver?: BrowserLoginDriver;
+  capabilityStorePath?: string;
 } = {}): Promise<CanaryPreflightResult> {
-  const envCheck = checkCanaryEnvironment();
-  if (!envCheck.ok && !opts.mockMode) {
-    return envCheck;
-  }
-
+  try { process.loadEnvFile?.(); } catch { /* optional .env */ }
   const consecutiveTarget = opts.consecutiveTarget ?? 5;
-  const requestIdPrefix = `canary-${Date.now()}`;
-
-  // Phase 1: Register initial request in ledger
-  const ledger = getDefaultLedger();
-  const mainReqId = `${requestIdPrefix}-main`;
-  ledger.createRequest(mainReqId, 'browser-chatgpt-free', 'Respond with ORANGE');
-  ledger.updateRequestState(mainReqId, 'SUBMITTED');
-
-  // Register tool execution
-  const toolCallId = `tool-${requestIdPrefix}-1`;
-  ledger.registerToolExecution(toolCallId, mainReqId);
-  ledger.updateToolState(toolCallId, 'COMPLETED');
-
-  ledger.updateRequestState(mainReqId, 'COMPLETED');
-
-  // Phase 2: Cold restart simulation & generation increment
-  const oldGen = ledger.getCurrentGeneration();
-  const newGen = ledger.incrementGeneration();
-  ledger.resolveStaleGenerationsOnRestart();
-
-  // Phase 3: Consecutive canary missions post-restart
-  let passedCount = 0;
-  for (let i = 1; i <= consecutiveTarget; i += 1) {
-    const missionReqId = `${requestIdPrefix}-mission-${i}`;
-    ledger.createRequest(missionReqId, 'browser-chatgpt-free', `Canary mission ${i}: Respond with ORANGE`);
-    ledger.updateRequestState(missionReqId, 'SUBMITTED');
-    
-    // Validate monotonic streaming & token match in simulation
-    ledger.updateRequestState(missionReqId, 'COMPLETED');
-    passedCount += 1;
+  if (!Number.isInteger(consecutiveTarget) || consecutiveTarget < 1) {
+    throw new Error('consecutiveTarget must be a positive integer.');
   }
 
-  if (passedCount === consecutiveTarget) {
+  if (opts.mockMode) {
+    simulateCanaryMissions(consecutiveTarget);
+    return {
+      ok: true,
+      message: `PASS: ${consecutiveTarget} consecutive canary missions passed in mock simulation; live readiness was not persisted.`,
+    };
+  }
+
+  const envCheck = checkCanaryEnvironment();
+  if (!envCheck.ok) return envCheck;
+
+  const driver = opts.driver ?? findBrowserProvider('chatgpt').factory();
+  const ledger = getDefaultLedger();
+  const requestIdPrefix = `canary-live-${Date.now()}-${crypto.randomUUID()}`;
+  let activeRequestId: string | undefined;
+
+  try {
+    await driver.openForLogin();
+    await driver.waitUntilReady();
+    for (let index = 1; index <= consecutiveTarget; index += 1) {
+      activeRequestId = `${requestIdPrefix}-${index}`;
+      ledger.createRequest(activeRequestId, 'browser-chatgpt-free', `Live canary ${index}: ORANGE`);
+      ledger.updateRequestState(activeRequestId, 'SUBMITTED');
+      const result = await driver.send({
+        prompt: 'Reply with exactly ORANGE and nothing else.',
+        sessionId: requestIdPrefix,
+        resetSession: index === 1,
+      });
+      if (result.text.trim().toUpperCase() !== 'ORANGE') {
+        throw new Error(`Canary ${index} returned an unexpected marker.`);
+      }
+      ledger.updateRequestState(activeRequestId, 'COMPLETED');
+      activeRequestId = undefined;
+    }
+
     const recordedAt = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const record: ProviderCapabilityRecord = {
       providerId: 'browser-chatgpt',
       status: 'ready',
       evidence: {
-        reference: `canary:chatgpt:${recordedAt}`,
+        reference: `live-canary:chatgpt:${recordedAt}`,
         recordedAt,
-        expiresAt,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       },
-      detail: `5 consecutive canary missions passed post-restart (generation ${oldGen} -> ${newGen}).`,
+      detail: `${consecutiveTarget} consecutive authenticated ChatGPT canary submissions passed.`,
       updatedAt: recordedAt,
     };
-    await persistCapability(record);
+    await persistCapability(record, opts.capabilityStorePath);
     return {
       ok: true,
-      message: `PASS: ${consecutiveTarget} consecutive canary missions passed post-restart. ChatGPT promoted to ready.`,
+      message: `PASS: ${consecutiveTarget} consecutive authenticated ChatGPT canary missions passed; readiness evidence was recorded for 24 hours.`,
     };
+  } catch (error) {
+    const classified = failureClass(error);
+    if (activeRequestId) ledger.updateRequestState(activeRequestId, 'FAILED', classified);
+    return {
+      ok: false,
+      failureClass: classified,
+      message: `FAIL: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  } finally {
+    await driver.close().catch(() => {});
   }
+}
 
-  return {
-    ok: false,
-    failureClass: 'timeout',
-    message: `FAIL: Only ${passedCount}/${consecutiveTarget} canary missions completed successfully.`,
-  };
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  runChatGptCanary()
+    .then((result) => {
+      console.log(result.message);
+      if (!result.ok) process.exitCode = 1;
+    })
+    .catch((error: unknown) => {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    });
 }

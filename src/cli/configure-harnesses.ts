@@ -6,21 +6,7 @@ import { getOrGenerateToken } from '../auth/token.js';
 import { upsertHermesRelayConfig } from '../hermes/config.js';
 import { type HarnessModel, upsertOpenCodeRelayConfig } from '../opencode/config.js';
 import { listAllModels } from '../providers/registry.js';
-
-async function activePort(): Promise<number> {
-  const explicit = Number.parseInt(process.env.PORT ?? '', 10);
-  if (Number.isInteger(explicit) && explicit > 0 && explicit < 65536) return explicit;
-  try {
-    const value = Number.parseInt((await readFile(join(process.cwd(), '.relay-browser', 'active-port'), 'utf8')).trim(), 10);
-    if (Number.isInteger(value) && value > 0 && value < 65536) return value;
-  } catch { /* use .env */ }
-  try {
-    const env = await readFile(join(process.cwd(), '.env'), 'utf8');
-    return Number.parseInt(env.match(/^PORT=(\d+)$/m)?.[1] ?? '8787', 10);
-  } catch {
-    return 8787;
-  }
-}
+import { resolveRelayPort } from '../startup/relay-location.js';
 
 async function fetchModels(baseUrl: string, token: string): Promise<HarnessModel[]> {
   const response = await fetch(`${baseUrl}/models?include=all`, {
@@ -82,7 +68,7 @@ async function configureOpenCode(baseUrl: string, token: string, models: readonl
 
 export async function runHarnessConfiguration(overridePort?: number, silent = false): Promise<string[]> {
   const token = await getOrGenerateToken();
-  const port = overridePort ?? await activePort();
+  const port = overridePort ?? await resolveRelayPort();
   const baseUrl = `http://127.0.0.1:${port}/v1`;
   const { models, source } = await discoverModels(baseUrl, token);
   if (models.length === 0) throw new Error('Relay returned no registered models.');

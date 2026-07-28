@@ -1,43 +1,35 @@
 # Project: local-ai-relay
 
-> **Current status:** P0-01 through P0-05 are completed and merged. U0-01—the
-> fresh Fedora Hermes → relay → ChatGPT proof—is the current assignment.
-> Execution order through v1.0 lives in
-> [`docs/plans/use-first-completion-plan.md`](docs/plans/use-first-completion-plan.md);
-> the v2 architecture reference lives in
-> [`docs/plans/v2-master-plan.md`](docs/plans/v2-master-plan.md). The one current
-> assignment and its required deliverable live in [`TASK.md`](TASK.md). Do not
-> use the historical milestone table below to claim current provider readiness.
+Local AI Relay is an authenticated loopback gateway that presents OpenAI-style
+Chat Completions and Responses endpoints to local agent harnesses.
 
-## Architecture
-- **API Routing Layer (`src/routes/`)**: Receives OpenAI-compatible POST requests at `/v1/chat/completions` and routes them to the correct provider adapter.
-- **Provider Adapter Layer (`src/providers/`)**: Translates OpenAI request payloads (messages, tools, options) into browser chat prompts using `ConversationPlanner` and `ToolBridge`, then parses the output.
-- **Browser Driver Layer (`src/browser/`)**: Receives the prompt/options, manages the Chromium browser page, types into the composer, clicks the send button, and monitors the assistant response until stable.
-- **Browser Runtime Layer (`src/browser/runtime.ts`)**: Initializes Playwright/Patchright contexts.
+## Current reality
 
-## Milestones
-| # | Name | Scope | Dependencies | Status |
-|---|---|---|---|---|
-| E2E | E2E Testing Track | Historical v1 mock-E2E work; current acceptance is defined only in `TASK.md`. | None | SUPERSEDED |
-| 1 | Implement Arena.ai | Implement the missing login-free Arena.ai driver and provider. Register Arena.ai in registry.ts. | None | DONE |
-| 2 | Shared Context & SSO | Implement `BrowserContextManager` for shared browser profiles (R2) and automated Google SSO login in `BaseBrowserDriver`. | Milestone 1 | SUPERSEDED |
-| 3 | Register Providers | Register and verify Claude, DeepSeek, Z.ai, MiniMax, Kimi, Qwen, Grok, and Mistral in `registry.ts`. | Milestone 2 | SUPERSEDED |
-| 4 | Final E2E & Hardening | Verify all providers against 100% E2E tests, and perform Tier 5 adversarial coverage hardening. | Milestone 3, E2E | SUPERSEDED |
+- The deterministic mock backend, API routes, model readiness gating, startup
+  smoke, release-verification logic, Hermes/OpenCode config merge, and
+  Patchright adapter framework have automated coverage.
+- Browser adapters are registered in the full inventory, but registration and
+  mock E2E do not establish live readiness. Runtime evidence controls the
+  default model catalog.
+- The MCP stdio server currently supports list, status, and delegate only.
+- The embedded dashboard supports status inspection and a prompt smoke test.
+- The extension/Native Messaging code is an experimental control bridge.
+  Patchright remains the working browser inference transport.
+- Package and runtime version are `0.1.0`; no stable tagged release is
+  advertised.
 
-## Interface Contracts
-### `BrowserContextManager` (R2 Shared Context)
-- `BrowserContextManager.getInstance(options): BrowserContextManager` (Singleton)
-- `BrowserContextManager.getContext(): Promise<BrowserContext>`
-- `BrowserContextManager.close(): Promise<void>`
-- Shared profile path: `~/.local-ai-relay/browser-profiles/shared`
+The active assignment and acceptance commands live in [TASK.md](TASK.md).
+Longer-term sequencing lives in
+[docs/plans/use-first-completion-plan.md](docs/plans/use-first-completion-plan.md)
+and [docs/plans/v2-master-plan.md](docs/plans/v2-master-plan.md).
 
-### `BaseBrowserDriver` SSO Hook
-- `BaseBrowserDriver.handleSsoLogin(page: Page): Promise<boolean>`
-  - Intercepts landing pages with sign-in buttons or Google login redirection to accounts.google.com.
-  - Automatically clicks "Continue with Google" / "Sign in with Google" but does NOT automatically select an account on accounts.google.com to give the user explicit manual control.
+## Code layout
 
-## Code Layout
-- `src/browser/`: Browser drivers (`base-driver.ts`, `runtime.ts`, `driver-registry.ts`, `<provider>-driver.ts`)
-- `src/providers/`: Provider adapters (`registry.ts`, `types.ts`, `<provider>-browser.ts`)
-- `src/cli/`: Command-line tools for manual login and probing
-- `tests/e2e/`: Location for new E2E tests created by the E2E Testing Track
+- `src/routes/` — health, models, provider status, Responses, Chat Completions,
+  OpenAPI, and dashboard routes.
+- `src/providers/` — model registry, provider adapters, conversation planning,
+  and tool translation.
+- `src/browser/` — Patchright drivers, profiles, session queues, and mock DOM.
+- `src/mcp/` — the bounded stdio MCP control/delegation surface.
+- `src/extension/` and `extension/` — experimental Native Messaging bridge.
+- `src/delivery/` and `scripts/` — authenticated release and validation logic.
