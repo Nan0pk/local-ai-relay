@@ -161,5 +161,7 @@ local-ai-relay/
 secrets/
 *token*
 *credentials*
-# Exception: allow this very file and any docs that mention "token" in name.
+# Exceptions for reviewed source code that implements hashed/revocable tokens.
 !.gitignore
+!src/auth/harness-tokens.ts
+!src/auth/harness-tokens.test.ts
