@@ -61,6 +61,29 @@ function connect() {
   return port;
 }
 
+function sendHeartbeat() {
+  chrome.runtime.sendMessage({
+    type: 'RELAY_EVENT',
+    payload: {
+      request_id: crypto.randomUUID(),
+      page_generation: 0,
+      sequence_number: 0,
+      event_type: 'heartbeat',
+      payload: {},
+    },
+  }, () => void chrome.runtime.lastError);
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.alarms.create('relay-heartbeat', { periodInMinutes: 1 });
+  sendHeartbeat();
+});
+
+chrome.runtime.onStartup.addListener(sendHeartbeat);
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'relay-heartbeat') sendHeartbeat();
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== 'RELAY_EVENT' || !message.payload) return false;
   const requestId = message.payload.request_id || crypto.randomUUID();

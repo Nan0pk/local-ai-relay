@@ -26,6 +26,8 @@ import type {
 } from '../types/openai.js';
 import type { AppConfig } from '../config.js';
 import { redactSensitive } from '../utils/redact.js';
+import { controlEvents } from '../control/events.js';
+import { isRoutingAlias, routingManager } from '../control/routing.js';
 
 function errorBody(
   message: string,
@@ -129,35 +131,85 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
             .send(errorBody(invalid.message, 'invalid_request_error', null, invalid.param));
         }
 
-      const model = (body.model ?? config.defaultModel).trim();
-      const provider = findProviderForModel(model);
+      const requestedModel = (body.model ?? config.defaultModel).trim();
+      const routing = routingManager.resolve(requestedModel);
+      if (isRoutingAlias(requestedModel) && !routing) {
+        return reply
+          .code(503)
+          .send(errorBody(
+            'No permitted provider is currently ready for routing.',
+            'server_error',
+            'no_ready_provider',
+            'model',
+          ));
+      }
+      let selectedRoute = routing;
+      let model = routing?.selectedModel ?? requestedModel;
+      let provider = findProviderForModel(model);
       if (!provider) {
         return reply
           .code(404)
           .send(errorBody(`Model '${model}' is not registered.`, 'invalid_request_error', 'model_not_found', 'model'));
       }
 
-      let result;
-      try {
-        const rawSessionId = req.headers['x-relay-session'];
-        const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
-        const controller = new AbortController();
-        req.raw.once('aborted', () => controller.abort());
-        result = await provider.complete(body, model, {
-          ...(sessionId ? { sessionId } : {}),
-          signal: controller.signal,
-        });
-      } catch (err) {
+      let result: ChatCompletionResponse | undefined;
+      let providerError: unknown;
+      const rawSessionId = req.headers['x-relay-session'];
+      const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
+      const controller = new AbortController();
+      req.raw.once('aborted', () => controller.abort());
+      const fallbacks = routing ? routingManager.fallbacks(routing) : [];
+      for (let attempt = 0; attempt <= fallbacks.length; attempt += 1) {
+        const attemptStartedAt = Date.now();
+        try {
+          result = await provider.complete(body, model, {
+            ...(sessionId ? { sessionId } : {}),
+            signal: controller.signal,
+          });
+          routingManager.recordAttempt(provider.id, Date.now() - attemptStartedAt, true);
+          providerError = undefined;
+          break;
+        } catch (error) {
+          routingManager.recordAttempt(provider.id, Date.now() - attemptStartedAt, false);
+          providerError = error;
+          const next = fallbacks[attempt];
+          if (!next || controller.signal.aborted) break;
+          routingManager.recordFailover(selectedRoute!, next, error);
+          const nextProvider = findProviderForModel(next.selectedModel);
+          if (!nextProvider) break;
+          selectedRoute = next;
+          model = next.selectedModel;
+          provider = nextProvider;
+        }
+      }
+      if (providerError || !result) {
+        const err = providerError;
         // Preserve the BrowserFailure taxonomy at the HTTP boundary.
         if (err instanceof BrowserFailure) {
           const mapped = browserFailureErrorBody(err.kind, err.message);
           if (mapped) {
+            controlEvents.record({
+              scope: 'provider',
+              level: 'error',
+              code: err.kind,
+              message: `${provider.id} failed while serving ${model}.`,
+              providerId: provider.id,
+              detail: err.message,
+            });
             req.log.warn({ kind: err.kind, model, status: mapped.status }, 'browser provider failure');
             return reply.code(mapped.status).send(mapped.body);
           }
           // Unknown BrowserFailureKind — fall through to generic 500.
           req.log.error({ err, model, kind: err.kind }, 'unmapped BrowserFailure kind');
         } else {
+          controlEvents.record({
+            scope: 'provider',
+            level: 'error',
+            code: 'provider_unexpected_error',
+            message: `${provider.id} returned an unexpected error.`,
+            providerId: provider.id,
+            detail: err instanceof Error ? err.message : String(err),
+          });
           req.log.error({
             error: redactSensitive(err instanceof Error ? err.message : String(err)),
             model,
@@ -166,6 +218,12 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
         return reply
           .code(500)
           .send(errorBody('Provider returned an unexpected error.', 'server_error', 'internal_error'));
+      }
+      if (selectedRoute) {
+        reply
+          .header('x-relay-selected-model', selectedRoute.selectedModel)
+          .header('x-relay-provider', selectedRoute.providerId)
+          .header('x-relay-routing-reason', selectedRoute.reason);
       }
 
       if (body.stream === true) {

@@ -1,23 +1,24 @@
-# Current task: verify and harden the advertised v2 surfaces
+# Current task: ship the local Control Center
 
-**Status:** Complete locally on `fix/validate-v2-surfaces`; awaiting CI and
-maintainer live-provider sessions.
-**Priority:** Make repository claims match executable behavior and fail fast
-where an integration is not ready.
+**Status:** Complete locally on `agent/control-center`, awaiting stacked PR CI
+and maintainer-run authenticated provider sessions.
+**Priority:** Give newcomers a practical local GUI for provider sign-in,
+readiness, routing, diagnostics, and reversible harness integration.
 
 ## Goal
 
-Audit current `main`, reproduce its deterministic baseline, repair every
-reproducible defect found in the recently added dashboard, MCP, Native
-Messaging, OpenAPI, container, startup, security, and documentation surfaces,
-and publish one draft pull request with exact test evidence.
+Build an authenticated, CSP-safe dashboard; persistent automatic/manual/priority
+routing with failover; provider connection jobs and redacted activity; optional
+browser-companion status; scoped harness credentials; disconnect-one/all
+cleanup; generic harness onboarding; a one-command dashboard launcher; tests,
+OpenAPI, and newcomer documentation.
 
 ## Baseline
 
-The clean `0d95884bb06d2d46e5e9af77859629544b0adabe` baseline passed the
-eight deterministic commands after npm was pointed at a writable cache.
-Authenticated live browser probes were not runnable in the credential-free,
-non-graphical verification environment and must not be represented as passed.
+The parent branch `fix/validate-v2-surfaces` passed `npm run verify` and GitHub
+Actions on Ubuntu and Windows. Authenticated live browser probes remain
+operator-run because provider credentials and a graphical login session are not
+available in CI.
 
 ## Acceptance
 
@@ -36,19 +37,14 @@ npm audit --omit=dev
 All deterministic commands must pass. The final report must separately name
 the authenticated live-provider evidence that remains unavailable.
 
-## Final local evidence
+## Acceptance behavior
 
-- `npm ci`: pass from the committed lockfile.
-- `npm run verify`: pass.
-- Unit/integration: 337 total, 327 passed, 10 Windows-only skipped on Linux.
-- Deterministic mock E2E: 62/62 passed.
-- Delivery: 31 total, 21 passed, 10 Windows-only skipped on Linux.
-- Startup: occupied-port fallback, liveness, active-port record, and completion
-  round trip passed.
-- Release validator: 8 deterministic authenticated assets validated.
-- Production dependency audit: 0 vulnerabilities.
-
-Docker engine, a graphical browser session, authenticated provider profiles,
-and a Windows runner are unavailable in the local verification environment.
-Docker/Windows contracts have deterministic tests; GitHub CI supplies both
-operating-system jobs. Live readiness remains gated on `npm run probe:all`.
+- The dashboard shell/assets are public but all state and actions require auth.
+- The bearer token is never persisted in Web Storage.
+- `relay-auto` selects only allowed ready/degraded providers and logs failover.
+- Provider Connect opens the isolated profile and persists only verified
+  readiness evidence; manual login controls remain manual.
+- Harness connections use separate revocable tokens.
+- Disconnect removes only relay-owned config and restores prior Hermes choice.
+- Existing-browser companion status must not be represented as inference.
+- Full deterministic acceptance remains `npm run verify`.

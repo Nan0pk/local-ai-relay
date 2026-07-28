@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { handleFrame } from './host-main.js';
 import type { BridgeFrame } from './native-protocol.js';
+
+process.env.RELAY_BROWSER_BRIDGE_STATUS = join(
+  tmpdir(),
+  `relay-host-main-${process.pid}-${crypto.randomUUID()}.json`,
+);
 
 function frame(
   sessionId: string,

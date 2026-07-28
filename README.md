@@ -1,7 +1,21 @@
 # local-ai-relay
 
-Local OpenAI-compatible relay for agent harnesses. It exposes one authenticated
-loopback API and routes model IDs to local mock or browser-backed providers.
+Local AI Relay gives coding agents and other OpenAI-compatible applications one
+private local endpoint for several web-chat providers. Its Control Center shows
+what is connected, guides sign-in, routes requests, explains failures, and can
+add or remove harness integrations without replacing unrelated settings.
+
+After installation, run:
+
+```bash
+npm run dashboard
+```
+
+That command starts the relay in the background when needed and opens the
+polished local dashboard. You can also bookmark
+[http://127.0.0.1:8787/ui](http://127.0.0.1:8787/ui) after the relay is
+installed. If the default port is occupied, the launcher discovers the actual
+port automatically.
 
 ## What works
 
@@ -12,21 +26,30 @@ loopback API and routes model IDs to local mock or browser-backed providers.
 - `GET /v1/providers/status` — provider readiness diagnostics.
 - `GET /openapi.json` — generated OpenAPI 3.1 contract; the same document is
   committed at `docs/openapi.json`.
-- `/ui` — a minimal, token-in-memory status and prompt dashboard.
+- `/ui` — responsive, token-in-memory provider/routing/harness Control Center.
+- Guided provider connections with official-site links, background live-probe
+  jobs, current status, redacted error activity, and 24-hour readiness evidence.
+- Persistent manual, priority, and automatic routing through `relay-auto`, with
+  allowed-provider selection, live success/latency adjustment, and logged
+  failover to another ready provider.
+- Reversible Hermes and OpenCode integration with per-harness revocable tokens,
+  backups, disconnect-one, and disconnect-all actions.
+- Generic OpenAI-compatible connection details for testing another harness.
+- Optional Native Messaging companion heartbeat shown in the dashboard.
 - An MCP stdio server exposes model listing, provider status, and delegation.
 - One explicit command populates every registered model in Hermes and OpenCode.
 - Provider capability tracking with expiring evidence and a global kill switch (`RELAY_BROWSER_KILL_SWITCH=1`).
 - Separate persistent browser profiles, serialized requests, sticky sessions,
   tool-call translation, bearer auth, CORS checks, and redacted logs.
 
-The SQLite ledger, heuristic alias router, and sliding-window rate limiter are
-tested building blocks but are not wired into the HTTP request path. They are
-not advertised as runtime guarantees.
+The SQLite ledger and sliding-window rate limiter are tested building blocks but
+are not wired into the HTTP request path. The new persistent control-plane
+router is wired into both Responses and Chat Completions through `relay-auto`.
 
-The Manifest V3 extension and Native Messaging host are an **experimental
-control bridge**, not a ready inference transport. Linux and macOS setup can be
-dry-run or installed; Windows setup fails fast until a real executable launcher
-is packaged. Patchright remains the working browser transport.
+The Manifest V3 extension and Native Messaging host are an **optional status
+bridge**, not an inference transport. It checks in without page-content
+permissions, and its live/offline status appears in the dashboard. Patchright
+with isolated, persistent relay profiles remains the working browser transport.
 
 `/v1` remains the public OpenAI-compatible URL prefix. New harness plumbing uses
 the Responses API; Chat Completions remains for older clients.
@@ -46,7 +69,7 @@ discovery remains readiness-gated.
 Run from your home directory (`~`):
 
 ```bash
-cd ~ && export PATH="$HOME/.local/node/bin:$PATH" && { if [ -e local-ai-relay ] && [ ! -d local-ai-relay/.git ]; then printf '%s\n' 'ERROR: ~/local-ai-relay exists but is not a Git checkout; move it aside manually.' >&2; exit 1; elif [ -d local-ai-relay/.git ]; then git -C local-ai-relay fetch origin main && git -C local-ai-relay merge --ff-only origin/main; else git clone https://github.com/Nan0pk/local-ai-relay.git; fi; } && cd local-ai-relay && npm ci && npm run dev
+cd ~ && export PATH="$HOME/.local/node/bin:$PATH" && { if [ -e local-ai-relay ] && [ ! -d local-ai-relay/.git ]; then printf '%s\n' 'ERROR: ~/local-ai-relay exists but is not a Git checkout; move it aside manually.' >&2; exit 1; elif [ -d local-ai-relay/.git ]; then git -C local-ai-relay fetch origin main && git -C local-ai-relay merge --ff-only origin/main; else git clone https://github.com/Nan0pk/local-ai-relay.git; fi; } && cd local-ai-relay && npm ci && npm run dashboard
 ```
 
 ### Step-by-Step Setup
@@ -70,14 +93,42 @@ else
 fi
 cd local-ai-relay
 
-# 4. Install dependencies & start dev server
+# 4. Install dependencies, start the relay, and open its Control Center
 npm ci
-npm run dev
+npm run dashboard
 ```
 
 *Note: Programmatic `.env` loading inside `src/config.ts` ensures `npm run dev` starts cleanly without crashing if `.env` does not exist on disk.*
 
-`npm run dev` starts the relay on `http://127.0.0.1:8787` by default. Keep it running, then configure both supported harnesses:
+`npm run dashboard` starts a detached relay on `http://127.0.0.1:8787` by
+default, opens the page in the default browser, and prints the token-file
+location. Use `npm run dashboard -- --no-open` on a headless machine. For
+foreground development with automatic reload, use `npm run dev`.
+
+## Control Center workflow
+
+1. Unlock the page with the token in `~/.local-ai-relay/token`. The page keeps
+   it only in memory; Lock or closing the tab forgets it.
+2. For a provider marked **Login optional**, choose **Connect** and let the live
+   check finish.
+3. For a provider that requires an account, choose **Connect**. The relay opens
+   the official site in its dedicated persistent Chrome profile. Complete
+   login, account selection, 2FA, or CAPTCHA yourself; the check continues
+   automatically when the chat composer is ready.
+4. **Open site** opens the provider in your currently running/default browser.
+   It is useful for account management, but browsers intentionally do not let
+   the relay copy that session into its automation profile.
+5. Select allowed providers and Automatic, Priority, or Manual routing. Clients
+   can request `relay-auto`; the response headers and Activity panel explain
+   the selected model and any failover.
+6. Connect Hermes, OpenCode, or Generic OpenAI-compatible clients from the
+   Harnesses panel. Each receives its own revocable key.
+
+The relay never collects provider passwords and does not bypass login controls.
+Browser cookies remain in separate local profiles under
+`~/.local-ai-relay/browser-profiles/`.
+
+The older command-line configurator remains available:
 
 ```bash
 npm run harnesses:configure
@@ -88,17 +139,33 @@ ports and records it locally. Harness configuration, MCP, and health checks
 discover the running port automatically. Tool-specific URL overrides such as
 `LOCAL_AI_RELAY_DAEMON_URL` still take precedence.
 
-That command:
+That legacy command:
 
 - reads all models from `/v1/models?include=all`;
 - configures Hermes at `~/.hermes/config.yaml`;
 - configures OpenCode at `~/.config/opencode/opencode.json`;
 - switches both integrations to `/v1/responses`;
-- writes the relay bearer token into each provider entry;
+- writes the main relay bearer token into each provider entry (the dashboard's
+  scoped per-harness keys are preferred);
 - preserves unrelated settings and creates `*.bak-local-ai-relay` backups.
 
 Use `npm run hermes:configure` to update only Hermes. Set `HERMES_HOME` or
 `OPENCODE_CONFIG` to override either config location.
+
+### Remove integrations or test another harness
+
+Use **Disconnect** beside one harness, or **Disconnect all** in the dashboard.
+The control plane:
+
+- deletes only the `local-ai-relay` provider entry it owns;
+- restores the prior Hermes model selection when the relay had switched it;
+- leaves all unrelated themes, providers, and settings untouched;
+- revokes the removed harness's scoped token immediately;
+- retains timestamped configuration backups for manual recovery.
+
+Choose **Generic OpenAI-compatible client → Connect** to test a different
+harness. Copy the one-time `base_url`, scoped `api_key`, and `relay-auto` model
+shown by the dashboard. Disconnect Generic when finished to revoke that key.
 
 Daemon startup does not edit shell startup files or harness configurations by
 default. Set `RELAY_AUTO_CONFIGURE_HARNESSES=1` only if that repeated,
@@ -112,6 +179,7 @@ authenticated, version-pinned release installation; they are not a mutable
 
 | Model ID | Backend |
 |---|---|
+| `relay-auto` | control-plane routing across allowed ready providers |
 | `mock-gpt-4o-mini` | deterministic mock |
 | `mock-gpt-4o` | deterministic mock |
 | `browser-chatgpt-free` | ChatGPT |
@@ -215,7 +283,9 @@ Streamable HTTP are not yet exposed through MCP.
 ## Experimental extension control bridge
 
 The unpacked extension has no page-content privileges and does not transport
-prompts. To test its bounded Native Messaging handshake on Linux or macOS:
+prompts. It reports a heartbeat to the Native Messaging host so the dashboard
+can show whether the optional existing-browser companion is present. To install
+the bounded bridge on Linux or macOS:
 
 1. Open `chrome://extensions`, enable Developer mode, and load the repository's
    `extension/` directory unpacked.
@@ -227,11 +297,23 @@ prompts. To test its bounded Native Messaging handshake on Linux or macOS:
    npm run setup:native-host -- --extension-id=<32-character-id>
    ```
 
-4. Open the extension popup and select **Test native host**.
+4. Open the extension popup and select **Test native host**. The dashboard's
+   Browser companion card should move to Connected.
 
 Windows setup fails explicitly until a packaged executable host is available.
-This handshake is an operator diagnostic, not the unfinished extension
-inference vertical slice.
+This bridge is an operator diagnostic. Provider inference remains in dedicated
+relay browser profiles; the extension deliberately cannot read an existing
+browser's provider tabs, passwords, or cookies.
+
+## Add a future provider
+
+Provider integration is registry-driven rather than hard-coded in the
+dashboard. Add a driver descriptor in `src/browser/driver-registry.ts`, a
+provider/model adapter in `src/providers/registry.ts`, and its deterministic
+driver/provider tests. The Control Center, connection action, allowed-provider
+selector, model catalog, error journal, and harness model lists then discover
+it from those registries. Live readiness still requires a successful probe;
+registration alone never marks a provider usable.
 
 ## Verify
 
@@ -258,7 +340,10 @@ install, deterministic matrix, and all live probes into one guided command.
 ## Repository map
 
 ```text
-src/routes/         health, models, Chat Completions, Responses
+src/routes/         health, control plane, models, Chat Completions, Responses
+src/control/        persistent routing, provider jobs, events, secure storage
+src/harness/        reversible harness lifecycle and scoped integration ledger
+src/ui/             dependency-free, CSP-safe Control Center assets
 src/providers/      model registry and provider adapters
 src/browser/        Patchright browser drivers and profiles
 src/capabilities/   runtime readiness tracking

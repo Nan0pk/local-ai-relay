@@ -7,11 +7,14 @@ import { findProviderForModel } from '../providers/registry.js';
 import {
   browserFailureErrorBody,
   type ChatCompletionRequest,
+  type ChatCompletionResponse,
   type ChatRoleMessage,
   type ErrorResponse,
   type ResponseRequest,
 } from '../types/openai.js';
 import { redactSensitive } from '../utils/redact.js';
+import { controlEvents } from '../control/events.js';
+import { isRoutingAlias, routingManager } from '../control/routing.js';
 
 function errorBody(message: string, code: string, param: string | null = null): ErrorResponse {
   return { error: { message, type: 'invalid_request_error', param, code } };
@@ -306,23 +309,64 @@ export function registerResponsesRoutes(app: FastifyInstance, config: AppConfig)
       if (messages.length === 0) {
         return reply.code(400).send(errorBody('`input` must contain at least one message.', 'invalid_input', 'input'));
       }
-      const model = (body.model ?? config.defaultModel).trim();
-      const provider = findProviderForModel(model);
-      if (!provider) {
+      const requestedModel = (body.model ?? config.defaultModel).trim();
+      const routing = routingManager.resolve(requestedModel);
+      if (isRoutingAlias(requestedModel) && !routing) {
+        return reply.code(503).send({
+          error: {
+            message: 'No permitted provider is currently ready for routing.',
+            type: 'server_error',
+            code: 'no_ready_provider',
+          },
+        });
+      }
+      let selectedRoute = routing;
+      let model = routing?.selectedModel ?? requestedModel;
+      const initialProvider = findProviderForModel(model);
+      if (!initialProvider) {
         return reply.code(404).send(errorBody(`Model '${model}' is not registered.`, 'model_not_found', 'model'));
       }
+      let provider = initialProvider;
 
       const prompt = messages.at(-1)?.content ?? '';
       return activePromptStorage.run(prompt, async () => {
-        try {
-          const rawSessionId = req.headers['x-relay-session'];
-          const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
-          const controller = new AbortController();
-          req.raw.once('aborted', () => controller.abort());
-          const result = await provider.complete(toChatRequest(body, model), model, {
-            ...(sessionId ? { sessionId } : {}),
-            signal: controller.signal,
-          });
+        const rawSessionId = req.headers['x-relay-session'];
+        const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
+        const controller = new AbortController();
+        req.raw.once('aborted', () => controller.abort());
+        const fallbacks = routing ? routingManager.fallbacks(routing) : [];
+        let result: ChatCompletionResponse | undefined;
+        let providerError: unknown;
+        for (let attempt = 0; attempt <= fallbacks.length; attempt += 1) {
+          const attemptStartedAt = Date.now();
+          try {
+            result = await provider.complete(toChatRequest(body, model), model, {
+              ...(sessionId ? { sessionId } : {}),
+              signal: controller.signal,
+            });
+            routingManager.recordAttempt(provider.id, Date.now() - attemptStartedAt, true);
+            providerError = undefined;
+            break;
+          } catch (error) {
+            routingManager.recordAttempt(provider.id, Date.now() - attemptStartedAt, false);
+            providerError = error;
+            const next = fallbacks[attempt];
+            if (!next || controller.signal.aborted) break;
+            routingManager.recordFailover(selectedRoute!, next, error);
+            const nextProvider = findProviderForModel(next.selectedModel);
+            if (!nextProvider) break;
+            selectedRoute = next;
+            model = next.selectedModel;
+            provider = nextProvider;
+          }
+        }
+        if (!providerError && result) {
+          if (selectedRoute) {
+            reply
+              .header('x-relay-selected-model', selectedRoute.selectedModel)
+              .header('x-relay-provider', selectedRoute.providerId)
+              .header('x-relay-routing-reason', selectedRoute.reason);
+          }
           const response = responseBody(result, body);
           if (!body.stream) return reply.send(response);
 
@@ -337,11 +381,31 @@ export function registerResponsesRoutes(app: FastifyInstance, config: AppConfig)
           streamResponse(reply.raw, response, () => streamBroken);
           if (!streamBroken && !reply.raw.writableEnded) reply.raw.end();
           return reply;
-        } catch (error) {
+        }
+        {
+          const error = providerError;
           if (error instanceof BrowserFailure) {
             const mapped = browserFailureErrorBody(error.kind, error.message);
-            if (mapped) return reply.code(mapped.status).send(mapped.body);
+            if (mapped) {
+              controlEvents.record({
+                scope: 'provider',
+                level: 'error',
+                code: error.kind,
+                message: `${provider.id} failed while serving ${model}.`,
+                providerId: provider.id,
+                detail: error.message,
+              });
+              return reply.code(mapped.status).send(mapped.body);
+            }
           }
+          controlEvents.record({
+            scope: 'provider',
+            level: 'error',
+            code: 'provider_unexpected_error',
+            message: `${provider.id} returned an unexpected error.`,
+            providerId: provider.id,
+            detail: error instanceof Error ? error.message : String(error),
+          });
           req.log.error({
             error: redactSensitive(error instanceof Error ? error.message : String(error)),
             model,
