@@ -28,6 +28,10 @@ test('discovers normal Chrome installs on Windows and macOS without a browser do
     systemBrowserCandidates('darwin', { HOME: '/Users/relay' })[0],
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   );
+  assert.ok(
+    systemBrowserCandidates('darwin', { HOME: '/Users/relay' })
+      .includes('/Users/relay/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
+  );
 });
 
 test('discovers Fedora and other Linux browser commands through known paths and PATH', () => {

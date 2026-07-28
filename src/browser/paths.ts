@@ -1,4 +1,4 @@
-import { join, win32 } from 'node:path';
+import { join, posix, win32 } from 'node:path';
 import { access } from 'node:fs/promises';
 import { constants, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -42,7 +42,7 @@ export function systemBrowserCandidates(
   if (platform === 'darwin') {
     return [
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      env.HOME && join(env.HOME, 'Applications', 'Google Chrome.app', 'Contents', 'MacOS', 'Google Chrome'),
+      env.HOME && posix.join(env.HOME, 'Applications', 'Google Chrome.app', 'Contents', 'MacOS', 'Google Chrome'),
       '/Applications/Chromium.app/Contents/MacOS/Chromium',
     ].filter((candidate): candidate is string => Boolean(candidate));
   }
@@ -50,7 +50,7 @@ export function systemBrowserCandidates(
   const fromPath = (env.PATH ?? '')
     .split(':')
     .filter(Boolean)
-    .flatMap((directory) => LINUX_BROWSER_COMMANDS.map((name) => join(directory, name)));
+    .flatMap((directory) => LINUX_BROWSER_COMMANDS.map((name) => posix.join(directory, name)));
   return [...new Set([...LINUX_BROWSER_CANDIDATES, ...fromPath])];
 }
 
