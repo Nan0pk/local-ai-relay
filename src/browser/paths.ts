@@ -1,4 +1,4 @@
-import { delimiter, join, win32 } from 'node:path';
+import { join, win32 } from 'node:path';
 import { access } from 'node:fs/promises';
 import { constants, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -48,7 +48,7 @@ export function systemBrowserCandidates(
   }
   if (platform !== 'linux') return [];
   const fromPath = (env.PATH ?? '')
-    .split(delimiter)
+    .split(':')
     .filter(Boolean)
     .flatMap((directory) => LINUX_BROWSER_COMMANDS.map((name) => join(directory, name)));
   return [...new Set([...LINUX_BROWSER_CANDIDATES, ...fromPath])];
