@@ -102,7 +102,9 @@ of usability.
 ### Evidence lifecycle
 
 When a provider passes a live probe, the tracker records a reference with a
-timestamp and 24-hour expiry. Current evidence is restored on daemon restart.
+timestamp and seven-day expiry. Current evidence is restored on daemon restart,
+refreshed after successful real requests, and invalidated by known login,
+challenge, quota, composer, or layout failures.
 Expired evidence remains visible in diagnostics but removes the provider from
 the default `/v1/models` catalog until it is re-verified. Mock canaries never
 persist live readiness.

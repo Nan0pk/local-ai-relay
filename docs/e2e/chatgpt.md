@@ -28,6 +28,6 @@ npm run probe:chatgpt
 npm run canary:chatgpt
 ```
 
-The canary performs five real submissions and records 24-hour readiness
+The canary performs five real submissions and records seven-day readiness
 evidence only when all five return the exact marker. It does not itself restart
 the relay; cold-restart recovery remains a separate release gate.

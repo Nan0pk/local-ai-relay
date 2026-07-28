@@ -25,6 +25,15 @@ test('control overview is authenticated and exposes relay, provider, routing, br
     assert.equal(body.harnesses.length, 3);
     assert.equal(typeof body.routing.enabled, 'boolean');
     assert.equal(typeof body.browser_bridge.connected, 'boolean');
+
+    const doctor = await app.inject({
+      method: 'GET',
+      url: '/v1/control/doctor',
+      headers: { authorization: 'Bearer control-test-token' },
+    });
+    assert.equal(doctor.statusCode, 200);
+    assert.ok(doctor.json().checks.some((check: { id: string }) => check.id === 'relay'));
+    assert.equal(typeof doctor.json().diagnosticsDirectory, 'string');
   } finally {
     await app.close();
     if (previous === undefined) delete process.env.RELAY_API_TOKEN;

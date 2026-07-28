@@ -1,7 +1,16 @@
-import { access, copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import {
+  access,
+  copyFile,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import {
   harnessTokens,
@@ -20,7 +29,9 @@ import {
   type HarnessModel,
   upsertOpenCodeRelayConfig,
 } from '../opencode/config.js';
-import { listAllModels } from '../providers/registry.js';
+import { listReadyModels } from '../providers/registry.js';
+import { detectHarnessExecutable } from './detection.js';
+import { launchHarness } from './launcher.js';
 
 export type HarnessId = 'hermes' | 'opencode' | 'generic';
 
@@ -43,7 +54,11 @@ export interface HarnessStatus {
   label: string;
   supported: boolean;
   detected: boolean;
+  installed: boolean;
+  configurationDetected: boolean;
   connected: boolean;
+  executable?: string;
+  installUrl?: string;
   path?: string;
   connectedAt?: string;
 }
@@ -61,6 +76,11 @@ const LABELS: Record<HarnessId, string> = {
   hermes: 'Hermes Agent',
   opencode: 'OpenCode',
   generic: 'Generic OpenAI-compatible client',
+};
+
+const INSTALL_URLS: Partial<Record<HarnessId, string>> = {
+  hermes: 'https://hermes-agent.nousresearch.com/docs/getting-started/installation',
+  opencode: 'https://opencode.ai/docs/',
 };
 
 function emptyLedger(): HarnessLedger {
@@ -95,8 +115,17 @@ async function writeConfigAtomic(path: string, content: string): Promise<string 
   await mkdir(dirname(path), { recursive: true, ...(isPosix ? { mode: 0o700 } : {}) });
   let backupPath: string | undefined;
   if (await exists(path)) {
-    backupPath = `${path}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    backupPath = `${path}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID()}`;
     await copyFile(path, backupPath);
+    const prefix = `${basename(path)}.backup-`;
+    const backups = (await readdir(dirname(path), { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && entry.name.startsWith(prefix))
+      .map((entry) => entry.name)
+      .sort()
+      .reverse();
+    for (const oldBackup of backups.slice(3)) {
+      await unlink(join(dirname(path), oldBackup));
+    }
   }
   const temporary = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
   await writeFile(temporary, content, isPosix ? { mode: 0o600 } : {});
@@ -105,9 +134,13 @@ async function writeConfigAtomic(path: string, content: string): Promise<string 
 }
 
 function modelCatalog(): HarnessModel[] {
+  const readyModels = listReadyModels();
+  if (readyModels.length === 0) {
+    throw new Error('Connect and verify at least one real provider before configuring a harness.');
+  }
   return [
     { id: 'relay-auto', status: 'ready' },
-    ...listAllModels().map((model) => ({ id: model.id })),
+    ...readyModels.map((model) => ({ id: model.id, status: 'ready' })),
   ];
 }
 
@@ -142,14 +175,17 @@ export class HarnessManager {
         label: LABELS[harnessId],
         supported: true,
         detected: true,
+        installed: true,
+        configurationDetected: Boolean(receipt),
         connected: Boolean(receipt),
         ...(receipt ? { connectedAt: receipt.connectedAt } : {}),
       };
     }
     const path = harnessId === 'hermes' ? hermesPath() : openCodePath();
-    const detected = await exists(path);
+    const executable = await detectHarnessExecutable(harnessId);
+    const configurationDetected = await exists(path);
     let connected = false;
-    if (detected) {
+    if (configurationDetected) {
       try {
         const source = await readFile(path, 'utf8');
         const config = harnessId === 'hermes' ? record(parse(source)) : record(JSON.parse(source));
@@ -169,9 +205,13 @@ export class HarnessManager {
       id: harnessId,
       label: LABELS[harnessId],
       supported: true,
-      detected,
+      detected: Boolean(executable),
+      installed: Boolean(executable),
+      configurationDetected,
       connected,
       path,
+      ...(executable ? { executable } : {}),
+      ...(INSTALL_URLS[harnessId] ? { installUrl: INSTALL_URLS[harnessId] } : {}),
       ...(receipt ? { connectedAt: receipt.connectedAt } : {}),
     };
   }
@@ -264,6 +304,26 @@ export class HarnessManager {
       await this.tokenRegistry.revokeToken(tokenRecord.id);
       throw error;
     }
+  }
+
+  async launch(harnessId: HarnessId): Promise<HarnessStatus> {
+    const status = await this.status(harnessId);
+    if (!status.connected) {
+      throw new Error(`Connect ${status.label} to the relay before launching it.`);
+    }
+    if (!status.executable) {
+      throw new Error(
+        `${status.label} is configured, but its executable was not found in PATH. Install it or launch it from its normal shortcut.`,
+      );
+    }
+    await launchHarness(harnessId, status.executable);
+    controlEvents.record({
+      scope: 'harness',
+      code: 'harness_launched',
+      message: `${status.label} was launched in a terminal.`,
+      harnessId,
+    });
+    return status;
   }
 
   async disconnect(harnessId: HarnessId): Promise<HarnessStatus> {

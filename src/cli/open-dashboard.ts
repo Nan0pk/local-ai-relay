@@ -3,7 +3,7 @@ import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getTokenPath } from '../auth/token.js';
+import { getOrGenerateToken } from '../auth/token.js';
 import { resolveRelayPort } from '../startup/relay-location.js';
 
 async function relayIsHealthy(port: number): Promise<boolean> {
@@ -62,9 +62,14 @@ export async function openDashboard(options: { openBrowser?: boolean } = {}): Pr
     port = await waitForRelay();
   }
   const url = `http://127.0.0.1:${port}/ui`;
-  if (options.openBrowser !== false) openUrl(url);
+  if (options.openBrowser !== false) {
+    const token = await getOrGenerateToken();
+    openUrl(`${url}#token=${encodeURIComponent(token)}`);
+  }
   console.log(`Dashboard: ${url}`);
-  console.log(`Unlock token: ${getTokenPath()}`);
+  console.log(options.openBrowser === false
+    ? 'Open the dashboard and follow its local unlock instructions.'
+    : 'Dashboard opened and unlocked for this local session.');
   return url;
 }
 

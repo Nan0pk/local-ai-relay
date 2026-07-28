@@ -129,13 +129,22 @@ export function generateOpenAPISpec(): Record<string, unknown> {
             content: { 'application/json': { schema: {
               type: 'object',
               required: ['action'],
-              properties: { action: { type: 'string', enum: ['connect', 'enable', 'disable'] } },
+              properties: { action: { type: 'string', enum: ['connect', 'cancel', 'enable', 'disable'] } },
             } } },
           },
           responses: {
             '200': json({ type: 'object' }, 'Enable or disable completed.'),
             '202': json({ type: 'object' }, 'Guided connection probe started.'),
             '400': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Unknown provider or action.'),
+          },
+        },
+      },
+      '/v1/control/doctor': {
+        get: {
+          operationId: 'runSetupDoctor',
+          summary: 'Check the local runtime, browser, providers, and harness setup',
+          responses: {
+            '200': json({ type: 'object' }, 'Actionable setup diagnostics.'),
           },
         },
       },
@@ -151,7 +160,7 @@ export function generateOpenAPISpec(): Record<string, unknown> {
       '/v1/control/harnesses/{harnessId}/actions': {
         post: {
           operationId: 'runHarnessAction',
-          summary: 'Connect or disconnect one harness',
+          summary: 'Connect, launch, or disconnect one harness',
           parameters: [{
             name: 'harnessId',
             in: 'path',
@@ -163,7 +172,7 @@ export function generateOpenAPISpec(): Record<string, unknown> {
             content: { 'application/json': { schema: {
               type: 'object',
               required: ['action'],
-              properties: { action: { type: 'string', enum: ['connect', 'disconnect'] } },
+              properties: { action: { type: 'string', enum: ['connect', 'launch', 'disconnect'] } },
             } } },
           },
           responses: {
@@ -315,7 +324,7 @@ export function generateOpenAPISpec(): Record<string, unknown> {
             version: { const: 1 },
             enabled: { type: 'boolean' },
             mode: { type: 'string', enum: ['manual', 'automatic', 'priority'] },
-            preset: { type: 'string', enum: ['reliable', 'fast', 'free-first', 'quality-first', 'custom'] },
+            preset: { type: 'string', enum: ['reliable', 'fast', 'custom'] },
             selectedProviders: { type: 'array', items: { type: 'string' } },
             priorityProviders: { type: 'array', items: { type: 'string' } },
             manualModel: { type: 'string' },
@@ -328,7 +337,7 @@ export function generateOpenAPISpec(): Record<string, unknown> {
           properties: {
             enabled: { type: 'boolean' },
             mode: { type: 'string', enum: ['manual', 'automatic', 'priority'] },
-            preset: { type: 'string', enum: ['reliable', 'fast', 'free-first', 'quality-first', 'custom'] },
+            preset: { type: 'string', enum: ['reliable', 'fast', 'custom'] },
             selectedProviders: { type: 'array', items: { type: 'string' } },
             priorityProviders: { type: 'array', items: { type: 'string' } },
             manualModel: { type: 'string' },

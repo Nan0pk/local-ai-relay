@@ -70,9 +70,8 @@ npm test
 npm run smoke:startup
 
 if ((NO_BROWSER)); then
-  echo 'SIMULATION COMPLETE (browser activation intentionally skipped)'
+  echo 'VALIDATION COMPLETE (service and dashboard activation intentionally skipped)'
   exit 0
 fi
 
-npm run probe:chatgpt
-echo 'SETUP VALIDATION COMPLETE'
+echo 'SETUP VALIDATION COMPLETE — provider sign-in will happen in the Control Center'

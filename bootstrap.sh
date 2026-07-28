@@ -380,7 +380,12 @@ if ! {
 fi
 
 if ((NO_BROWSER == 0)) && command -v hermes >/dev/null 2>&1; then
-  (cd "$destination" && npm run hermes:configure) || \
-    echo 'WARN: release installed, but Hermes configuration failed.' >&2
+  echo 'Hermes detected. Connect it from the Control Center after a provider is ready.'
+fi
+if ((NO_BROWSER == 0)); then
+  (cd "$destination" && RELAY_INSTALL_ROOT="$INSTALL_ROOT" npm run launcher:install) || \
+    echo "WARN: release installed, but the application-menu launcher could not be created." >&2
+  (cd "$destination" && npm run dashboard) || \
+    echo "WARN: release installed and running, but the browser did not open. Run 'npm run dashboard' in $destination." >&2
 fi
 echo "Installed authenticated release $VERSION at $destination."

@@ -155,6 +155,8 @@ try {
   assert.deepEqual(tar, zip, 'Linux and Windows payload contents differ');
   assert.ok(tar.includes('setup-linux.sh'), 'setup-linux.sh must be at archive root');
   assert.ok(zip.includes('setup-windows.ps1'), 'setup-windows.ps1 must be at archive root');
+  assert.ok(tar.includes('README.md'), 'README.md must ship as the package entry screen');
+  assert.ok(zip.includes('CONTRIBUTING.md'), 'CONTRIBUTING.md must ship with the package');
   assert.ok(tar.every((name) => !name.startsWith('/') && !name.split('/').includes('..')), 'unsafe archive path');
   const corruptedZip = Buffer.from(zipBytes);
   corruptedZip[zipEntriesChecked[0].dataStart] ^= 1;

@@ -1,0 +1,55 @@
+name: Provider adapter request
+description: Request a browser provider for Local AI Relay
+title: "[Provider]: "
+labels: ["provider"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Provider adapters interact with changing third-party websites. A request
+        is not a readiness promise; an adapter needs fixtures, typed failures,
+        and real operator evidence before production discovery can expose it.
+  - type: input
+    id: provider
+    attributes:
+      label: Provider
+      description: Official product/provider name
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Official chat URL
+      placeholder: https://example.com/chat
+    validations:
+      required: true
+  - type: dropdown
+    id: login
+    attributes:
+      label: Account requirement
+      options:
+        - Login required
+        - Login optional
+        - No login observed
+        - Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: User value
+      description: Why this provider materially improves the relay
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Observed environment
+      description: OS, country/region if relevant, browser, account tier, and any reproducible limitations
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety acknowledgement
+      options:
+        - label: I am not asking the relay to bypass CAPTCHA, rate limits, access controls, or provider safety systems.
+          required: true

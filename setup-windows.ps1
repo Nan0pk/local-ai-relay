@@ -157,12 +157,6 @@ try {
     $activationAttempted = $true
     $targetSafeToDelete = $false
     Sync-ManagedConfig $targetRelease
-    Push-Location $targetRelease
-    try {
-      if (-not $NoBrowser) { Invoke-Npm run probe:chatgpt }
-    } finally {
-      Pop-Location
-    }
     Invoke-ManagedService $targetRelease
     Set-Pointer 'managed-runtime' $Version
   }
@@ -216,4 +210,20 @@ try {
   Remove-Item -LiteralPath $transactionRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "Installed and activated local-ai-relay $Version at $targetRelease."
+if (-not $NoBrowser) {
+  Push-Location $targetRelease
+  $oldLauncherInstallRoot = $env:RELAY_INSTALL_ROOT
+  try {
+    $env:RELAY_INSTALL_ROOT = $InstallRoot
+    try {
+      Invoke-Npm run launcher:install
+    } catch {
+      Write-Warning "The relay is installed, but its Desktop/Start Menu launcher could not be created: $($_.Exception.Message)"
+    }
+  } finally {
+    $env:RELAY_INSTALL_ROOT = $oldLauncherInstallRoot
+    Pop-Location
+  }
+}
+
+Write-Host "Installed and activated local-ai-relay $Version at $targetRelease. Provider sign-in happens in the Control Center."

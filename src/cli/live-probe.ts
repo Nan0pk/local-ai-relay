@@ -8,6 +8,19 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const EXPECTED = 'LOCAL AI RELAY READY';
+const READINESS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type LiveProbeStage =
+  | 'checking_environment'
+  | 'opening_browser'
+  | 'waiting_for_login'
+  | 'verifying'
+  | 'ready';
+
+export interface LiveProbeOptions {
+  signal?: AbortSignal;
+  onStage?: (stage: LiveProbeStage, detail: string) => void;
+}
 
 function parseProvider(argv: string[]): string {
   const idx = argv.indexOf('--provider');
@@ -36,12 +49,13 @@ async function distroName(): Promise<string> {
   }
 }
 
-export async function runLiveProbe(providerName: string): Promise<{
+export async function runLiveProbe(providerName: string, options: LiveProbeOptions = {}): Promise<{
   providerId: string;
   conversationUrl?: string;
 }> {
   try { process.loadEnvFile?.(); } catch { /* optional .env */ }
   const descriptor = findBrowserProvider(providerName);
+  options.onStage?.('checking_environment', 'Checking the browser and graphical session.');
   console.log(`Local AI Relay — ${descriptor.label} browser live probe`);
   console.log(`OS: ${await distroName()}`);
   console.log(`Node: ${process.version}`);
@@ -77,15 +91,20 @@ export async function runLiveProbe(providerName: string): Promise<{
 
   const driver = descriptor.factory();
   try {
+    if (options.signal?.aborted) throw new Error('Connection was cancelled.');
+    options.onStage?.('opening_browser', `Opening the dedicated ${descriptor.label} browser profile.`);
     console.log(`Opening the dedicated ${descriptor.label} profile. Sign in normally if asked.`);
     console.log('The probe will continue automatically when the composer becomes available.');
     await driver.openForLogin();
-    await driver.waitUntilReady();
+    options.onStage?.('waiting_for_login', 'Waiting for sign-in and a usable chat composer.');
+    await driver.waitUntilReady(undefined, options.signal);
+    options.onStage?.('verifying', 'Composer detected; sending one transparent readiness check.');
     console.log('Composer detected. Sending one harmless verification message.');
     const result = await driver.send({
       prompt: `Reply with exactly these words and nothing else: ${EXPECTED}`,
       sessionId: `local-ai-relay-live-probe-${descriptor.name}`,
       resetSession: true,
+      signal: options.signal,
     });
     if (!result.text.toUpperCase().includes(EXPECTED)) {
       throw new Error(`A response was extracted, but it did not contain the expected marker. Received: ${result.text.slice(0, 160)}`);
@@ -97,15 +116,16 @@ export async function runLiveProbe(providerName: string): Promise<{
       evidence: {
         reference: `live-probe:${descriptor.name}:${recordedAt}`,
         recordedAt,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() + READINESS_TTL_MS).toISOString(),
       },
       detail: `${descriptor.label} live submission, completion detection, and response extraction passed.`,
       updatedAt: recordedAt,
     };
     await persistCapability(record);
+    options.onStage?.('ready', `${descriptor.label} is connected and verified.`);
     console.log(`PASS: ${descriptor.label} submission, completion detection, and response extraction worked.`);
     console.log(`Conversation: ${result.conversationUrl ?? 'URL unavailable'}`);
-    console.log('Readiness evidence recorded for 24 hours.');
+    console.log('Readiness evidence recorded for 7 days and refreshed by successful real use.');
     return {
       providerId: record.providerId,
       ...(result.conversationUrl ? { conversationUrl: result.conversationUrl } : {}),

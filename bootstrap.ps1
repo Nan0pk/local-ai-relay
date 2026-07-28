@@ -245,6 +245,17 @@ try {
     $env:RELAY_VERIFIED_RELEASE_VERSION = $Version
     & $setups[0].FullName -Version $Version -InstallRoot $InstallRoot -ReleaseRoot $setups[0].DirectoryName -NoBrowser:$NoBrowser
     if ($LASTEXITCODE -ne 0) { throw "setup-windows.ps1 exited with code $LASTEXITCODE." }
+    if (-not $NoBrowser) {
+      Push-Location (Join-Path (Join-Path $InstallRoot 'versions') $Version)
+      try {
+        & npm.cmd run dashboard
+        if ($LASTEXITCODE -ne 0) {
+          Write-Warning "The relay is installed and running, but the Control Center did not open. Run 'npm run dashboard' from this release directory."
+        }
+      } finally {
+        Pop-Location
+      }
+    }
   } finally {
     $env:RELAY_VERIFIED_RELEASE_VERSION = $oldContext
   }

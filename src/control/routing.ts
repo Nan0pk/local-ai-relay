@@ -8,7 +8,7 @@ import { controlEvents } from './events.js';
 import { controlStatePath, readJsonFile, writeJsonAtomic } from './storage.js';
 
 export type RoutingMode = 'manual' | 'automatic' | 'priority';
-export type RoutingPreset = 'reliable' | 'fast' | 'free-first' | 'quality-first' | 'custom';
+export type RoutingPreset = 'reliable' | 'fast' | 'custom';
 
 export interface RoutingConfig {
   version: 1;
@@ -53,7 +53,7 @@ function defaultRoutingConfig(): RoutingConfig {
     preset: 'reliable',
     selectedProviders: [],
     priorityProviders: [],
-    manualModel: 'mock-gpt-4o-mini',
+    manualModel: 'browser-chatgpt-free',
     allowFallbacks: true,
     updatedAt: new Date().toISOString(),
   };
@@ -64,7 +64,7 @@ function isRoutingMode(value: unknown): value is RoutingMode {
 }
 
 function isRoutingPreset(value: unknown): value is RoutingPreset {
-  return ['reliable', 'fast', 'free-first', 'quality-first', 'custom'].includes(String(value));
+  return ['reliable', 'fast', 'custom'].includes(String(value));
 }
 
 function normalizeConfig(value: unknown): RoutingConfig {
@@ -223,17 +223,12 @@ export class RoutingManager {
         switch (this.config.preset) {
           case 'fast':
             return latency + (failureRate * 3_000) + degraded + configuredPreference;
-          case 'free-first':
-            return (providerId === 'mock' ? -10_000 : 0)
-              + (failureRate * 2_000) + degraded + configuredPreference;
-          case 'quality-first':
-            return configuredPreference + (failureRate * 8_000) + degraded + (latency / 20);
           case 'custom':
             return configuredPreference + (failureRate * 4_000) + degraded + (latency / 10);
           case 'reliable':
           default:
             return (failureRate * 10_000) + degraded + (latency / 20)
-              + configuredPreference + (providerId === 'mock' ? 500 : 0);
+              + configuredPreference;
         }
       };
       return score(aProvider) - score(bProvider);

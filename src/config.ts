@@ -3,7 +3,7 @@
  *
  * All values come from environment variables with safe defaults.
  * No secrets are read here — provider credentials will live in a
- * separate `providers` registry once non-mock providers land.
+ * separate provider registry.
  */
 
 export interface AppConfig {
@@ -59,7 +59,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     host,
     port: parsedPort,
     logLevel: parseLogLevel(env.LOG_LEVEL),
-    defaultModel: env.DEFAULT_MODEL ?? 'mock-gpt-4o-mini',
+    defaultModel: env.DEFAULT_MODEL ?? 'relay-auto',
     autoConfigureHarnesses: env.RELAY_AUTO_CONFIGURE_HARNESSES === '1',
   };
 }

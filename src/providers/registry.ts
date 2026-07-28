@@ -1,17 +1,15 @@
 /**
  * Provider registry.
  *
- * Maps model ids → providers. Milestone 1 registers only the mock
- * provider. Later milestones register real providers here; routing logic
- * stays the same.
+ * Maps model ids to providers. Deterministic mock providers are explicit test
+ * fixtures and are excluded from normal runtime inventory.
  *
  * No fallback chains, no provider bypass: if a model isn't registered,
  * the request fails with an OpenAI-shaped 404.
  *
  * Capability-aware discovery: the registry tracks provider readiness
  * through the capability tracker so `/v1/models` advertises only models
- * from genuinely usable providers. All models remain routable for
- * internal use (chat completions), but discovery reflects truth.
+ * from genuinely usable providers. Direct requests also enforce readiness.
  */
 
 import type { Provider } from './types.js';
@@ -64,6 +62,23 @@ const providers: Provider[] = [
 ];
 
 /**
+ * Deterministic providers are test fixtures, not user-facing AI backends.
+ * They are available only when a caller opts into the explicit test runtime.
+ */
+export function areTestProvidersEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.RELAY_ENABLE_TEST_PROVIDERS === '1'
+    || env.RELAY_MOCK_BROWSER === 'true';
+}
+
+function activeProviders(): Provider[] {
+  return providers.filter(
+    (provider) => provider.id !== 'mock' || areTestProvidersEnabled(),
+  );
+}
+
+/**
  * Check if we're running in a mock browser environment (for testing).
  * This is checked lazily so the env var can be set before the capability
  * tracker is queried.
@@ -109,7 +124,7 @@ function ensureProviderInitialized(providerId: string): void {
  * Ensure all providers are initialized before querying capability state.
  */
 function ensureAllProvidersInitialized(): void {
-  for (const provider of providers) {
+  for (const provider of activeProviders()) {
     ensureProviderInitialized(provider.id);
   }
 }
@@ -131,11 +146,11 @@ for (const p of providers) {
 /**
  * List models from all registered providers (including non-ready).
  *
- * This is the full inventory for diagnostic and internal use.
+ * This is the production adapter inventory for diagnostics.
  * For discovery that reflects runtime readiness, use `listReadyModels()`.
  */
 export function listAllModels() {
-  return providers.flatMap((p) => p.listModels());
+  return activeProviders().flatMap((p) => p.listModels());
 }
 
 /**
@@ -147,7 +162,7 @@ export function listAllModels() {
 export function listReadyModels() {
   ensureAllProvidersInitialized();
   const readyIds = new Set(capabilityTracker.getReadyProviderIds());
-  return providers
+  return activeProviders()
     .filter((p) => readyIds.has(p.id))
     .flatMap((p) => p.listModels());
 }
@@ -155,11 +170,12 @@ export function listReadyModels() {
 /**
  * Find a provider for a model ID, regardless of readiness.
  *
- * This allows `/v1/chat/completions` to route to any registered model.
- * The route layer can check readiness separately if needed.
+ * Route layers must also enforce readiness before sending a request.
  */
 export function findProviderForModel(model: string): Provider | undefined {
-  return modelIndex.get(model);
+  const provider = modelIndex.get(model);
+  if (provider?.id === 'mock' && !areTestProvidersEnabled()) return undefined;
+  return provider;
 }
 
 /**
@@ -169,6 +185,7 @@ export function isModelReady(model: string): boolean {
   ensureAllProvidersInitialized();
   const provider = modelIndex.get(model);
   if (!provider) return false;
+  if (provider.id === 'mock' && !areTestProvidersEnabled()) return false;
   return capabilityTracker.isReady(provider.id);
 }
 
@@ -180,6 +197,7 @@ export function getCapabilityForModel(model: string) {
   ensureAllProvidersInitialized();
   const provider = modelIndex.get(model);
   if (!provider) return null;
+  if (provider.id === 'mock' && !areTestProvidersEnabled()) return null;
   return capabilityTracker.getStatus(provider.id) ?? null;
 }
 
@@ -191,6 +209,7 @@ export function getModelsForProvider(providerId: string): ModelCard[] {
   ensureAllProvidersInitialized();
   const provider = providerIndex.get(providerId);
   if (!provider) return [];
+  if (provider.id === 'mock' && !areTestProvidersEnabled()) return [];
   return provider.listModels();
 }
 
@@ -200,7 +219,9 @@ export function getModelsForProvider(providerId: string): ModelCard[] {
  */
 export function getAllCapabilityRecords() {
   ensureAllProvidersInitialized();
-  return capabilityTracker.getAllStatuses();
+  return capabilityTracker.getAllStatuses().filter(
+    (record) => record.providerId !== 'mock' || areTestProvidersEnabled(),
+  );
 }
 
 export async function closeProviders(): Promise<void> {

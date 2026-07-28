@@ -24,7 +24,9 @@ if (!/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(tag) || tag !== `v
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const sourceRoots = [
   '.env.example',
+  'CONTRIBUTING.md',
   'LICENSE',
+  'README.md',
   'bootstrap.ps1',
   'bootstrap.sh',
   'package-lock.json',
@@ -33,6 +35,7 @@ const sourceRoots = [
   'setup-windows.cmd',
   'setup-windows.ps1',
   'tsconfig.json',
+  'docs',
   'scripts',
   'src',
 ];

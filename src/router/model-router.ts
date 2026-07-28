@@ -1,4 +1,4 @@
-import { listReadyModels, listAllModels } from '../providers/registry.js';
+import { listReadyModels } from '../providers/registry.js';
 
 export type ModelAlias = 'auto' | 'fast' | 'smart' | string;
 
@@ -13,14 +13,7 @@ export function selectBestReadyModel(requestedAlias: ModelAlias): RouterSelectio
   const readyModels = listReadyModels();
 
   if (readyModels.length === 0) {
-    const allModels = listAllModels();
-    const fallback = allModels[0]?.id ?? 'browser-chatgpt-free';
-    return {
-      selectedModel: fallback,
-      providerId: 'mock',
-      isFallback: true,
-      reason: 'No ready provider available; falling back to default listing.',
-    };
+    throw new Error('No real provider is connected and ready.');
   }
 
   // Alias routing

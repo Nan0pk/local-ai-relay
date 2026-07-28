@@ -15,7 +15,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { findProviderForModel } from '../providers/registry.js';
+import { findProviderForModel, isModelReady } from '../providers/registry.js';
 import { activePromptStorage } from '../browser/mock-browser.js';
 import { BrowserFailure } from '../browser/types.js';
 import { browserFailureErrorBody } from '../types/openai.js';
@@ -28,6 +28,11 @@ import type { AppConfig } from '../config.js';
 import { redactSensitive } from '../utils/redact.js';
 import { controlEvents } from '../control/events.js';
 import { isRoutingAlias, routingManager } from '../control/routing.js';
+import { canSafelyFailOver } from '../control/failover.js';
+import {
+  recordProviderFailure,
+  recordSuccessfulProviderUse,
+} from '../capabilities/runtime-evidence.js';
 
 function errorBody(
   message: string,
@@ -137,7 +142,7 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
         return reply
           .code(503)
           .send(errorBody(
-            'No permitted provider is currently ready for routing.',
+            'No real provider is connected and ready. Open the Control Center, connect a provider, then retry.',
             'server_error',
             'no_ready_provider',
             'model',
@@ -150,6 +155,16 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
         return reply
           .code(404)
           .send(errorBody(`Model '${model}' is not registered.`, 'invalid_request_error', 'model_not_found', 'model'));
+      }
+      if (!isModelReady(model)) {
+        return reply
+          .code(503)
+          .send(errorBody(
+            `Model '${model}' is not ready. Connect and verify its provider in the Control Center.`,
+            'server_error',
+            'provider_not_ready',
+            'model',
+          ));
       }
 
       let result: ChatCompletionResponse | undefined;
@@ -167,13 +182,15 @@ export function registerChatRoutes(app: FastifyInstance, config: AppConfig): voi
             signal: controller.signal,
           });
           routingManager.recordAttempt(provider.id, Date.now() - attemptStartedAt, true);
+          await recordSuccessfulProviderUse(provider.id);
           providerError = undefined;
           break;
         } catch (error) {
           routingManager.recordAttempt(provider.id, Date.now() - attemptStartedAt, false);
+          await recordProviderFailure(provider.id, error);
           providerError = error;
           const next = fallbacks[attempt];
-          if (!next || controller.signal.aborted) break;
+          if (!next || controller.signal.aborted || !canSafelyFailOver(error)) break;
           routingManager.recordFailover(selectedRoute!, next, error);
           const nextProvider = findProviderForModel(next.selectedModel);
           if (!nextProvider) break;

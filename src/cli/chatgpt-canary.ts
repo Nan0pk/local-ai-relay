@@ -126,7 +126,7 @@ export async function runChatGptCanary(opts: {
     await persistCapability(record, opts.capabilityStorePath);
     return {
       ok: true,
-      message: `PASS: ${consecutiveTarget} consecutive authenticated ChatGPT canary missions passed; readiness evidence was recorded for 24 hours.`,
+      message: `PASS: ${consecutiveTarget} consecutive authenticated ChatGPT canary missions passed; readiness evidence was recorded for 7 days and will refresh after successful real use.`,
     };
   } catch (error) {
     const classified = failureClass(error);
