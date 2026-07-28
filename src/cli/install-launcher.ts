@@ -34,6 +34,15 @@ exec npm run dashboard
 `;
 }
 
+export function linuxSourceLauncherScript(sourceRoot: string): string {
+  assertSafePath(sourceRoot);
+  return `#!/usr/bin/env bash
+set -Eeuo pipefail
+cd ${shellQuote(sourceRoot)}
+exec npm run dashboard
+`;
+}
+
 export function windowsLauncherScript(installRoot: string): string {
   assertSafePath(installRoot);
   const literal = installRoot.replaceAll("'", "''");
@@ -53,11 +62,29 @@ try {
 `;
 }
 
-async function installLinux(installRoot: string): Promise<string[]> {
+export function windowsSourceLauncherScript(sourceRoot: string): string {
+  assertSafePath(sourceRoot);
+  const literal = sourceRoot.replaceAll("'", "''");
+  return `$ErrorActionPreference = 'Stop'
+Push-Location '${literal}'
+try {
+  & npm.cmd run dashboard
+  if ($LASTEXITCODE -ne 0) { throw "Dashboard launcher exited with code $LASTEXITCODE." }
+} finally {
+  Pop-Location
+}
+`;
+}
+
+async function installLinux(installRoot: string, sourceRoot?: string): Promise<string[]> {
   const launcher = join(installRoot, 'local-ai-relay-dashboard');
   const desktop = join(homedir(), '.local', 'share', 'applications', 'local-ai-relay.desktop');
   await mkdir(dirname(launcher), { recursive: true });
-  await writeFile(launcher, linuxLauncherScript(installRoot), { mode: 0o700 });
+  await writeFile(
+    launcher,
+    sourceRoot ? linuxSourceLauncherScript(sourceRoot) : linuxLauncherScript(installRoot),
+    { mode: 0o700 },
+  );
   await chmod(launcher, 0o700);
   await mkdir(dirname(desktop), { recursive: true });
   await writeFile(desktop, `[Desktop Entry]
@@ -96,10 +123,13 @@ async function createWindowsShortcut(
   ], { windowsHide: true });
 }
 
-async function installWindows(installRoot: string): Promise<string[]> {
+async function installWindows(installRoot: string, sourceRoot?: string): Promise<string[]> {
   const launcher = join(installRoot, 'Local AI Relay.ps1');
   await mkdir(dirname(launcher), { recursive: true });
-  await writeFile(launcher, windowsLauncherScript(installRoot));
+  await writeFile(
+    launcher,
+    sourceRoot ? windowsSourceLauncherScript(sourceRoot) : windowsLauncherScript(installRoot),
+  );
   const startMenu = join(
     process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'),
     'Microsoft',
@@ -117,10 +147,11 @@ async function installWindows(installRoot: string): Promise<string[]> {
 async function main(): Promise<void> {
   const installRoot = process.env.RELAY_INSTALL_ROOT;
   if (!installRoot) throw new Error('RELAY_INSTALL_ROOT is required.');
+  const sourceRoot = process.env.RELAY_SOURCE_ROOT;
   const installed = process.platform === 'linux'
-    ? await installLinux(installRoot)
+    ? await installLinux(installRoot, sourceRoot)
     : process.platform === 'win32'
-      ? await installWindows(installRoot)
+      ? await installWindows(installRoot, sourceRoot)
       : (() => { throw new Error('Launcher installation currently supports Linux and Windows.'); })();
   console.log(`Installed Local AI Relay launcher:\n${installed.join('\n')}`);
 }

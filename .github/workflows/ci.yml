@@ -38,14 +38,14 @@ jobs:
       - name: Check Bash entry points
         if: runner.os == 'Linux'
         shell: bash
-        run: bash -n bootstrap.sh setup-linux.sh verify-all.sh
+        run: bash -n bootstrap.sh start-source.sh setup-linux.sh verify-all.sh
 
       - name: Parse PowerShell entry points
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $failed = $false
-          foreach ($file in @('bootstrap.ps1', 'setup-windows.ps1')) {
+          foreach ($file in @('bootstrap.ps1', 'start-source.ps1', 'setup-windows.ps1')) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null

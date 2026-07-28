@@ -156,6 +156,8 @@ try {
   assert.ok(tar.includes('setup-linux.sh'), 'setup-linux.sh must be at archive root');
   assert.ok(zip.includes('setup-windows.ps1'), 'setup-windows.ps1 must be at archive root');
   assert.ok(tar.includes('README.md'), 'README.md must ship as the package entry screen');
+  assert.ok(tar.includes('start-source.sh'), 'Linux source starter must ship with the package');
+  assert.ok(zip.includes('start-source.ps1'), 'Windows source starter must ship with the package');
   assert.ok(zip.includes('CONTRIBUTING.md'), 'CONTRIBUTING.md must ship with the package');
   assert.ok(tar.every((name) => !name.startsWith('/') && !name.split('/').includes('..')), 'unsafe archive path');
   const corruptedZip = Buffer.from(zipBytes);
