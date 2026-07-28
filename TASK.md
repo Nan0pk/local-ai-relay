@@ -1,7 +1,8 @@
 # Current task: click-to-work productization
 
-**Status:** Implemented on `feat/click-to-work`; deterministic verification and
-review remain before a draft pull request.
+**Status:** Implemented on `feat/click-to-work` in draft PR #40. Deterministic
+verification passes; authenticated provider and harness proof remains an owner
+run on supported desktop systems.
 
 ## Goal
 

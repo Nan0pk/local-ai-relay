@@ -31,6 +31,8 @@ const sourceRoots = [
   'bootstrap.sh',
   'package-lock.json',
   'package.json',
+  'start-source.ps1',
+  'start-source.sh',
   'setup-linux.sh',
   'setup-windows.cmd',
   'setup-windows.ps1',
