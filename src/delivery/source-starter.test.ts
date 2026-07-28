@@ -111,15 +111,16 @@ linuxTest('source starter preserves unexpected folders and local changes', async
 
 test('README starts with a runnable current path and no phantom release command', async () => {
   const readme = await readFile(join(root, 'README.md'), 'utf8');
-  const start = readme.indexOf('## Start here');
-  const status = readme.indexOf('## What is actually ready');
-  const signedRelease = readme.indexOf('## Signed releases');
-  assert.ok(start > 0 && start < status && status < signedRelease);
+  const start = readme.indexOf('## Install and open');
+  const workflow = readme.indexOf('## Get to work');
+  const proof = readme.indexOf('## Privacy and current proof');
+  assert.ok(start > 0 && start < workflow && workflow < proof);
   assert.match(
     readme,
     /curl -fsSL https:\/\/raw\.githubusercontent\.com\/Nan0pk\/local-ai-relay\/main\/start-source\.sh -o \/tmp\/local-ai-relay-start\.sh && bash \/tmp\/local-ai-relay-start\.sh/,
   );
   assert.match(readme, /start-source\.ps1/);
   assert.doesNotMatch(readme, /\.\/bootstrap\.(?:sh|ps1).*v0\.1\.0/);
-  assert.match(readme, /\*\*Not available yet:\*\* a signed `v0\.1\.0` release/);
+  assert.match(readme, /currently a \*\*source preview\*\*, not a signed desktop release/);
+  assert.match(readme, /no standalone `bootstrap\.sh`/);
 });

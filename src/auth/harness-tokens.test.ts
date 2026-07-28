@@ -13,13 +13,23 @@ test('harness tokens are scoped, hashed at rest, replaceable, and revocable', as
 
   const first = await registry.issue('hermes');
   assert.equal(registry.verify(first.token), true);
+  assert.equal(registry.resolve(first.token)?.harnessId, 'hermes');
   assert.doesNotMatch(await import('node:fs/promises').then(({ readFile }) => readFile(path, 'utf8')), new RegExp(first.token));
 
   const replacement = await registry.issue('hermes');
   assert.equal(registry.verify(first.token), false);
   assert.equal(registry.verify(replacement.token), true);
+  const provisional = await registry.issue('hermes', { replaceExisting: false });
+  await assert.rejects(
+    registry.retainHarnessToken('hermes', 'missing-token-id'),
+    /Unknown hermes token/,
+  );
+  assert.equal(registry.verify(replacement.token), true);
+  await registry.retainHarnessToken('hermes', provisional.id);
+  assert.equal(registry.verify(replacement.token), false);
+  assert.equal(registry.verify(provisional.token), true);
 
   await registry.revokeHarness('hermes');
-  assert.equal(registry.verify(replacement.token), false);
+  assert.equal(registry.verify(provisional.token), false);
   if (process.platform !== 'win32') assert.equal((await stat(path)).mode & 0o777, 0o600);
 });

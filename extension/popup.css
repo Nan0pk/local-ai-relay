@@ -26,6 +26,22 @@ output {
 button {
   cursor: pointer;
   padding: 7px 10px;
+  width: 100%;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: #5ee6b0;
+  color: #062218;
+  font-weight: 700;
+}
+
+button + button {
+  margin-top: 8px;
+}
+
+button.secondary {
+  background: transparent;
+  border-color: #71877f;
+  color: inherit;
 }
 
 output {

@@ -22,8 +22,11 @@ export class ChatGptPlaywrightDriver extends BaseBrowserDriver {
       profileEnvVar: 'RELAY_BROWSER_PROFILE',
       composerSelectors: [
         'div#prompt-textarea',
+        'textarea[aria-label="Chat with ChatGPT"]',
+        'textarea[placeholder*="Ask anything" i]',
         'div[contenteditable="true"]',
         '[data-testid="composer-text-input"]',
+        'textarea',
       ],
       sendButtonSelectors: [
         '[data-testid="send-button"]',

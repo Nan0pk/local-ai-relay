@@ -9,14 +9,15 @@ class TestableMetaDriver extends MetaPlaywrightDriver {
   }
 }
 
-test('Meta driver uses the authenticated composer, send, and response test IDs', () => {
+test('Meta driver supports the current anonymous input and authenticated test IDs', () => {
   const driver = new TestableMetaDriver({ headless: true });
   const cfg = driver.getConfig();
 
   assert.ok(driver instanceof BaseBrowserDriver);
   assert.equal(cfg.url, 'https://www.meta.ai/');
   assert.equal(cfg.profileEnvVar, 'RELAY_BROWSER_PROFILE_META');
-  assert.equal(cfg.composerSelectors[0], '[data-testid="composer-input"][contenteditable="true"]');
+  assert.equal(cfg.composerSelectors[0], 'input[aria-label="Ask Meta AI"]');
+  assert.ok(cfg.composerSelectors.includes('[data-testid="composer-input"][contenteditable="true"]'));
   assert.ok(cfg.sendButtonSelectors.includes('[data-testid="composer-send-button"]'));
   assert.ok(cfg.assistantMessageSelectors.includes('[data-testid="assistant-message"]'));
 });

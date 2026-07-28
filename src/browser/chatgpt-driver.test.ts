@@ -39,6 +39,7 @@ test('ChatGPT driver config has layered composer selectors including the primary
   const cfg = driver.getConfig();
   assert.ok(cfg.composerSelectors.length >= 2, 'composer should have layered fallback selectors');
   assert.equal(cfg.composerSelectors[0], 'div#prompt-textarea');
+  assert.ok(cfg.composerSelectors.includes('textarea[aria-label="Chat with ChatGPT"]'));
 });
 
 test('ChatGPT driver config has send and stop button selectors', () => {

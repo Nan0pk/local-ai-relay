@@ -1,95 +1,80 @@
-# Shared Browser Profile & SSO Login
+# Browser connection and sign-in
 
-## How the shared browser profile works
+Local AI Relay has two browser transports. Selection is automatic for each
+connection and request.
 
-`BrowserContextManager` (src/browser/context-manager.ts) is a singleton that
-launches one persistent Patchright browser context per profile directory.
-All providers that point at the same directory reuse the same context,
-which means cookies, localStorage, and session state are shared.
+## 1. Existing Chrome profile
 
-The default shared profile path is:
+This is the low-friction path:
+
+1. Start the relay and open its Control Center.
+2. Open `chrome://extensions`, enable **Developer mode**, and choose
+   **Load unpacked**.
+3. Select the extension directory shown in the Control Center.
+4. Return to the dashboard and click **Use this Chrome**.
+
+The dashboard sends a provisional, browser-extension-only key to its own
+same-origin content script. The extension confirms receipt before the relay
+activates the key and revokes older extension keys.
+
+For each provider, the extension creates and remembers one relay-owned tab. It
+uses that tab for composer detection, prompt submission, completion detection,
+and response extraction. It does not search for or take over an unrelated
+personal tab, copy cookies, or inspect domains outside the manifest allowlist.
+
+Identity-provider pages are intentionally outside the scripting permissions.
+If a provider redirects to Google, Apple, Microsoft, or another identity
+service, complete that step manually. The relay waits for the provider tab to
+return and become inspectable.
+
+Click **Disconnect this Chrome** in the dashboard or **Forget relay** in the
+extension popup to remove the local pairing and revoke the scoped key.
+
+## 2. Shared relay-browser fallback
+
+If the extension is absent or offline, provider drivers use a visible
+Patchright browser with one persistent shared profile:
 
 ```text
 ~/.local-ai-relay/browser-profiles/shared
 ```
 
-Each driver accepts an optional `profileDir` or reads a provider-specific
-environment variable:
+All providers use that directory by default, so a Google or provider session
+established there can be reused across providers and relay restarts. This is not
+the everyday Chrome profile; Chrome prevents safely attaching a second process
+to an already-running profile.
 
-| Provider | Env var to override profile dir |
-|---|---|
-| ChatGPT | `RELAY_BROWSER_PROFILE` |
-| Claude | `RELAY_BROWSER_PROFILE_CLAUDE` |
-| Gemini | `RELAY_BROWSER_PROFILE_GEMINI` |
-| DeepSeek | `RELAY_BROWSER_PROFILE_DEEPSEEK` |
-| Z.ai | `RELAY_BROWSER_PROFILE_ZAI` |
-| MiniMax | `RELAY_BROWSER_PROFILE_MINIMAX` |
-| Kimi | `RELAY_BROWSER_PROFILE_KIMI` |
-| Qwen | `RELAY_BROWSER_PROFILE_QWEN` |
-| Grok | `RELAY_BROWSER_PROFILE_GROK` |
-| Mistral | `RELAY_BROWSER_PROFILE_MISTRAL` |
-| Meta AI | `RELAY_BROWSER_PROFILE_META` |
-| Arena | `RELAY_BROWSER_PROFILE_ARENA` |
+If installed Chrome or Chromium is unavailable, the first connection
+automatically installs managed Chromium. Set `RELAY_BROWSER_EXECUTABLE` only
+when automatic browser detection chooses the wrong executable.
 
-To force every provider into the shared profile, export the variables
-before starting the relay:
+`RELAY_BROWSER_PROFILE_SHARED` changes the shared fallback directory.
+Provider-specific profile variables remain available for deliberate isolation
+and take precedence over the shared setting.
 
-```bash
-export RELAY_BROWSER_PROFILE=~/.local-ai-relay/browser-profiles/shared
-export RELAY_BROWSER_PROFILE_CLAUDE=~/.local-ai-relay/browser-profiles/shared
-export RELAY_BROWSER_PROFILE_GEMINI=~/.local-ai-relay/browser-profiles/shared
-# ... etc for each provider
-```
+## Dynamic access detection
 
-Because the context is persistent, a single login action survives relay
-restarts as long as the profile directory is preserved.
+The relay does not permanently classify a provider as “login-free” or “login
+required.” A connection attempt opens the current official page and checks:
 
-## How Google SSO propagation reduces login friction
+1. whether a visible composer exists and is usable;
+2. whether the current URL or visible controls indicate sign-in;
+3. whether a visible CAPTCHA, quota message, or rate-limit message blocks use;
+4. whether the current selectors still match the provider layout.
 
-`BaseBrowserDriver.handleSsoLogin` (src/browser/base-driver.ts) runs
-automatically on every page navigation. When it detects a login page, it
-looks for:
+If the composer is already usable, anonymous or existing-session access
+continues without forcing login. Otherwise the page remains visible for manual
+sign-in. Readiness is recorded only after a real, transparent verification
+message is submitted and the expected response is extracted.
 
-- "Sign in with Google"
-- "Continue with Google"
-- Google-provider data attributes
+## Security boundaries
 
-If found, it clicks the SSO button to direct the user to the Google sign-in page.
-
-To keep the local relay safe by default and give the operator full control over their account choices, **automatic account selection on `accounts.google.com` is disabled**.
-
-The user must manually click their desired Google account and authenticate in the visible browser window (opened via `npm run login:<provider>`). Once selected and signed in, the session is saved in the persistent browser profile.
-
-## Which providers support "Sign in with Google"
-
-The relay auto-detects the button on any login page, so the exact list
-depends on the provider's current UI. Providers that commonly offer
-Google SSO include:
-
-- **ChatGPT** — yes
-- **Claude** — yes
-- **Gemini** — yes (native Google account)
-- **DeepSeek** — yes
-- **Grok** — yes (X / Google options)
-- **Mistral** — yes
-- **Meta AI** — Meta/Facebook/Instagram account flow
-- **Z.ai** — varies by region
-- **MiniMax** — typically phone/email
-- **Kimi** — typically phone/email
-- **Qwen** — typically phone/email
-- **Arena** — login-free
-
-## Fallback instructions for providers that don't
-
-If a provider does not show a Google SSO button, `handleSsoLogin` does
-nothing and the normal login flow continues:
-
-1. Run `npm run login:<provider>` (e.g., `npm run login:kimi`).
-2. A browser window opens with the provider's site.
-3. Sign in manually with the provider's native method (phone, email, etc.).
-4. When the chat composer is visible, press `Ctrl+C` in the terminal to
-   close the browser and save the session.
-5. The persistent profile retains the session for future relay use.
-
-If login fails or the session expires, repeat the steps above. No cookies
-or tokens need to be copied manually.
+- Relay and extension traffic is loopback-only and bearer authenticated.
+- The extension key cannot call model, routing, harness, pairing, or general
+  control endpoints.
+- An unrecognized Chrome extension origin is accepted only on the narrow
+  browser-bridge routes and still requires the scoped key.
+- Provider credentials, cookies, passkeys, 2FA answers, and CAPTCHA answers are
+  never requested by Local AI Relay.
+- Closing a relay request never closes the user's Chrome window or signs out a
+  provider.

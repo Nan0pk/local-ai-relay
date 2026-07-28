@@ -21,8 +21,8 @@ function estimateTokens(text: string): number {
  *
  * Mirrors {@link ChatGptBrowserProvider}'s shape so the planner, tool bridge,
  * and OpenAI response formatting are reused. Site-specific behavior stays in
- * {@link ClaudePlaywrightDriver}. NOT registered in `registry.ts` until a
- * real authenticated E2E pass is recorded under `docs/e2e/claude.md`.
+ * {@link ClaudePlaywrightDriver}. Registry exposure is diagnostic; current
+ * live evidence still controls default model discovery.
  */
 export class ClaudeBrowserProvider implements Provider {
   readonly id = 'browser-claude';

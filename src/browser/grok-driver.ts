@@ -8,6 +8,8 @@ export class GrokPlaywrightDriver extends BaseBrowserDriver {
       url: 'https://grok.com/',
       profileEnvVar: 'RELAY_BROWSER_PROFILE_GROK',
       composerSelectors: [
+        'textarea[aria-label="Ask Grok anything"]',
+        'textarea[placeholder*="What do you want to know" i]',
         'textarea[aria-label*="Message" i]',
         'textarea[placeholder*="Message" i]',
         'div[contenteditable="true"]',

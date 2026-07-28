@@ -30,10 +30,10 @@ be called ready. Mock E2E is necessary but insufficient.
 
 ## Incomplete integrations
 
-- [ ] Extension inference vertical slice: API → daemon → native host →
-  extension → mock page → response.
-- [ ] Packaged Windows Native Messaging executable and reversible installer.
-- [ ] Native Messaging restart, chunking, replay, origin, and security review.
+- [x] Existing-browser inference vertical slice with scoped pairing, owned
+  provider tabs, result transport, disconnect, and shared-profile fallback.
+- [ ] Package and review the extension for store distribution so normal users
+  do not need Chrome Developer mode.
 - [ ] MCP cancellation, login/probe operations, diagnostics, and optional
   Streamable HTTP.
 - [ ] Official OpenAI-compatible and local Ollama/LM Studio upstream adapters.

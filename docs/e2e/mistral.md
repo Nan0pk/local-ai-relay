@@ -9,9 +9,8 @@ Adapter: `src/providers/mistral-browser.ts`. Tests: 9/9 pass via the shared
 browser-provider test matrix. CLI: `npm run login:mistral`, `npm run
 probe:mistral`.
 
-`browser-mistral-free` is NOT registered in `src/providers/registry.ts` or
-`/v1/models` until the live authenticated E2E below passes and is
-recorded here.
+`browser-mistral-free` is registered in the diagnostic inventory. It appears
+in the default `/v1/models` response only while current live evidence exists.
 
 ## Required live verification
 
@@ -26,13 +25,12 @@ npm run login:mistral   # sign in to chat.mistral.ai normally, Ctrl+C when compo
 npm run probe:mistral   # prints PASS + conversation URL
 ```
 
-Paste back the `PASS:` line and `Conversation:` URL. After PASS, the
-provider is registered in `registry.ts`, this file is filled with
-sanitized evidence, and the README status flips to "E2E verified".
+Paste back the `PASS:` line and `Conversation:` URL. After PASS, this file is
+filled with sanitized evidence and current runtime readiness becomes available.
 
 ## Patchright baseline review — code PASS, authenticated E2E pending
 
 Patchright 1.61.1 now supplies the shared Chromium runtime; 122/122 tests,
 TypeScript build, and startup smoke pass. No local diagnostics or recorded
 Mistral failures were available, so no detection-related fix is claimed.
-Authenticated E2E remains required and the provider remains unregistered.
+Authenticated E2E remains required before the adapter can be called ready.

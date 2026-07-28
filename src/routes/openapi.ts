@@ -78,6 +78,133 @@ export function generateOpenAPISpec(): Record<string, unknown> {
           },
         },
       },
+      '/v1/control/browser-pair': {
+        post: {
+          operationId: 'beginBrowserExtensionPairing',
+          summary: 'Issue a provisional scoped key for the existing-browser extension',
+          responses: {
+            '200': json({ type: 'object' }, 'Provisional pairing data. Confirm it only after the extension acknowledges receipt.'),
+            '401': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Primary relay token missing or invalid.'),
+          },
+        },
+      },
+      '/v1/control/browser-pair-complete': {
+        post: {
+          operationId: 'completeBrowserExtensionPairing',
+          summary: 'Activate a confirmed browser-extension key and revoke older keys',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['token_id'],
+              properties: { token_id: { type: 'string' } },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'Pairing activated.'),
+            '400': json({ $ref: '#/components/schemas/ErrorResponse' }, 'token_id missing.'),
+          },
+        },
+      },
+      '/v1/control/browser-pair-cancel': {
+        post: {
+          operationId: 'cancelBrowserExtensionPairing',
+          summary: 'Revoke an unconfirmed browser-extension key',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['token_id'],
+              properties: { token_id: { type: 'string' } },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'Provisional key revoked.'),
+          },
+        },
+      },
+      '/v1/control/browser-disconnect': {
+        post: {
+          operationId: 'disconnectExistingBrowser',
+          summary: 'Revoke every existing-browser key and return to relay-browser mode',
+          responses: {
+            '200': json({ type: 'object' }, 'Existing-browser integration removed.'),
+          },
+        },
+      },
+      '/v1/control/browser-extension/register': {
+        post: {
+          operationId: 'registerBrowserExtensionSession',
+          summary: 'Register a paired Chrome extension session',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['session_id'],
+              properties: { session_id: { type: 'string' } },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'Extension session registered.'),
+            '403': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Key scope is insufficient.'),
+          },
+        },
+      },
+      '/v1/control/browser-extension/poll': {
+        post: {
+          operationId: 'pollBrowserExtensionCommand',
+          summary: 'Long-poll for one existing-browser command',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['session_id'],
+              properties: { session_id: { type: 'string' } },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'One command or null after the poll window.'),
+          },
+        },
+      },
+      '/v1/control/browser-extension/result': {
+        post: {
+          operationId: 'completeBrowserExtensionCommand',
+          summary: 'Return one existing-browser command result',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['session_id', 'result'],
+              properties: {
+                session_id: { type: 'string' },
+                result: { type: 'object' },
+              },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'Command result accepted.'),
+            '400': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Result does not match an active command.'),
+          },
+        },
+      },
+      '/v1/control/browser-extension/disconnect': {
+        post: {
+          operationId: 'disconnectBrowserExtension',
+          summary: 'Remove an existing-browser session and revoke its scoped key',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['session_id'],
+              properties: { session_id: { type: 'string' } },
+            } } },
+          },
+          responses: {
+            '200': json({ type: 'object' }, 'Extension integration removed.'),
+          },
+        },
+      },
       '/v1/control/events': {
         get: {
           operationId: 'listControlEvents',

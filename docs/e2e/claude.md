@@ -86,7 +86,7 @@ workspace passed 122/122 tests, TypeScript build, and startup smoke. No local
 diagnostic screenshots were present. The only recorded Claude failure remains
 the expected empty-profile `login_required`; no detection-related Claude
 failure has been observed. Authenticated Claude E2E was not rerun here, so the
-provider remains unregistered.
+adapter cannot yet be called ready.
 
 `./verify-all.sh` completed its non-browser stage after the runtime change,
 including all tests, build, and startup smoke. Its authenticated stage could

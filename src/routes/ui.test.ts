@@ -30,6 +30,8 @@ test('UI route serves dashboard HTML', async () => {
   assert.ok(script.headers['content-type']?.includes('application/javascript'));
   assert.doesNotThrow(() => new Function(script.payload));
   assert.ok(script.payload.includes('/v1/control/overview'));
+  assert.ok(script.payload.includes('/v1/control/browser-pair'));
+  assert.ok(script.payload.includes('/v1/control/browser-disconnect'));
   assert.doesNotMatch(script.payload, /localStorage\.(?:getItem|setItem)/);
 });
 

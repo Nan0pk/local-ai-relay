@@ -3,11 +3,17 @@ import { timingSafeEqual } from 'node:crypto';
 import { getOrGenerateToken } from './token.js';
 import { harnessTokens } from './harness-tokens.js';
 
-function isOriginAllowed(origin: string, env: NodeJS.ProcessEnv = process.env): boolean {
+function isOriginAllowed(
+  origin: string,
+  pathname: string,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
   const normalized = origin.toLowerCase().trim();
-  // Browser extensions use Native Messaging by default. Direct HTTP access is
-  // permitted only for extension IDs explicitly named by the operator.
+  // The existing-browser bridge accepts any Chrome extension origin only on
+  // its narrow, bearer-authenticated endpoints. All other API access retains
+  // the explicit extension-ID allowlist.
   if (normalized.startsWith('chrome-extension://')) {
+    if (pathname.startsWith('/v1/control/browser-extension/')) return true;
     const extensionId = normalized.slice('chrome-extension://'.length).replace(/\/$/, '');
     const allowedIds = new Set(
       (env.RELAY_EXTENSION_IDS ?? '')
@@ -38,10 +44,11 @@ export function registerAuthAndCors(app: FastifyInstance): void {
   // Global hook to handle CORS preflight and request validation
   app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
     const origin = req.headers.origin;
+    const pathname = req.url.split('?', 1)[0]!;
 
     // Validate origin if present
     if (origin) {
-      if (!isOriginAllowed(origin)) {
+      if (!isOriginAllowed(origin, pathname)) {
         req.log.warn({ origin }, 'CORS request blocked from unauthorized origin');
         return reply.code(403).send({
           error: {
@@ -66,7 +73,6 @@ export function registerAuthAndCors(app: FastifyInstance): void {
 
     // Liveness and the dashboard shell contain no secrets. The dashboard asks
     // for the token before making authenticated API calls.
-    const pathname = req.url.split('?', 1)[0];
     if (
       pathname === '/health'
       || pathname === '/ui'
@@ -94,7 +100,9 @@ export function registerAuthAndCors(app: FastifyInstance): void {
     const token = bearerMatch[1].trim();
     const expectedToken = await getOrGenerateToken();
 
-    if (!tokensMatch(token, expectedToken) && !harnessTokens.verify(token)) {
+    const primaryToken = tokensMatch(token, expectedToken);
+    const scopedToken = primaryToken ? undefined : harnessTokens.resolve(token);
+    if (!primaryToken && !scopedToken) {
       return reply.code(401).send({
         error: {
           message: 'Incorrect API key provided.',
@@ -102,6 +110,20 @@ export function registerAuthAndCors(app: FastifyInstance): void {
           param: null,
           code: 'invalid_api_key'
         }
+      });
+    }
+
+    if (
+      scopedToken?.harnessId === 'browser-extension'
+      && !pathname.startsWith('/v1/control/browser-extension/')
+    ) {
+      return reply.code(403).send({
+        error: {
+          message: 'This browser-extension key is restricted to browser bridge endpoints.',
+          type: 'invalid_request_error',
+          param: null,
+          code: 'insufficient_scope',
+        },
       });
     }
   });

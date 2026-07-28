@@ -6,6 +6,7 @@ import type { BrowserChatDriver, BrowserChatRequest, BrowserChatResult } from '.
 import { BrowserFailure } from './types.js';
 import { SerialQueue } from './serial-queue.js';
 import { BrowserContextManager } from './context-manager.js';
+import type { BrowserAutomationConfig } from '../extension/browser-bridge.js';
 
 const SELECT_ALL_KEY = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -68,7 +69,8 @@ export interface BaseDriverOptions {
 
 function defaultProfileDir(cfg: SiteConfig): string {
   return process.env[cfg.profileEnvVar]
-    ?? join(getWritableHome(), '.local-ai-relay', 'browser-profiles', cfg.name);
+    ?? process.env.RELAY_BROWSER_PROFILE_SHARED
+    ?? join(getWritableHome(), '.local-ai-relay', 'browser-profiles', 'shared');
 }
 
 function defaultDiagnosticsDir(): string {
@@ -136,6 +138,28 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
 
   /** Subclass returns its site-specific URL, selectors, and detection regex. */
   protected abstract config(): SiteConfig;
+
+  /** Serializable site contract used by the signed-in Chrome extension. */
+  automationConfig(label = this.config().name): BrowserAutomationConfig {
+    const cfg = this.config();
+    const pattern = (value: RegExp | undefined) => value
+      ? { source: value.source, flags: value.flags }
+      : undefined;
+    return {
+      name: cfg.name,
+      label,
+      url: cfg.url,
+      composerSelectors: [...cfg.composerSelectors],
+      sendButtonSelectors: [...cfg.sendButtonSelectors],
+      stopButtonSelectors: [...cfg.stopButtonSelectors],
+      assistantMessageSelectors: [...cfg.assistantMessageSelectors],
+      loginUrlPattern: pattern(cfg.loginUrlPattern)!,
+      signInButtonLabels: [...cfg.signInButtonLabels],
+      ...(cfg.rateLimitPattern ? { rateLimitPattern: pattern(cfg.rateLimitPattern) } : {}),
+      ...(cfg.quotaPattern ? { quotaPattern: pattern(cfg.quotaPattern) } : {}),
+      ...(cfg.captchaTextPattern ? { captchaTextPattern: pattern(cfg.captchaTextPattern) } : {}),
+    };
+  }
 
   async send(request: BrowserChatRequest): Promise<BrowserChatResult> {
     return this.queue.run(async () => {

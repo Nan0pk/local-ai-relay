@@ -29,20 +29,21 @@ import { ClaudeBrowserProvider } from './claude-browser.js';
 import { MetaBrowserProvider } from './meta-browser.js';
 import { capabilityTracker } from '../capabilities/tracker.js';
 import { loadPersistedCapability } from '../capabilities/evidence-store.js';
+import { createAdaptiveBrowserDriver } from '../browser/driver-registry.js';
 
 const mockProvider = new MockProvider();
-const chatGptBrowserProvider = new ChatGptBrowserProvider();
-const geminiBrowserProvider = new GeminiBrowserProvider();
-const arenaBrowserProvider = new ArenaBrowserProvider();
-const deepSeekBrowserProvider = new DeepSeekBrowserProvider();
-const zaiBrowserProvider = new ZaiBrowserProvider();
-const minimaxBrowserProvider = new MinimaxBrowserProvider();
-const kimiBrowserProvider = new KimiBrowserProvider();
-const qwenBrowserProvider = new QwenBrowserProvider();
-const grokBrowserProvider = new GrokBrowserProvider();
-const mistralBrowserProvider = new MistralBrowserProvider();
-const claudeBrowserProvider = new ClaudeBrowserProvider();
-const metaBrowserProvider = new MetaBrowserProvider();
+const chatGptBrowserProvider = new ChatGptBrowserProvider(createAdaptiveBrowserDriver('chatgpt'));
+const geminiBrowserProvider = new GeminiBrowserProvider(createAdaptiveBrowserDriver('gemini'));
+const arenaBrowserProvider = new ArenaBrowserProvider(createAdaptiveBrowserDriver('arena'));
+const deepSeekBrowserProvider = new DeepSeekBrowserProvider(createAdaptiveBrowserDriver('deepseek'));
+const zaiBrowserProvider = new ZaiBrowserProvider(createAdaptiveBrowserDriver('zai'));
+const minimaxBrowserProvider = new MinimaxBrowserProvider(createAdaptiveBrowserDriver('minimax'));
+const kimiBrowserProvider = new KimiBrowserProvider(createAdaptiveBrowserDriver('kimi'));
+const qwenBrowserProvider = new QwenBrowserProvider(createAdaptiveBrowserDriver('qwen'));
+const grokBrowserProvider = new GrokBrowserProvider(createAdaptiveBrowserDriver('grok'));
+const mistralBrowserProvider = new MistralBrowserProvider(createAdaptiveBrowserDriver('mistral'));
+const claudeBrowserProvider = new ClaudeBrowserProvider(createAdaptiveBrowserDriver('claude'));
+const metaBrowserProvider = new MetaBrowserProvider(createAdaptiveBrowserDriver('meta'));
 
 /** Registered providers, in registration order. */
 const providers: Provider[] = [
