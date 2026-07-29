@@ -47,7 +47,7 @@ export function upsertHermesRelayConfig(
     base_url: baseUrl,
     api_key: apiKey,
     model: defaultModel,
-    api_mode: 'codex_responses',
+    api_mode: 'chat_completions',
     models,
   };
   const customProviders = [...existingProviders];
@@ -69,7 +69,7 @@ export function upsertHermesRelayConfig(
     default: defaultModel,
     base_url: baseUrl,
     api_key: apiKey,
-    api_mode: 'codex_responses',
+    api_mode: 'chat_completions',
   };
   return config;
 }
