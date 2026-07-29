@@ -29,3 +29,15 @@ test('moves to the next port when another program owns the preferred port', asyn
     { port: 8788, existingRelay: false },
   );
 });
+
+test('replacement startup skips an older relay and selects a free successor', async () => {
+  assert.deepEqual(
+    await selectPort(
+      '127.0.0.1',
+      8787,
+      checks([8787], [8787]),
+      { reuseExistingRelay: false },
+    ),
+    { port: 8788, existingRelay: false },
+  );
+});

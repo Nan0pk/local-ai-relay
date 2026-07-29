@@ -31,8 +31,9 @@ $starter = Join-Path $env:TEMP 'local-ai-relay-start.ps1'; Invoke-WebRequest -Us
 
 The starter downloads or safely updates one managed checkout, installs locked
 dependencies when needed, creates **Local AI Relay** in the application menu,
-starts the loopback-only server, and opens the unlocked Control Center. It does
-not modify a random clone or force a provider login during installation.
+replaces any older running source revision, starts the loopback-only server, and
+opens the unlocked Control Center. It does not modify a random clone or force a
+provider login during installation.
 The terminal also prints the local access token once, its protected storage
 path, and the command for reopening the dashboard. Keep that token private.
 

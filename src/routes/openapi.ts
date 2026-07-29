@@ -100,6 +100,20 @@ export function generateOpenAPISpec(): Record<string, unknown> {
           },
         },
       },
+      '/v1/control/runtime/stop': {
+        post: {
+          operationId: 'stopRelayRuntime',
+          summary: 'Stop this relay runtime before a source update',
+          responses: {
+            '200': json({
+              type: 'object',
+              required: ['ok'],
+              properties: { ok: { const: true } },
+            }, 'Runtime shutdown was accepted.'),
+            '401': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Bearer token missing or invalid.'),
+          },
+        },
+      },
       '/v1/control/browser-pair': {
         post: {
           operationId: 'beginBrowserExtensionPairing',
@@ -416,6 +430,7 @@ export function generateOpenAPISpec(): Record<string, unknown> {
             status: { const: 'ok' },
             service: { const: 'local-ai-relay' },
             version: { type: 'string' },
+            source_revision: { type: ['string', 'null'] },
             timestamp: { type: 'string', format: 'date-time' },
           },
         },

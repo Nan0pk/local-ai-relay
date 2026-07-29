@@ -85,9 +85,9 @@ try {
 
   Write-Host 'Opening the Local AI Relay Control Center...'
   if ($NoOpen) {
-    & npm.cmd run dashboard -- --no-open
+    & npm.cmd run dashboard -- --no-open --replace-running
   } else {
-    & npm.cmd run dashboard
+    & npm.cmd run dashboard -- --replace-running
   }
   if ($LASTEXITCODE -ne 0) { throw 'Control Center startup failed.' }
 } finally {

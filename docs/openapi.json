@@ -224,6 +224,42 @@
         }
       }
     },
+    "/v1/control/runtime/stop": {
+      "post": {
+        "operationId": "stopRelayRuntime",
+        "summary": "Stop this relay runtime before a source update",
+        "responses": {
+          "200": {
+            "description": "Runtime shutdown was accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/control/browser-pair": {
       "post": {
         "operationId": "beginBrowserExtensionPairing",
@@ -1022,6 +1058,12 @@
           },
           "version": {
             "type": "string"
+          },
+          "source_revision": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timestamp": {
             "type": "string",
