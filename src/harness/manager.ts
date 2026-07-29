@@ -188,18 +188,24 @@ export class HarnessManager {
     const executable = await detectHarnessExecutable(harnessId);
     const configurationDetected = await exists(path);
     let connected = false;
+    let needsRepair = false;
     if (configurationDetected) {
       try {
         const source = await readFile(path, 'utf8');
         const config = harnessId === 'hermes' ? record(parse(source)) : record(JSON.parse(source));
-        connected = harnessId === 'hermes'
-          ? (Array.isArray(config.custom_providers) && config.custom_providers.some(
-              (item) => record(item).name === HERMES_PROVIDER_NAME,
-            ))
-          : Object.prototype.hasOwnProperty.call(
-              record(config.provider),
-              OPENCODE_PROVIDER_ID,
-            );
+        const relay = harnessId === 'hermes'
+          ? (Array.isArray(config.custom_providers)
+            ? config.custom_providers.find((item: unknown) => record(item).name === HERMES_PROVIDER_NAME)
+            : undefined)
+          : record(record(config.provider))[OPENCODE_PROVIDER_ID];
+        const key = harnessId === 'hermes' ? record(relay).api_key : record(record(relay).options).apiKey;
+        const url = harnessId === 'hermes' ? record(relay).base_url : record(record(relay).options).baseURL;
+        const protocolValid = harnessId !== 'hermes' || record(relay).api_mode === 'chat_completions';
+        connected = Boolean(relay && typeof key === 'string' && this.tokenRegistry.verify(key) && protocolValid);
+        const activePort = await resolveRelayPort();
+        const activeUrl = activePort ? `http://127.0.0.1:${activePort}/v1` : undefined;
+        needsRepair = Boolean(connected && activeUrl && url !== activeUrl);
+        if (needsRepair) connected = false;
       } catch {
         connected = false;
       }
@@ -212,6 +218,7 @@ export class HarnessManager {
       installed: Boolean(executable),
       configurationDetected,
       connected,
+      ...(needsRepair ? { needsRepair: true } : {}),
       path,
       ...(executable ? { executable } : {}),
       ...(INSTALL_URLS[harnessId] ? { installUrl: INSTALL_URLS[harnessId] } : {}),
