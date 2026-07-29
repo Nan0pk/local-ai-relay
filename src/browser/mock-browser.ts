@@ -26,6 +26,13 @@ export class MockLocator {
     if (this.selector.includes('has-text("Sign in")') || this.selector.includes('has-text("Log in")') || this.selector.includes('has-text("Use Gemini")')) {
       return activePrompt.includes('trigger:login') ? 1 : 0;
     }
+    // Provider-specific post-submit login/consent modals.
+    if (
+      this.selector.includes('.login-modal')
+      || this.selector.includes('[role="dialog"]')
+    ) {
+      return activePrompt.includes('trigger:login') ? 1 : 0;
+    }
     // Interruption / error alerts
     if (this.selector.includes('alert') || this.selector.includes('error-message') || this.selector.includes('text-red-500')) {
       return activePrompt.includes('trigger:generation_interrupted') ? 1 : 0;

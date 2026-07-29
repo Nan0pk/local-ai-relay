@@ -13,6 +13,8 @@ import { ArenaPlaywrightDriver } from './arena-driver.js';
 import { MetaPlaywrightDriver } from './meta-driver.js';
 import { AdaptiveBrowserDriver } from './adaptive-driver.js';
 import type { BrowserAutomationConfig } from '../extension/browser-bridge.js';
+import type { BaseDriverOptions } from './base-driver.js';
+import type { ExistingBrowserDriverOptions } from './extension-driver.js';
 
 export interface BrowserProviderDescriptor {
   readonly name: string;
@@ -23,13 +25,13 @@ export interface BrowserProviderDescriptor {
    * Drivers therefore verify the live composer instead of assuming login state.
    */
   readonly authentication: 'dynamic';
-  /** A recently observed signed-out composer; only used to order the first connection attempt. */
+  /** A recent signed-out prompt completed; only these providers are tried automatically. */
   readonly anonymousCandidate: boolean;
   factory(options?: any): BrowserLoginDriver;
 }
 
 const CHATGPT: BrowserProviderDescriptor = {
-  name: 'chatgpt', label: 'ChatGPT', url: 'https://chatgpt.com/', authentication: 'dynamic', anonymousCandidate: true,
+  name: 'chatgpt', label: 'ChatGPT', url: 'https://chatgpt.com/', authentication: 'dynamic', anonymousCandidate: false,
   factory: (opts) => new ChatGptPlaywrightDriver(opts),
 };
 const CLAUDE: BrowserProviderDescriptor = {
@@ -49,11 +51,11 @@ const ZAI: BrowserProviderDescriptor = {
   factory: (opts) => new ZaiPlaywrightDriver(opts),
 };
 const MINIMAX: BrowserProviderDescriptor = {
-  name: 'minimax', label: 'MiniMax Agent', url: 'https://agent.minimax.io/', authentication: 'dynamic', anonymousCandidate: true,
+  name: 'minimax', label: 'MiniMax Agent', url: 'https://agent.minimax.io/', authentication: 'dynamic', anonymousCandidate: false,
   factory: (opts) => new MinimaxPlaywrightDriver(opts),
 };
 const KIMI: BrowserProviderDescriptor = {
-  name: 'kimi', label: 'Kimi', url: 'https://www.kimi.com/', authentication: 'dynamic', anonymousCandidate: true,
+  name: 'kimi', label: 'Kimi', url: 'https://www.kimi.com/', authentication: 'dynamic', anonymousCandidate: false,
   factory: (opts) => new KimiPlaywrightDriver(opts),
 };
 const QWEN: BrowserProviderDescriptor = {
@@ -61,7 +63,7 @@ const QWEN: BrowserProviderDescriptor = {
   factory: (opts) => new QwenPlaywrightDriver(opts),
 };
 const GROK: BrowserProviderDescriptor = {
-  name: 'grok', label: 'Grok', url: 'https://grok.com/', authentication: 'dynamic', anonymousCandidate: true,
+  name: 'grok', label: 'Grok', url: 'https://grok.com/', authentication: 'dynamic', anonymousCandidate: false,
   factory: (opts) => new GrokPlaywrightDriver(opts),
 };
 const MISTRAL: BrowserProviderDescriptor = {
@@ -69,11 +71,11 @@ const MISTRAL: BrowserProviderDescriptor = {
   factory: (opts) => new MistralPlaywrightDriver(opts),
 };
 const ARENA: BrowserProviderDescriptor = {
-  name: 'arena', label: 'Arena', url: 'https://arena.ai/', authentication: 'dynamic', anonymousCandidate: true,
+  name: 'arena', label: 'Arena', url: 'https://arena.ai/', authentication: 'dynamic', anonymousCandidate: false,
   factory: (opts) => new ArenaPlaywrightDriver(opts),
 };
 const META: BrowserProviderDescriptor = {
-  name: 'meta', label: 'Meta AI', url: 'https://www.meta.ai/', authentication: 'dynamic', anonymousCandidate: true,
+  name: 'meta', label: 'Meta AI', url: 'https://www.meta.ai/', authentication: 'dynamic', anonymousCandidate: false,
   factory: (opts) => new MetaPlaywrightDriver(opts),
 };
 
@@ -107,9 +109,17 @@ export function findBrowserProvider(name: string | undefined): BrowserProviderDe
   return descriptor;
 }
 
-export function createAdaptiveBrowserDriver(name: string): BrowserLoginDriver {
+export interface AdaptiveBrowserDriverOptions {
+  fallback?: BaseDriverOptions;
+  existingBrowser?: ExistingBrowserDriverOptions;
+}
+
+export function createAdaptiveBrowserDriver(
+  name: string,
+  options: AdaptiveBrowserDriverOptions = {},
+): BrowserLoginDriver {
   const descriptor = findBrowserProvider(name);
-  const fallback = descriptor.factory();
+  const fallback = descriptor.factory(options.fallback);
   const configurable = fallback as BrowserLoginDriver & {
     automationConfig(label?: string): BrowserAutomationConfig;
   };
@@ -119,5 +129,6 @@ export function createAdaptiveBrowserDriver(name: string): BrowserLoginDriver {
   return new AdaptiveBrowserDriver(
     configurable.automationConfig(descriptor.label),
     fallback,
+    options.existingBrowser,
   );
 }

@@ -51,6 +51,7 @@ export class ArenaPlaywrightDriver extends BaseBrowserDriver {
       ],
       loginUrlPattern: /\b$/i, // Login-free, so pattern matches nothing
       signInButtonLabels: [],
+      loginRequiredSelectors: ['[role="dialog"]'],
       rateLimitPattern: /rate limit|too many requests/i,
       quotaPattern: /out of quota|usage (limit|cap) reached/i,
     };

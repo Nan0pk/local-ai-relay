@@ -32,6 +32,9 @@ test('UI route serves dashboard HTML', async () => {
   assert.ok(script.payload.includes('/v1/control/overview'));
   assert.ok(script.payload.includes('/v1/control/browser-pair'));
   assert.ok(script.payload.includes('/v1/control/browser-disconnect'));
+  assert.ok(script.payload.includes('/v1/control/providers/discover'));
+  assert.ok(response.payload.includes('Providers connect automatically'));
+  assert.ok(response.payload.includes('cat ~/.local-ai-relay/token'));
   assert.doesNotMatch(script.payload, /localStorage\.(?:getItem|setItem)/);
 });
 

@@ -288,6 +288,25 @@ test('BrowserContextManager singleton behavior', async () => {
   }
 });
 
+test('BrowserContextManager accepts visible launch options after a background context closes', async () => {
+  const { BrowserContextManager } = await import('./context-manager.js');
+  const originalMock = process.env.RELAY_MOCK_BROWSER;
+  process.env.RELAY_MOCK_BROWSER = 'true';
+  try {
+    const automatic = BrowserContextManager.getInstance({ headless: true });
+    const automaticContext = await automatic.getContext();
+    await automaticContext.close();
+    const manual = BrowserContextManager.getInstance({ headless: false });
+    assert.equal(
+      (manual as unknown as { options?: { headless?: boolean } }).options?.headless,
+      false,
+    );
+    await manual.close();
+  } finally {
+    process.env.RELAY_MOCK_BROWSER = originalMock;
+  }
+});
+
 test('handleSsoLogin logic triggers correctly on login page', async () => {
   const driver = new TestDriver();
   
@@ -378,5 +397,48 @@ test('assertNotBlocked attempts SSO auto-login and succeeds if page transitions 
   }
 });
 
+test('a usable anonymous composer is not rejected merely because sign-in is also offered', async () => {
+  const driver = new TestDriver();
+  const composer = new FixtureLocator('<textarea></textarea>');
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (selector: string) => {
+      if (selector === 'composer') {
+        return { count: async () => 1, nth: () => composer };
+      }
+      if (selector.includes(':has-text("Sign in")')) {
+        return { first: () => ({ isVisible: async () => true }) };
+      }
+      return {
+        first: () => ({ isVisible: async () => false }),
+        innerText: async () => '',
+      };
+    },
+  } as unknown as Page;
+  await driver['assertNotBlocked'](page);
+});
 
-
+test('a visible provider login gate blocks a composer behind its modal', async () => {
+  class LoginGateDriver extends TestDriver {
+    protected override config(): SiteConfig {
+      return { ...super.config(), loginRequiredSelectors: ['.login-gate'] };
+    }
+  }
+  const driver = new LoginGateDriver();
+  const gate = new FixtureLocator('<div class="login-gate"></div>');
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (selector: string) => selector === '.login-gate'
+      ? { count: async () => 1, nth: () => gate }
+      : {
+          count: async () => 0,
+          nth: () => undefined,
+          first: () => ({ isVisible: async () => false }),
+          innerText: async () => '',
+        },
+  } as unknown as Page;
+  await assert.rejects(
+    driver['assertNotBlocked'](page),
+    (error: Error) => error instanceof BrowserFailure && error.kind === 'login_required',
+  );
+});

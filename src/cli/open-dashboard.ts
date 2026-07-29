@@ -3,7 +3,7 @@ import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getOrGenerateToken } from '../auth/token.js';
+import { getOrGenerateToken, getTokenPath } from '../auth/token.js';
 import { resolveRelayPort } from '../startup/relay-location.js';
 
 async function relayIsHealthy(port: number): Promise<boolean> {
@@ -55,6 +55,25 @@ function openUrl(url: string): void {
   }
 }
 
+export function dashboardAccessLines(
+  token: string,
+  tokenSource: string,
+  opened: boolean,
+): string[] {
+  return [
+    '',
+    '=== Local AI Relay dashboard access ===',
+    `Local access token: ${token}`,
+    `Token source: ${tokenSource}`,
+    opened
+      ? 'Dashboard opened and unlocked for this local session.'
+      : 'Paste the token above into the dashboard unlock box.',
+    'Reopen later with the desktop launcher or run: npm run dashboard',
+    'Keep this token private: it controls your local relay dashboard.',
+    '=======================================',
+  ];
+}
+
 export async function openDashboard(options: { openBrowser?: boolean } = {}): Promise<string> {
   let port = await resolveRelayPort();
   if (!await relayIsHealthy(port)) {
@@ -62,14 +81,17 @@ export async function openDashboard(options: { openBrowser?: boolean } = {}): Pr
     port = await waitForRelay();
   }
   const url = `http://127.0.0.1:${port}/ui`;
+  const token = await getOrGenerateToken();
   if (options.openBrowser !== false) {
-    const token = await getOrGenerateToken();
     openUrl(`${url}#token=${encodeURIComponent(token)}`);
   }
   console.log(`Dashboard: ${url}`);
-  console.log(options.openBrowser === false
-    ? 'Open the dashboard and follow its local unlock instructions.'
-    : 'Dashboard opened and unlocked for this local session.');
+  const tokenSource = process.env.RELAY_API_TOKEN
+    ? 'RELAY_API_TOKEN environment variable'
+    : getTokenPath();
+  for (const line of dashboardAccessLines(token, tokenSource, options.openBrowser !== false)) {
+    console.log(line);
+  }
   return url;
 }
 

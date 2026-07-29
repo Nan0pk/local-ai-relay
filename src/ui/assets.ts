@@ -30,11 +30,17 @@ export const DASHBOARD_JS = String.raw`
   function statusLabel(provider) {
     if (provider.latest_job?.status === "running") {
       if (provider.latest_job.stage === "installing_browser") return "Installing browser";
+      if (provider.latest_job.trigger === "startup") return "Checking automatically";
       return provider.latest_job.stage === "waiting_for_login" ? "Waiting for sign-in" : "Connecting";
     }
     if (provider.ready) return "Ready";
     if (provider.status === "disabled") return "Disabled";
-    if (provider.latest_job?.status === "failed") return "Error";
+    if (provider.latest_job?.status === "failed") {
+      if (provider.latest_job.failureKind === "login_required") return "Sign-in / consent";
+      if (provider.latest_job.failureKind === "captcha") return "Verification needed";
+      if (provider.latest_job.failureKind === "layout_changed") return "Site changed";
+      return "Unavailable";
+    }
     if (provider.latest_job?.status === "cancelled") return "Cancelled";
     return provider.anonymousCandidate ? "Try without login" : "Check access";
   }
@@ -60,7 +66,7 @@ export const DASHBOARD_JS = String.raw`
       const top = document.createElement("div"); top.className = "provider-top";
       const name = document.createElement("div"); name.className = "provider-name";
       name.append(text("span", provider.label.slice(0, 1), "provider-glyph"));
-      const title = document.createElement("div"); title.append(text("strong", provider.label), text("small", provider.anonymousCandidate ? "Anonymous access recently observed · checked live" : "Access and sign-in checked live"));
+      const title = document.createElement("div"); title.append(text("strong", provider.label), text("small", provider.anonymousCandidate ? "Signed-out prompt recently passed · checked live" : "Manual access check"));
       name.append(title);
       const state = document.createElement("span"); state.className = "provider-status " + (statusClass(provider) === "warning" ? "warning-text" : statusClass(provider) === "failed" ? "failed-text" : "");
       state.append(text("i", "", "dot " + (statusClass(provider) === "ready" ? "ready" : "warning")), document.createTextNode(statusLabel(provider)));
@@ -161,7 +167,15 @@ export const DASHBOARD_JS = String.raw`
   function renderOverview(data) {
     overview = data; const ready = data.providers.filter((provider) => provider.ready).length; const connected = data.harnesses.filter((harness) => harness.connected).length;
     $("relayStatus").textContent = "Running"; $("relayDetail").textContent = "v" + data.relay.version + " · 127.0.0.1:" + data.relay.port;
-    $("readyCount").textContent = String(ready); $("providerDetail").textContent = data.providers.length + " adapters available";
+    const discovery = data.provider_discovery || { status: "idle", attempted: 0, total: 0, succeeded: 0, failed: 0 };
+    $("readyCount").textContent = String(ready);
+    $("providerDetail").textContent = discovery.status === "running"
+      ? "Checking " + (discovery.attempted + 1) + " of " + discovery.total + " likely login-free chats"
+      : data.providers.length + " adapters available";
+    $("connectAvailable").textContent = discovery.status === "running"
+      ? "Scanning " + discovery.attempted + "/" + discovery.total + "…"
+      : discovery.status === "completed" ? "Scan login-free chats again" : "Scan login-free chats";
+    $("connectAvailable").disabled = discovery.status === "running";
     $("routingStatus").textContent = data.routing.enabled ? data.routing.mode : "Off"; $("routingDetail").textContent = data.routing.enabled ? data.routing.preset + " policy · relay-auto" : "Requests require a model";
       $("harnessCount").textContent = connected + " connected";
       $("heroSummary").textContent = ready ? ready + " provider" + (ready === 1 ? "" : "s") + " verified and available for local requests." : "The relay is healthy. Connect a provider to enable browser-backed requests.";
@@ -191,6 +205,7 @@ export const DASHBOARD_JS = String.raw`
       toast("This Chrome profile is now connected.");
       await new Promise((resolve) => setTimeout(resolve, 500));
       await refresh();
+      await startDiscovery(true);
     } catch (error) {
       if (pair?.token_id) {
         await api("/v1/control/browser-pair-cancel", { method: "POST", body: JSON.stringify({ token_id: pair.token_id }) }).catch(() => {});
@@ -217,6 +232,14 @@ export const DASHBOARD_JS = String.raw`
     if (!token) return; $("pollState").textContent = "Refreshing…";
     try { renderOverview(await api("/v1/control/overview")); $("pollState").textContent = "Live · just now"; $("relayDot").style.background = "var(--mint)"; }
     catch (error) { $("pollState").textContent = "Connection issue"; $("relayDot").style.background = "var(--red)"; throw error; }
+  }
+  async function startDiscovery(force = false) {
+    const result = await api("/v1/control/providers/discover", {
+      method: "POST",
+      body: JSON.stringify({ force }),
+    });
+    if (result.status === "running") toast("Checking likely login-free chats one at a time.");
+    await refresh();
   }
   function showError(error) { toast(messageOf(error)); }
   async function openEvents(providerId) {
@@ -251,6 +274,7 @@ export const DASHBOARD_JS = String.raw`
   async function openApp() {
     await refresh(); $("unlockView").hidden = true; $("appView").hidden = false; $("forgetToken").disabled = false; $("refresh").disabled = false;
     clearInterval(timer); timer = setInterval(() => refresh().catch(() => {}), 5000);
+    void startDiscovery(false).catch(showError);
   }
   async function acceptLauncherToken() {
     const fragment = new URLSearchParams(location.hash.slice(1));
@@ -272,12 +296,7 @@ export const DASHBOARD_JS = String.raw`
   }
   $("unlockForm").addEventListener("submit", unlock); $("forgetToken").addEventListener("click", lock); $("refresh").addEventListener("click", () => refresh().catch(showError)); $("useThisBrowser").addEventListener("click", () => (overview?.browser_bridge?.connected ? disconnectExistingBrowser() : pairExistingBrowser()).catch(showError)); $("copyExtensionPath").addEventListener("click", () => navigator.clipboard.writeText($("extensionPath").textContent).then(() => toast("Extension path copied.")).catch(() => toast("Select and copy the path shown above.")));
   $("saveRouting").addEventListener("click", () => saveRouting().catch(showError)); $("openLogs").addEventListener("click", () => openEvents().catch(showError)); $("runDoctor").addEventListener("click", () => openDoctor().catch(showError)); $("sendTest").addEventListener("click", sendTest);
-  $("connectAvailable").addEventListener("click", async () => {
-    const candidates = (overview?.providers || []).filter((item) => item.anonymousCandidate && !item.ready);
-    const provider = candidates[0] || (overview?.providers || []).find((item) => !item.ready);
-    if (!provider) return toast("Every provider is already connected.");
-    await providerAction(provider, "connect");
-  });
+  $("connectAvailable").addEventListener("click", () => startDiscovery(true).catch(showError));
   $("disconnectAll").addEventListener("click", async () => { if (!confirm("Disconnect every harness and revoke all relay-issued harness keys? Existing non-relay settings will remain.")) return; await api("/v1/control/harnesses/disconnect-all", { method: "POST", body: JSON.stringify({ confirm: true }) }); toast("All harness integrations removed."); await refresh(); });
   document.querySelectorAll(".close-dialog").forEach((node) => node.addEventListener("click", () => node.closest("dialog").close()));
   acceptLauncherToken();

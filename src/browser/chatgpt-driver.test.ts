@@ -60,6 +60,7 @@ test('ChatGPT driver config has login detection patterns', () => {
   const cfg = driver.getConfig();
   assert.ok(cfg.loginUrlPattern instanceof RegExp);
   assert.ok(cfg.loginUrlPattern.test('/login'));
+  assert.ok(cfg.loginUrlPattern.test('https://auth.openai.com/api/accounts/authorize'));
   assert.ok(cfg.signInButtonLabels.length > 0);
 });
 

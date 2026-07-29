@@ -5,6 +5,7 @@ import { runLiveProbe, type LiveProbeStage } from '../cli/live-probe.js';
 import { getModelsForProvider } from '../providers/registry.js';
 import { controlEvents } from './events.js';
 import { isExistingBrowserConnected } from '../browser/extension-driver.js';
+import { BrowserFailure, type BrowserFailureKind } from '../browser/types.js';
 
 export type ProviderJobStatus = 'running' | 'succeeded' | 'failed' | 'cancelled';
 
@@ -12,6 +13,7 @@ export interface ProviderJob {
   id: string;
   providerId: string;
   action: 'connect';
+  trigger: 'manual' | 'startup';
   status: ProviderJobStatus;
   stage: LiveProbeStage | 'cancelled' | 'failed';
   detail: string;
@@ -19,6 +21,18 @@ export interface ProviderJob {
   finishedAt?: string;
   eventId?: string;
   error?: string;
+  failureKind?: BrowserFailureKind;
+}
+
+export interface ProviderDiscovery {
+  status: 'idle' | 'running' | 'completed';
+  attempted: number;
+  total: number;
+  succeeded: number;
+  failed: number;
+  startedAt?: string;
+  finishedAt?: string;
+  currentProviderId?: string;
 }
 
 export interface ProviderCatalogEntry {
@@ -37,6 +51,14 @@ type ProbeRunner = typeof runLiveProbe;
 export class ProviderActionManager {
   private readonly jobs = new Map<string, ProviderJob>();
   private readonly controllers = new Map<string, AbortController>();
+  private readonly jobPromises = new Map<string, Promise<void>>();
+  private discovery: ProviderDiscovery = {
+    status: 'idle',
+    attempted: 0,
+    total: 0,
+    succeeded: 0,
+    failed: 0,
+  };
 
   constructor(private readonly probeRunner: ProbeRunner = runLiveProbe) {}
 
@@ -59,8 +81,40 @@ export class ProviderActionManager {
       .map((job) => ({ ...job }));
   }
 
-  startConnect(providerId: string): ProviderJob {
+  discoveryStatus(): ProviderDiscovery {
+    return { ...this.discovery };
+  }
+
+  startDiscovery(force = false): ProviderDiscovery {
+    if (this.discovery.status === 'running') return this.discoveryStatus();
+    if (this.discovery.status === 'completed' && !force) return this.discoveryStatus();
+    const catalog = this.catalog();
+    const statuses = new Map(
+      capabilityTracker.getAllStatuses().map((record) => [record.providerId, record]),
+    );
+    const candidates = catalog.filter((provider) =>
+      provider.anonymousCandidate
+      && statuses.get(provider.id)?.status !== 'disabled'
+      && !capabilityTracker.isReady(provider.id));
+    this.discovery = {
+      status: candidates.length ? 'running' : 'completed',
+      attempted: 0,
+      total: candidates.length,
+      succeeded: 0,
+      failed: 0,
+      startedAt: new Date().toISOString(),
+      ...(candidates.length ? {} : { finishedAt: new Date().toISOString() }),
+    };
+    if (candidates.length) void this.runDiscovery(candidates.map((item) => item.id));
+    return this.discoveryStatus();
+  }
+
+  startConnect(
+    providerId: string,
+    options: { trigger?: 'manual' | 'startup' } = {},
+  ): ProviderJob {
     const descriptor = findBrowserProvider(providerId.replace(/^browser-/, ''));
+    const trigger = options.trigger ?? 'manual';
     const running = [...this.jobs.values()].find(
       (job) => job.providerId === providerId && job.status === 'running',
     );
@@ -70,9 +124,12 @@ export class ProviderActionManager {
       id: crypto.randomUUID(),
       providerId,
       action: 'connect',
+      trigger,
       status: 'running',
       stage: 'checking_environment',
-      detail: 'Preparing the provider connection.',
+      detail: trigger === 'startup'
+        ? 'Queued for automatic anonymous-access verification.'
+        : 'Preparing the provider connection.',
       startedAt: new Date().toISOString(),
     };
     this.jobs.set(job.id, job);
@@ -81,14 +138,20 @@ export class ProviderActionManager {
     const started = controlEvents.record({
       scope: 'provider',
       code: 'provider_connection_started',
-      message: `Opened the ${descriptor.label} connection and sign-in flow.`,
+      message: trigger === 'startup'
+        ? `Checking ${descriptor.label} for login-free access.`
+        : `Opened the ${descriptor.label} connection and sign-in flow.`,
       providerId,
-      detail: existingBrowserConnected
+      detail: trigger === 'startup'
+        ? 'Automatic discovery runs quietly and never starts SSO or account sign-in.'
+        : existingBrowserConnected
         ? 'The official provider page uses a relay-owned tab in the paired Chrome profile.'
         : 'The official provider page uses the shared persistent relay-browser fallback.',
     });
     job.eventId = started.id;
-    void this.run(job.id, descriptor.name);
+    const promise = this.run(job.id, descriptor.name)
+      .finally(() => this.jobPromises.delete(job.id));
+    this.jobPromises.set(job.id, promise);
     return { ...job };
   }
 
@@ -158,6 +221,10 @@ export class ProviderActionManager {
       const controller = this.controllers.get(jobId);
       const result = await this.probeRunner(providerName, {
         signal: controller?.signal,
+        automatic: job.trigger === 'startup',
+        ...(job.trigger === 'startup'
+          ? { readinessTimeoutMs: 12_000, verificationTimeoutMs: 45_000 }
+          : {}),
         onStage: (stage, detail) => {
           if (job.status !== 'running') return;
           job.stage = stage;
@@ -189,6 +256,7 @@ export class ProviderActionManager {
     } catch (error) {
       if (job.status === 'cancelled') return;
       const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof BrowserFailure) job.failureKind = error.kind;
       job.status = 'failed';
       job.stage = 'failed';
       job.detail = message;
@@ -206,6 +274,36 @@ export class ProviderActionManager {
     } finally {
       this.controllers.delete(jobId);
     }
+  }
+
+  private async runDiscovery(providerIds: string[]): Promise<void> {
+    controlEvents.record({
+      scope: 'provider',
+      code: 'provider_discovery_started',
+      message: `Checking ${providerIds.length} likely login-free provider${providerIds.length === 1 ? '' : 's'} in the background.`,
+      detail: 'Providers are checked one at a time. Sign-in flows are not started automatically.',
+    });
+    for (const providerId of providerIds) {
+      this.discovery.currentProviderId = providerId;
+      const job = this.startConnect(providerId, { trigger: 'startup' });
+      await this.jobPromises.get(job.id);
+      const finished = this.jobs.get(job.id);
+      this.discovery.attempted += 1;
+      if (finished?.status === 'succeeded') this.discovery.succeeded += 1;
+      else this.discovery.failed += 1;
+    }
+    const finishedDiscovery: ProviderDiscovery = {
+      ...this.discovery,
+      status: 'completed',
+      finishedAt: new Date().toISOString(),
+    };
+    delete finishedDiscovery.currentProviderId;
+    this.discovery = finishedDiscovery;
+    controlEvents.record({
+      scope: 'provider',
+      code: 'provider_discovery_completed',
+      message: `Automatic provider check completed: ${this.discovery.succeeded} ready, ${this.discovery.failed} unavailable or needing attention.`,
+    });
   }
 }
 

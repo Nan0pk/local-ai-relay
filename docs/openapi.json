@@ -180,6 +180,50 @@
         }
       }
     },
+    "/v1/control/providers/discover": {
+      "post": {
+        "operationId": "discoverLoginFreeProviders",
+        "summary": "Start a bounded sequential check of likely login-free providers",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "force": {
+                    "type": "boolean",
+                    "description": "Run another scan even if startup discovery already completed."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current automatic discovery state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderDiscovery"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/control/browser-pair": {
       "post": {
         "operationId": "beginBrowserExtensionPairing",
@@ -1240,6 +1284,7 @@
           "routing_metrics",
           "browser_bridge",
           "providers",
+          "provider_discovery",
           "harnesses",
           "jobs"
         ],
@@ -1265,6 +1310,9 @@
               "type": "object"
             }
           },
+          "provider_discovery": {
+            "$ref": "#/components/schemas/ProviderDiscovery"
+          },
           "harnesses": {
             "type": "array",
             "items": {
@@ -1276,6 +1324,53 @@
             "items": {
               "type": "object"
             }
+          }
+        }
+      },
+      "ProviderDiscovery": {
+        "type": "object",
+        "required": [
+          "status",
+          "attempted",
+          "total",
+          "succeeded",
+          "failed"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "running",
+              "completed"
+            ]
+          },
+          "attempted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "succeeded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currentProviderId": {
+            "type": "string"
           }
         }
       },

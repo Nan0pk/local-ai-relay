@@ -38,7 +38,7 @@ const UI_HTML = `<!doctype html>
       <form id="unlockForm" class="unlock-card">
         <div class="card-icon">⌁</div>
         <h2>Unlock this relay</h2>
-        <p class="quiet">The desktop launcher unlocks this page automatically. If you opened a bookmark directly, paste the local token from <code>~/.local-ai-relay/token</code>.</p>
+        <p class="quiet">The desktop launcher unlocks this page automatically. The installer and <code>npm run dashboard</code> also print the token. For a direct bookmark, run <code>cat ~/.local-ai-relay/token</code> (Linux/macOS) or <code>Get-Content "$env:USERPROFILE\\.local-ai-relay\\token"</code> (PowerShell).</p>
         <label for="token">Relay bearer token</label>
         <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="lar_••••••••••••">
         <button class="button primary wide" type="submit">Open control center</button>
@@ -54,7 +54,7 @@ const UI_HTML = `<!doctype html>
           <p id="heroSummary" class="quiet">Loading relay state…</p>
         </div>
         <div class="hero-actions">
-          <button id="connectAvailable" class="button primary">Try easiest provider</button>
+          <button id="connectAvailable" class="button primary">Scan login-free chats</button>
           <button id="runDoctor" class="button secondary">Check setup</button>
           <button id="openLogs" class="button secondary">Activity & errors</button>
         </div>
@@ -94,7 +94,7 @@ const UI_HTML = `<!doctype html>
         <div class="main-column">
           <section class="panel">
             <div class="section-heading">
-              <div><span class="eyebrow">Step 1 · Connections</span><h2>Connect one provider</h2><p>Access is checked live because providers change anonymous use, regions, quotas, and sign-in rules without notice. If a usable composer is available, the relay connects immediately; otherwise the same tab stays open for sign-in.</p></div>
+              <div><span class="eyebrow">Step 1 · Connections</span><h2>Providers connect automatically</h2><p>On startup, likely login-free chats are verified one at a time in the background. Access changes by region, quota, and provider policy. Anything needing an account is left for you to open and sign in manually.</p></div>
               <div class="legend"><span><i class="dot ready"></i>Ready</span><span><i class="dot warning"></i>Needs attention</span><a class="link-button" href="https://github.com/Nan0pk/local-ai-relay/issues/new?template=provider.yml" target="_blank" rel="noopener noreferrer">Request provider ↗</a></div>
             </div>
             <div id="providerGrid" class="provider-grid" aria-live="polite"></div>

@@ -48,3 +48,26 @@ test('existing-browser login wait survives a login-required poll and then become
     else process.env.RELAY_BROWSER_BRIDGE_STATUS = previous;
   }
 });
+
+test('background existing-browser checks mark bridge commands as non-activating', async () => {
+  const previous = process.env.RELAY_BROWSER_BRIDGE_STATUS;
+  const root = await mkdtemp(join(tmpdir(), 'relay-extension-driver-background-'));
+  process.env.RELAY_BROWSER_BRIDGE_STATUS = join(root, 'status.json');
+  try {
+    browserExtensionBridge.register('chrome-background-test');
+    const driver = new ExistingBrowserDriver(config, { background: true });
+    const opening = driver.openForLogin();
+    const command = await browserExtensionBridge.poll('chrome-background-test', 50);
+    assert.equal(command?.action, 'open_provider');
+    assert.equal(command?.background, true);
+    browserExtensionBridge.complete('chrome-background-test', {
+      command_id: command!.id,
+      ok: true,
+    });
+    await opening;
+  } finally {
+    browserExtensionBridge.reset();
+    if (previous === undefined) delete process.env.RELAY_BROWSER_BRIDGE_STATUS;
+    else process.env.RELAY_BROWSER_BRIDGE_STATUS = previous;
+  }
+});
