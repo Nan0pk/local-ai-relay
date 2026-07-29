@@ -338,7 +338,7 @@ export class HarnessManager {
         const updated = receipt.harnessId === 'hermes'
           ? upsertHermesRelayConfig(source, baseUrl, key, Object.keys(record(record(relay).models)), record(relay).model as string | undefined)
           : upsertOpenCodeRelayConfig(source, baseUrl, key, Object.keys(record(record(relay).models)).map((id) => ({ id, status: 'ready' })));
-        await writeConfigAtomic(receipt.path, receipt.harnessId === 'hermes' ? stringify(updated) : `${JSON.stringify(updated, null, 2)}\\n`);
+        await writeConfigAtomic(receipt.path, receipt.harnessId === 'hermes' ? stringify(updated) : `${JSON.stringify(updated, null, 2)}\n`);
         repaired.push(receipt.harnessId);
       } catch {
         // A malformed or concurrently replaced config is not safe to repair.
