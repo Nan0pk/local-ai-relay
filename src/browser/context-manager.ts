@@ -18,6 +18,10 @@ export class BrowserContextManager {
   public static getInstance(options?: ContextManagerOptions): BrowserContextManager {
     if (!BrowserContextManager.instance) {
       BrowserContextManager.instance = new BrowserContextManager(options);
+    } else if (!BrowserContextManager.instance.context && options) {
+      // Background discovery is headless; a later manual connection must be
+      // able to reopen the same shared profile visibly (and vice versa).
+      BrowserContextManager.instance.options = options;
     }
     return BrowserContextManager.instance;
   }

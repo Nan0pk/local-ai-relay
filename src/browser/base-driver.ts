@@ -42,6 +42,8 @@ export interface SiteConfig {
   readonly loginUrlPattern: RegExp;
   /** Text labels on the landing page that indicate sign-in is required. */
   readonly signInButtonLabels: readonly string[];
+  /** Visible provider-specific login gates that can cover an otherwise present composer. */
+  readonly loginRequiredSelectors?: readonly string[];
   /** Body-text regex that indicates a rate limit (excludes upgrade prompts). */
   readonly rateLimitPattern?: RegExp;
   /** Body-text regex that indicates quota exhaustion. */
@@ -62,6 +64,8 @@ export interface BaseDriverOptions {
   profileDir?: string;
   diagnosticsDir?: string;
   headless?: boolean;
+  /** Allow visible login handoff and SSO clicks. Disable for background discovery. */
+  interactive?: boolean;
   timeoutMs?: number;
   stableMs?: number;
   maxSessions?: number;
@@ -81,6 +85,18 @@ function defaultDiagnosticsDir(): string {
 export interface ResolvedLocator {
   locator: Locator;
   selector: string;
+}
+
+async function firstLocatorVisible(page: Page, selector: string): Promise<boolean> {
+  try {
+    const matches = page.locator(selector);
+    const candidate = typeof matches.first === 'function' ? matches.first() : matches;
+    return typeof candidate.isVisible === 'function'
+      ? await candidate.isVisible().catch(() => false)
+      : false;
+  } catch {
+    return false;
+  }
 }
 
 /** Resolve selectors in configuration order, never DOM order. */
@@ -130,6 +146,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       profileDir: options.profileDir ?? defaultProfileDir(cfg),
       diagnosticsDir: options.diagnosticsDir ?? defaultDiagnosticsDir(),
       headless: options.headless ?? process.env.RELAY_BROWSER_HEADLESS === '1',
+      interactive: options.interactive ?? true,
       timeoutMs: options.timeoutMs ?? Number(process.env.RELAY_BROWSER_TIMEOUT_MS ?? 180_000),
       stableMs: options.stableMs ?? (process.env.RELAY_MOCK_BROWSER === 'true' ? 0 : 2_000),
       maxSessions: options.maxSessions ?? Number(process.env.RELAY_BROWSER_MAX_SESSIONS ?? 8),
@@ -155,6 +172,9 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       assistantMessageSelectors: [...cfg.assistantMessageSelectors],
       loginUrlPattern: pattern(cfg.loginUrlPattern)!,
       signInButtonLabels: [...cfg.signInButtonLabels],
+      ...(cfg.loginRequiredSelectors
+        ? { loginRequiredSelectors: [...cfg.loginRequiredSelectors] }
+        : {}),
       ...(cfg.rateLimitPattern ? { rateLimitPattern: pattern(cfg.rateLimitPattern) } : {}),
       ...(cfg.quotaPattern ? { quotaPattern: pattern(cfg.quotaPattern) } : {}),
       ...(cfg.captchaTextPattern ? { captchaTextPattern: pattern(cfg.captchaTextPattern) } : {}),
@@ -181,8 +201,10 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const existing = context.pages().find((p) => p.url().startsWith(cfg.url));
     const page = existing ?? await context.newPage();
     await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
-    await page.bringToFront();
-    await this.handleSsoLogin(page).catch(() => {});
+    if (this.options.interactive) {
+      await page.bringToFront();
+      await this.handleSsoLogin(page).catch(() => {});
+    }
   }
 
   async waitUntilReady(timeoutMs = 10 * 60_000, signal?: AbortSignal): Promise<void> {
@@ -195,7 +217,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       if (signal?.aborted) {
         throw new BrowserFailure('cancelled', `${cfg.name} connection was cancelled.`);
       }
-      await this.handleSsoLogin(page).catch(() => {});
+      if (this.options.interactive) await this.handleSsoLogin(page).catch(() => {});
       const composer = await this.resolve(page, 'composer', cfg.composerSelectors, false);
       if (composer && await isComposerUsable(composer)) return;
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -260,7 +282,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
 
       this.context.on('page', (p) => {
         p.on('framenavigated', async (frame) => {
-          if (frame === p.mainFrame()) {
+          if (this.options.interactive && frame === p.mainFrame()) {
             await this.handleSsoLogin(p).catch(() => {});
           }
         });
@@ -399,9 +421,11 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
 
   private async assertNotBlocked(page: Page): Promise<void> {
     const cfg = this.config();
-    const url = page.url();
+    const url = typeof page.url === 'function' ? page.url() : '';
     if (cfg.loginUrlPattern.test(url)) {
-      const didSso = await this.handleSsoLogin(page).catch(() => false);
+      const didSso = this.options.interactive
+        ? await this.handleSsoLogin(page).catch(() => false)
+        : false;
       if (didSso) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         if (!cfg.loginUrlPattern.test(page.url())) {
@@ -411,17 +435,36 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       throw new BrowserFailure('login_required',
         `${cfg.name} is showing a login page. Run \`npm run login:${cfg.name}\` and sign in normally.`);
     }
-    if (await page.locator('iframe[title*="captcha" i], [data-testid*="captcha" i], .cf-turnstile, #captcha').first().isVisible().catch(() => false)) {
+    if (cfg.loginRequiredSelectors?.length) {
+      const loginGate = await resolveVisibleSelector(
+        page,
+        cfg.loginRequiredSelectors,
+        false,
+      );
+      if (loginGate) {
+        throw new BrowserFailure(
+          'login_required',
+          `${cfg.name} requires sign-in or provider consent before this prompt can continue. Run \`npm run login:${cfg.name}\` and complete the visible step.`,
+        );
+      }
+    }
+    if (await firstLocatorVisible(
+      page,
+      'iframe[title*="captcha" i], [data-testid*="captcha" i], .cf-turnstile, #captcha',
+    )) {
       throw new BrowserFailure('captcha', `${cfg.name} is showing a CAPTCHA or challenge. Solve it normally in the browser, then retry.`);
     }
     if (cfg.signInButtonLabels.length > 0) {
       const labelPattern = cfg.signInButtonLabels.map((l) => `a:has-text("${l}"), button:has-text("${l}")`).join(', ');
-      const signInVisible = await page.locator(labelPattern).first().isVisible().catch(() => false);
-      if (signInVisible) {
-        const didSso = await this.handleSsoLogin(page).catch(() => false);
+      const signInVisible = await firstLocatorVisible(page, labelPattern);
+      const currentComposer = signInVisible ? await this.composer(page) : undefined;
+      if (signInVisible && !currentComposer) {
+        const didSso = this.options.interactive
+          ? await this.handleSsoLogin(page).catch(() => false)
+          : false;
         if (didSso) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
-          const stillVisible = await page.locator(labelPattern).first().isVisible().catch(() => false);
+          const stillVisible = await firstLocatorVisible(page, labelPattern);
           if (!stillVisible) {
             return;
           }
@@ -451,6 +494,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const started = Date.now();
     while (Date.now() - started < this.options.timeoutMs) {
       if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      await this.assertNotBlocked(page);
       for (const selector of cfg.assistantMessageSelectors) {
         const messages = page.locator(selector);
         if (await messages.count().catch(() => 0) > (countsBefore.get(selector) ?? 0)) {
@@ -471,6 +515,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     let sawStop = false;
     while (Date.now() - started < this.options.timeoutMs) {
       if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      await this.assertNotBlocked(page);
       const text = await locator.innerText().catch(() => '');
       if (text !== lastText) { lastText = text; stableSince = Date.now(); }
       const stopButton = await this.stopButton(page);

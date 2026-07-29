@@ -32,8 +32,8 @@ extension popup to remove the local pairing and revoke the scoped key.
 
 ## 2. Shared relay-browser fallback
 
-If the extension is absent or offline, provider drivers use a visible
-Patchright browser with one persistent shared profile:
+If the extension is absent or offline, provider drivers use Patchright with one
+persistent shared profile:
 
 ```text
 ~/.local-ai-relay/browser-profiles/shared
@@ -52,6 +52,10 @@ when automatic browser detection chooses the wrong executable.
 Provider-specific profile variables remain available for deliberate isolation
 and take precedence over the shared setting.
 
+Manual connection/sign-in is visible. Automatic startup discovery is headless
+and does not click SSO controls; providers are checked sequentially so startup
+does not create a window or tab storm.
+
 ## Dynamic access detection
 
 The relay does not permanently classify a provider as “login-free” or “login
@@ -62,10 +66,13 @@ required.” A connection attempt opens the current official page and checks:
 3. whether a visible CAPTCHA, quota message, or rate-limit message blocks use;
 4. whether the current selectors still match the provider layout.
 
+When the dashboard opens, providers with a recently completed signed-out prompt
+(currently Gemini, Z.ai, and Qwen) are checked automatically.
 If the composer is already usable, anonymous or existing-session access
-continues without forcing login. Otherwise the page remains visible for manual
-sign-in. Readiness is recorded only after a real, transparent verification
-message is submitted and the expected response is extracted.
+continues without forcing login. Otherwise the card classifies the blocker and
+waits for an explicit manual connection; startup never clicks an SSO control.
+Readiness is recorded only after a real, transparent verification message is
+submitted and the expected response is extracted.
 
 ## Security boundaries
 

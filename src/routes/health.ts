@@ -13,6 +13,7 @@ export function registerHealthRoutes(app: FastifyInstance): void {
       status: 'ok',
       service: 'local-ai-relay',
       version: RELAY_VERSION,
+      source_revision: process.env.RELAY_SOURCE_REVISION ?? null,
       timestamp: new Date().toISOString(),
     };
   });

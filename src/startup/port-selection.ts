@@ -44,10 +44,15 @@ export async function selectPort(
   host: string,
   preferredPort: number,
   checks: PortChecks = defaultChecks,
+  options: { reuseExistingRelay?: boolean } = {},
 ): Promise<PortSelection> {
+  const reuseExistingRelay = options.reuseExistingRelay ?? true;
   for (let offset = 0; offset < 10; offset++) {
     const port = preferredPort + offset;
-    if (await checks.isRelay(port)) return { port, existingRelay: true };
+    if (await checks.isRelay(port)) {
+      if (reuseExistingRelay) return { port, existingRelay: true };
+      continue;
+    }
     if (await checks.isAvailable(host, port)) return { port, existingRelay: false };
   }
   throw new Error(

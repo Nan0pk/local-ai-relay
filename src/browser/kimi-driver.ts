@@ -14,6 +14,7 @@ export class KimiPlaywrightDriver extends BaseBrowserDriver {
         'textarea',
       ],
       sendButtonSelectors: [
+        'div.send-button-container',
         'button[aria-label*="Send" i]',
         'button[data-testid="send-button"]',
         'div[role="button"][aria-label*="Send" i]',
@@ -29,6 +30,7 @@ export class KimiPlaywrightDriver extends BaseBrowserDriver {
       ],
       loginUrlPattern: /\/sign_?in|\/login|\/auth\//i,
       signInButtonLabels: ['Sign in', 'Log in', 'Login', '登录'],
+      loginRequiredSelectors: ['.login-modal-mask', '.login-modal'],
       rateLimitPattern: /rate limit|too many requests|请求过于频繁/i,
       quotaPattern: /out of quota|usage (limit|cap) reached|you.?ve reached your limit/i,
     };

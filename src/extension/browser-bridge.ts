@@ -14,6 +14,7 @@ export interface BrowserAutomationConfig {
   assistantMessageSelectors: string[];
   loginUrlPattern: { source: string; flags: string };
   signInButtonLabels: string[];
+  loginRequiredSelectors?: string[];
   rateLimitPattern?: { source: string; flags: string };
   quotaPattern?: { source: string; flags: string };
   captchaTextPattern?: { source: string; flags: string };
@@ -26,6 +27,7 @@ export type BrowserBridgeCommand =
     provider: string;
     config: BrowserAutomationConfig;
     timeout_ms: number;
+    background?: boolean;
   }
   | {
     id: string;
@@ -33,6 +35,7 @@ export type BrowserBridgeCommand =
     provider: string;
     config: BrowserAutomationConfig;
     timeout_ms: number;
+    background?: boolean;
     prompt: string;
     reset_session: boolean;
     session_id?: string;

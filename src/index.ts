@@ -6,12 +6,21 @@
 import { loadConfig } from './config.js';
 import { selectPort } from './startup/port-selection.js';
 import { getOrGenerateToken, getTokenPath } from './auth/token.js';
-import { clearActivePort, recordActivePort } from './startup/relay-location.js';
+import {
+  clearActivePort,
+  readActivePort,
+  recordActivePort,
+} from './startup/relay-location.js';
 
 async function main(): Promise<void> {
   const requestedConfig = loadConfig();
   const { buildApp } = await import('./server.js');
-  const portSelection = await selectPort(requestedConfig.host, requestedConfig.port);
+  const portSelection = await selectPort(
+    requestedConfig.host,
+    requestedConfig.port,
+    undefined,
+    { reuseExistingRelay: process.env.RELAY_REPLACE_RUNNING !== '1' },
+  );
   if (portSelection.existingRelay) {
     console.log(
       `local-ai-relay is already running at http://127.0.0.1:${portSelection.port}`,
@@ -29,7 +38,12 @@ async function main(): Promise<void> {
     );
   }
 
+  let ownershipTimer: NodeJS.Timeout | undefined;
+  let shuttingDown = false;
   const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    if (ownershipTimer) clearInterval(ownershipTimer);
     app.log.info({ signal }, 'shutting down');
     try {
       await clearActivePort(config.port);
@@ -43,6 +57,11 @@ async function main(): Promise<void> {
 
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  app.post('/v1/control/runtime/stop', async (_request, reply) => {
+    await reply.send({ ok: true });
+    setImmediate(() => void shutdown('REPLACED_BY_NEW_RUNTIME'));
+    return reply;
+  });
 
   try {
     await app.listen({ host: config.host, port: config.port });
@@ -52,6 +71,14 @@ async function main(): Promise<void> {
         'could not persist active relay port; explicit PORT clients remain available',
       );
     });
+    ownershipTimer = setInterval(() => {
+      void readActivePort().then((activePort) => {
+        if (activePort !== undefined && activePort !== config.port) {
+          void shutdown('REPLACED_BY_NEW_RUNTIME');
+        }
+      });
+    }, 2_000);
+    ownershipTimer.unref();
     app.log.info(
       { host: config.host, port: config.port },
       'local-ai-relay listening',

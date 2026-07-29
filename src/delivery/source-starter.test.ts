@@ -71,7 +71,7 @@ linuxTest('source starter works from an empty home and is repeatable', async () 
   assert.match(first.stdout, /Opening the Local AI Relay Control Center/);
   assert.deepEqual(
     (await readFile(f.npmLog, 'utf8')).trim().split('\n'),
-    ['ci', 'run launcher:install', 'run dashboard -- --no-open'],
+    ['ci', 'run launcher:install', 'run dashboard -- --no-open --replace-running'],
   );
 
   const second = run(f);
@@ -82,9 +82,9 @@ linuxTest('source starter works from an empty home and is repeatable', async () 
     [
       'ci',
       'run launcher:install',
-      'run dashboard -- --no-open',
+      'run dashboard -- --no-open --replace-running',
       'run launcher:install',
-      'run dashboard -- --no-open',
+      'run dashboard -- --no-open --replace-running',
     ],
   );
 });

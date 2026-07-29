@@ -17,8 +17,15 @@ test('provider registry uses current canonical URLs and live access hints', () =
   const providers = listBrowserProviders();
   assert.equal(findBrowserProvider('arena').url, 'https://arena.ai/');
   assert.equal(findBrowserProvider('kimi').url, 'https://www.kimi.com/');
-  assert.ok(findBrowserProvider('chatgpt').anonymousCandidate);
-  assert.ok(findBrowserProvider('grok').anonymousCandidate);
+  assert.equal(findBrowserProvider('chatgpt').anonymousCandidate, false);
+  assert.ok(findBrowserProvider('gemini').anonymousCandidate);
+  assert.ok(findBrowserProvider('zai').anonymousCandidate);
+  assert.ok(findBrowserProvider('qwen').anonymousCandidate);
+  assert.equal(findBrowserProvider('grok').anonymousCandidate, false);
+  assert.deepEqual(
+    providers.filter((provider) => provider.anonymousCandidate).map((provider) => provider.name),
+    ['gemini', 'zai', 'qwen'],
+  );
   assert.ok(providers.every((provider) => provider.authentication === 'dynamic'));
 });
 

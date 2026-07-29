@@ -78,6 +78,42 @@ export function generateOpenAPISpec(): Record<string, unknown> {
           },
         },
       },
+      '/v1/control/providers/discover': {
+        post: {
+          operationId: 'discoverLoginFreeProviders',
+          summary: 'Start a bounded sequential check of likely login-free providers',
+          requestBody: {
+            required: false,
+            content: { 'application/json': { schema: {
+              type: 'object',
+              properties: {
+                force: {
+                  type: 'boolean',
+                  description: 'Run another scan even if startup discovery already completed.',
+                },
+              },
+            } } },
+          },
+          responses: {
+            '200': json({ $ref: '#/components/schemas/ProviderDiscovery' }, 'Current automatic discovery state.'),
+            '401': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Bearer token missing or invalid.'),
+          },
+        },
+      },
+      '/v1/control/runtime/stop': {
+        post: {
+          operationId: 'stopRelayRuntime',
+          summary: 'Stop this relay runtime before a source update',
+          responses: {
+            '200': json({
+              type: 'object',
+              required: ['ok'],
+              properties: { ok: { const: true } },
+            }, 'Runtime shutdown was accepted.'),
+            '401': json({ $ref: '#/components/schemas/ErrorResponse' }, 'Bearer token missing or invalid.'),
+          },
+        },
+      },
       '/v1/control/browser-pair': {
         post: {
           operationId: 'beginBrowserExtensionPairing',
@@ -394,6 +430,7 @@ export function generateOpenAPISpec(): Record<string, unknown> {
             status: { const: 'ok' },
             service: { const: 'local-ai-relay' },
             version: { type: 'string' },
+            source_revision: { type: ['string', 'null'] },
             timestamp: { type: 'string', format: 'date-time' },
           },
         },
@@ -473,15 +510,30 @@ export function generateOpenAPISpec(): Record<string, unknown> {
         },
         ControlOverview: {
           type: 'object',
-          required: ['relay', 'routing', 'routing_metrics', 'browser_bridge', 'providers', 'harnesses', 'jobs'],
+          required: ['relay', 'routing', 'routing_metrics', 'browser_bridge', 'providers', 'provider_discovery', 'harnesses', 'jobs'],
           properties: {
             relay: { type: 'object' },
             routing: { $ref: '#/components/schemas/RoutingPolicy' },
             routing_metrics: { type: 'array', items: { type: 'object' } },
             browser_bridge: { type: 'object' },
             providers: { type: 'array', items: { type: 'object' } },
+            provider_discovery: { $ref: '#/components/schemas/ProviderDiscovery' },
             harnesses: { type: 'array', items: { type: 'object' } },
             jobs: { type: 'array', items: { type: 'object' } },
+          },
+        },
+        ProviderDiscovery: {
+          type: 'object',
+          required: ['status', 'attempted', 'total', 'succeeded', 'failed'],
+          properties: {
+            status: { type: 'string', enum: ['idle', 'running', 'completed'] },
+            attempted: { type: 'integer', minimum: 0 },
+            total: { type: 'integer', minimum: 0 },
+            succeeded: { type: 'integer', minimum: 0 },
+            failed: { type: 'integer', minimum: 0 },
+            startedAt: { type: 'string', format: 'date-time' },
+            finishedAt: { type: 'string', format: 'date-time' },
+            currentProviderId: { type: 'string' },
           },
         },
         ChatMessage: {

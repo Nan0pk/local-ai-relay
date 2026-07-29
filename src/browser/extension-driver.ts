@@ -19,8 +19,16 @@ function unwrap(result: BrowserBridgeResult, provider: string): BrowserBridgeRes
   );
 }
 
+export interface ExistingBrowserDriverOptions {
+  background?: boolean;
+  sendTimeoutMs?: number;
+}
+
 export class ExistingBrowserDriver implements BrowserLoginDriver {
-  constructor(private readonly config: BrowserAutomationConfig) {}
+  constructor(
+    private readonly config: BrowserAutomationConfig,
+    private readonly options: ExistingBrowserDriverOptions = {},
+  ) {}
 
   async openForLogin(): Promise<void> {
     unwrap(await browserExtensionBridge.dispatch({
@@ -28,6 +36,7 @@ export class ExistingBrowserDriver implements BrowserLoginDriver {
       provider: this.config.name,
       config: this.config,
       timeout_ms: 30_000,
+      background: this.options.background,
     }), this.config.label);
   }
 
@@ -40,6 +49,7 @@ export class ExistingBrowserDriver implements BrowserLoginDriver {
         provider: this.config.name,
         config: this.config,
         timeout_ms: chunkMs,
+        background: this.options.background,
       }, { signal });
       if (result.ok && result.ready) return;
       if (result.error?.kind !== 'login_required') {
@@ -57,7 +67,8 @@ export class ExistingBrowserDriver implements BrowserLoginDriver {
       action: 'send_prompt',
       provider: this.config.name,
       config: this.config,
-      timeout_ms: 180_000,
+      timeout_ms: this.options.sendTimeoutMs ?? 180_000,
+      background: this.options.background,
       prompt: request.prompt,
       reset_session: request.resetSession,
       ...(request.sessionId ? { session_id: request.sessionId } : {}),

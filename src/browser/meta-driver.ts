@@ -28,6 +28,7 @@ export class MetaPlaywrightDriver extends BaseBrowserDriver {
       ],
       loginUrlPattern: /\/login|\/oauth|accountscenter\.meta\.com|facebook\.com\/login|instagram\.com\/accounts\/login/i,
       signInButtonLabels: ['Log in', 'Sign in'],
+      loginRequiredSelectors: ['[role="dialog"]'],
       rateLimitPattern: /rate limit|too many requests|try again later/i,
       quotaPattern: /usage (limit|cap) reached|you.?ve reached your limit|limit resets/i,
     };

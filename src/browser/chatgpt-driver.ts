@@ -40,7 +40,7 @@ export class ChatGptPlaywrightDriver extends BaseBrowserDriver {
       assistantMessageSelectors: [
         '[data-message-author-role="assistant"]',
       ],
-      loginUrlPattern: /\/login|\/auth\/|\/sign_?in/i,
+      loginUrlPattern: /auth\.openai\.com|\/login|\/auth\/|\/sign_?in/i,
       signInButtonLabels: ['Sign in', 'Log in', 'Get started'],
       rateLimitPattern: /rate limit|too many requests|you.?ve reached your (usage )?limit/i,
       quotaPattern: /out of quota|usage (limit|cap) reached|you.?ve reached your (daily|weekly|monthly) (message )?limit/i,

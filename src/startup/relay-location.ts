@@ -11,6 +11,14 @@ export function activePortPath(root = process.cwd()): string {
   return join(root, '.relay-browser', 'active-port');
 }
 
+export async function readActivePort(root = process.cwd()): Promise<number | undefined> {
+  try {
+    return validPort(await readFile(activePortPath(root), 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
 async function configuredPort(
   env: NodeJS.ProcessEnv,
   root: string,

@@ -31,22 +31,28 @@ $starter = Join-Path $env:TEMP 'local-ai-relay-start.ps1'; Invoke-WebRequest -Us
 
 The starter downloads or safely updates one managed checkout, installs locked
 dependencies when needed, creates **Local AI Relay** in the application menu,
-starts the loopback-only server, and opens the unlocked Control Center. It does
-not modify a random clone or force a provider login during installation.
+replaces any older running source revision, starts the loopback-only server, and
+opens the unlocked Control Center. It does not modify a random clone or force a
+provider login during installation.
+The terminal also prints the local access token once, its protected storage
+path, and the command for reopening the dashboard. Keep that token private.
 
 ## Get to work
 
 The Control Center is the normal interface. No project coding is required.
 
-1. **Choose browser mode.** Click **Use this Chrome** if you want the relay to
+1. **Let startup discovery run.** The dashboard quietly checks likely
+   login-free chats one at a time and marks only end-to-end verified providers
+   **Ready**. You can start with the first ready provider while the rest finish.
+2. **Choose browser mode.** Click **Use this Chrome** if you want the relay to
    reuse logins already present in your normal Chrome profile. The dashboard
    gives the one-time extension installation path. Skip this step to use the
    isolated shared relay browser.
-2. **Connect one provider.** Click **Connect / check access**. The relay first
-   looks for a usable signed-out composer. If the provider asks for an account,
-   sign in on the official page that opened. The card changes to **Ready** only
-   after one transparent test request succeeds.
-3. **Connect your harness.** Choose Hermes, OpenCode, or **Generic
+3. **Handle only providers that need you.** A card says **Sign-in / consent**,
+   **Verification needed**, **Site changed**, or **Unavailable** instead of
+   pretending the chat works. Click **Connect / check access** only for a
+   provider you want to sign into.
+4. **Connect your harness.** Choose Hermes, OpenCode, or **Generic
    OpenAI-compatible client**. Launch the installed harness and use model
    `relay-auto`.
 
@@ -74,22 +80,52 @@ key.
 
 ## Anonymous access changes—so the relay checks live
 
-Provider login rules vary by region, quota, rollout, and time. On 28 July 2026,
-a signed-out composer was visible during a non-submitting audit for ChatGPT,
-Gemini, Z.ai, Qwen, Meta AI, Kimi, Arena, MiniMax, and Grok. DeepSeek redirected
-to sign-in. Claude and Mistral presented site verification to the audit browser,
-so their signed-out state was inconclusive.
+Provider login rules vary by region, quota, rollout, and time. A signed-out
+submission audit on 29 July 2026 produced these actual outcomes:
 
-Those observations are only connection-order hints. The dashboard never treats
-them as readiness evidence. It checks the page you actually receive and adapts:
+| Provider | Signed-out result |
+|---|---|
+| Gemini, Z.ai, Qwen | Prompt submitted and expected response extracted |
+| ChatGPT | Composer appeared, but Send redirected to OpenAI authentication/security verification |
+| Kimi, Meta AI, Grok | Composer appeared, but Send opened a login gate |
+| Arena | Required explicit Terms/Privacy consent before the first prompt |
+| MiniMax | Composer appeared, but the prompt did not start without an account-ready session |
+| DeepSeek | Redirected to sign-in |
+| Claude, Mistral | Site verification prevented a conclusive signed-out test |
+
+Only the first row is used to order automatic startup checks. Even that is not
+blindly trusted: when the authenticated Control Center opens, it verifies those
+providers sequentially in background tabs (or a headless shared relay browser)
+on the operator's machine and adapts:
 
 - usable composer → verify immediately;
-- login page → keep the official page open while you sign in;
-- CAPTCHA or site verification → ask you to complete it manually;
+- login or consent page → mark **Sign-in / consent** without opening an automatic login flow;
+- CAPTCHA or site verification → mark **Verification needed** for manual action;
 - quota, rate limit, layout change, timeout, or interrupted generation → show
   the classified error and a link to its event log.
 
 Provider sites can still change independently of this project.
+
+## Dashboard token
+
+The normal desktop/application-menu launcher opens an authenticated URL and
+unlocks the dashboard automatically. Every `npm run dashboard` invocation also
+prints the token and its source in the terminal.
+
+If you open a saved `http://127.0.0.1:.../ui` bookmark directly:
+
+```bash
+cat ~/.local-ai-relay/token
+```
+
+On Windows PowerShell:
+
+```powershell
+Get-Content "$env:USERPROFILE\.local-ai-relay\token"
+```
+
+Paste the result into **Relay bearer token**. The file remains owner-readable
+only on supported Unix systems; do not post the token in logs or screenshots.
 
 ## Routing
 

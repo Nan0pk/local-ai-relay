@@ -104,6 +104,7 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
       routing_metrics: routingManager.getMetrics(),
       browser_bridge: currentBrowserBridgeStatus(),
       providers,
+      provider_discovery: providerActions.discoveryStatus(),
       harnesses: await harnessManager.list(),
       jobs,
     };
@@ -251,6 +252,11 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
       }
     },
   );
+
+  app.post<{
+    Body: { force?: boolean };
+  }>('/v1/control/providers/discover', async (request) =>
+    providerActions.startDiscovery(request.body?.force === true));
 
   app.post<{
     Params: { providerId: string };

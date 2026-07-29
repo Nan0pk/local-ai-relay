@@ -24,6 +24,10 @@ export type LiveProbeStage =
 export interface LiveProbeOptions {
   signal?: AbortSignal;
   onStage?: (stage: LiveProbeStage, detail: string) => void;
+  /** Short, non-interactive probe used by dashboard startup discovery. */
+  automatic?: boolean;
+  readinessTimeoutMs?: number;
+  verificationTimeoutMs?: number;
 }
 
 function parseProvider(argv: string[]): string {
@@ -60,6 +64,7 @@ export async function runLiveProbe(providerName: string, options: LiveProbeOptio
   const useExistingBrowser = isExistingBrowserConnected();
   if (
     !useExistingBrowser
+    && !options.automatic
     && process.platform === 'linux'
     && process.env.RELAY_BROWSER_HEADLESS !== '1'
     && !process.env.DISPLAY
@@ -86,24 +91,53 @@ export async function runLiveProbe(providerName: string, options: LiveProbeOptio
     );
   }
 
-  const driver = createAdaptiveBrowserDriver(descriptor.name);
+  const driver = createAdaptiveBrowserDriver(
+    descriptor.name,
+    options.automatic
+      ? {
+          fallback: {
+            headless: true,
+            interactive: false,
+            timeoutMs: options.verificationTimeoutMs ?? 45_000,
+          },
+          existingBrowser: {
+            background: true,
+            sendTimeoutMs: options.verificationTimeoutMs ?? 45_000,
+          },
+        }
+      : {},
+  );
   try {
     if (options.signal?.aborted) throw new Error('Connection was cancelled.');
     options.onStage?.(
       'opening_browser',
-      useExistingBrowser
+      options.automatic
+        ? `Checking ${descriptor.label} quietly for anonymous access.`
+        : useExistingBrowser
         ? `Opening ${descriptor.label} in this Chrome profile.`
         : `Opening ${descriptor.label} in the shared relay browser.`,
     );
     console.log(
-      useExistingBrowser
+      options.automatic
+        ? `Checking ${descriptor.label} in a background ${useExistingBrowser ? 'Chrome tab' : 'relay-browser session'}.`
+        : useExistingBrowser
         ? `Opening a relay-owned ${descriptor.label} tab in this Chrome profile.`
         : `Opening ${descriptor.label} in the shared relay browser. Sign in normally if asked.`,
     );
-    console.log('The probe will continue automatically when the composer becomes available.');
+    console.log(options.automatic
+      ? 'Checking for a usable signed-out composer without starting a sign-in flow.'
+      : 'The probe will continue automatically when the composer becomes available.');
     await driver.openForLogin();
-    options.onStage?.('waiting_for_login', 'Waiting for sign-in and a usable chat composer.');
-    await driver.waitUntilReady(undefined, options.signal);
+    options.onStage?.(
+      'waiting_for_login',
+      options.automatic
+        ? 'Checking for anonymous access.'
+        : 'Waiting for sign-in and a usable chat composer.',
+    );
+    await driver.waitUntilReady(
+      options.readinessTimeoutMs ?? (options.automatic ? 12_000 : undefined),
+      options.signal,
+    );
     options.onStage?.('verifying', 'Composer detected; sending one transparent readiness check.');
     console.log('Composer detected. Sending one harmless verification message.');
     const result = await driver.send({

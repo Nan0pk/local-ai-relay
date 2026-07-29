@@ -98,7 +98,7 @@ echo 'Creating the Local AI Relay application launcher...'
 
 echo 'Opening the Local AI Relay Control Center...'
 if ((OPEN_BROWSER)); then
-  (cd "$SOURCE_ROOT" && npm run dashboard)
+  (cd "$SOURCE_ROOT" && npm run dashboard -- --replace-running)
 else
-  (cd "$SOURCE_ROOT" && npm run dashboard -- --no-open)
+  (cd "$SOURCE_ROOT" && npm run dashboard -- --no-open --replace-running)
 fi

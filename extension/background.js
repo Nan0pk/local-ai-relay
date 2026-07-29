@@ -100,6 +100,7 @@ async function inspectPage(tabId, config) {
         catch { return false; }
       };
       const composer = firstVisible(site.composerSelectors);
+      const loginGate = firstVisible(site.loginRequiredSelectors || []);
       const composerUsable = Boolean(
         composer
         && !composer.disabled
@@ -135,7 +136,9 @@ async function inspectPage(tabId, config) {
         composerUsable,
         generating: Boolean(firstVisible(site.stopButtonSelectors)),
         assistantTexts,
-        loginRequired: matches(site.loginUrlPattern, location.href) || (!composer && signInText),
+        loginRequired: Boolean(loginGate)
+          || matches(site.loginUrlPattern, location.href)
+          || (!composer && signInText),
         captcha: captchaFrame || matches(site.captchaTextPattern, bodyText),
         rateLimited: matches(site.rateLimitPattern, bodyText),
         quotaExhausted: matches(site.quotaPattern, bodyText),
@@ -150,7 +153,10 @@ function failureFromState(state, label) {
   if (state?.captcha) return { kind: 'captcha', message: `${label} requires a CAPTCHA in the visible tab.` };
   if (state?.quotaExhausted) return { kind: 'quota_exhausted', message: `${label} reports that the account quota is exhausted.` };
   if (state?.rateLimited) return { kind: 'rate_limit', message: `${label} reports a rate limit.` };
-  if (state?.loginRequired) return { kind: 'login_required', message: `Sign in to ${label} in the opened Chrome tab.` };
+  if (state?.loginRequired) return {
+    kind: 'login_required',
+    message: `Complete ${label} sign-in or access confirmation in the opened Chrome tab.`,
+  };
   if (state?.composerFound && !state?.composerUsable) {
     return { kind: 'composer_disabled', message: `${label} composer is currently disabled.` };
   }
@@ -282,7 +288,29 @@ async function sendPrompt(command, tab) {
   let stableSince = 0;
   const started = Date.now();
   while (Date.now() - started < command.timeout_ms) {
-    const state = await inspectPage(tab.id, command.config);
+    const state = await inspectPage(tab.id, command.config).catch(async () => {
+      const current = await chrome.tabs.get(tab.id).catch(() => undefined);
+      if (current?.url) {
+        try {
+          if (new RegExp(
+            command.config.loginUrlPattern.source,
+            command.config.loginUrlPattern.flags,
+          ).test(current.url)) {
+            return { loginRequired: true, url: current.url };
+          }
+        } catch { /* invalid patterns are rejected by the relay contract */ }
+      }
+      return undefined;
+    });
+    if (!state) {
+      return {
+        ok: false,
+        error: {
+          kind: 'layout_changed',
+          message: `${command.config.label} navigated to a page the relay cannot inspect.`,
+        },
+      };
+    }
     if (state?.captcha || state?.rateLimited || state?.quotaExhausted || state?.loginRequired) {
       return { ok: false, error: failureFromState(state, command.config.label) };
     }
@@ -306,7 +334,10 @@ async function sendPrompt(command, tab) {
 
 async function executeCommand(command) {
   try {
-    const tab = await providerTab(command, command.action !== 'send_prompt');
+    const tab = await providerTab(
+      command,
+      command.background !== true && command.action !== 'send_prompt',
+    );
     if (command.action === 'open_provider') {
       return { command_id: command.id, ok: true, conversation_url: tab.url };
     }

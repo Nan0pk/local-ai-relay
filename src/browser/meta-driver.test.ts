@@ -9,7 +9,7 @@ class TestableMetaDriver extends MetaPlaywrightDriver {
   }
 }
 
-test('Meta driver supports the current anonymous input and authenticated test IDs', () => {
+test('Meta driver supports the current composer and detects the post-send login modal', () => {
   const driver = new TestableMetaDriver({ headless: true });
   const cfg = driver.getConfig();
 
@@ -20,4 +20,5 @@ test('Meta driver supports the current anonymous input and authenticated test ID
   assert.ok(cfg.composerSelectors.includes('[data-testid="composer-input"][contenteditable="true"]'));
   assert.ok(cfg.sendButtonSelectors.includes('[data-testid="composer-send-button"]'));
   assert.ok(cfg.assistantMessageSelectors.includes('[data-testid="assistant-message"]'));
+  assert.ok(cfg.loginRequiredSelectors?.includes('[role="dialog"]'));
 });
