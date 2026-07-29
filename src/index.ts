@@ -28,6 +28,11 @@ async function main(): Promise<void> {
     return;
   }
   const config = { ...requestedConfig, port: portSelection.port };
+  // A replacement relay can start on a successor port while the old process
+  // is shutting down. Repair only relay-owned harness entries before clients
+  // are launched, so Hermes/OpenCode never keep a stale endpoint.
+  const { harnessManager } = await import('./harness/manager.js');
+  await harnessManager.repairOwnedConfigurations({ activePort: config.port });
   const app = buildApp(config);
   await getOrGenerateToken();
 
