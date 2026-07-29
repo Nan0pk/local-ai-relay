@@ -16,7 +16,7 @@ test('registers a named provider visible to Hermes /model', () => {
       base_url: 'http://127.0.0.1:8788/v1',
       api_key: 'token',
       model: 'browser-chatgpt-free',
-      api_mode: 'codex_responses',
+      api_mode: 'chat_completions',
       models: { 'browser-chatgpt-free': {} },
     }],
     model: {
@@ -24,7 +24,7 @@ test('registers a named provider visible to Hermes /model', () => {
       default: 'browser-chatgpt-free',
       base_url: 'http://127.0.0.1:8788/v1',
       api_key: 'token',
-      api_mode: 'codex_responses',
+      api_mode: 'chat_completions',
     },
   });
 });

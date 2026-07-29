@@ -3,7 +3,7 @@ import { readFile, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { parse } from 'yaml';
+import { parse, stringify } from 'yaml';
 import { HarnessTokenRegistry } from '../auth/harness-tokens.js';
 import { HarnessManager } from './manager.js';
 
@@ -59,6 +59,46 @@ test('harness manager connects and cleanly removes only relay-owned configuratio
     else process.env.HERMES_HOME = previousHermes;
     if (previousOpenCode === undefined) delete process.env.OPENCODE_CONFIG;
     else process.env.OPENCODE_CONFIG = previousOpenCode;
+  }
+});
+
+test('repairs relay-owned Hermes and OpenCode configs to the active port while preserving unrelated entries', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'relay-harness-repair-'));
+  const hermesHome = join(root, 'hermes');
+  const openCodePath = join(root, 'opencode.json');
+  const oldHermes = process.env.HERMES_HOME;
+  const oldOpenCode = process.env.OPENCODE_CONFIG;
+  process.env.HERMES_HOME = hermesHome;
+  process.env.OPENCODE_CONFIG = openCodePath;
+  const tokens = new HarnessTokenRegistry(join(root, 'tokens.json'));
+  const manager = new HarnessManager(join(root, 'ledger.json'), tokens);
+  try {
+    await import('node:fs/promises').then(({ mkdir }) => mkdir(hermesHome, { recursive: true }));
+    await writeFile(join(hermesHome, 'config.yaml'), 'custom_providers:\n  - name: local-ai-relay\n    base_url: http://127.0.0.1:8787/v1\n    api_key: placeholder\n    api_mode: codex_responses\n    models: {}\n  - name: unrelated\n    base_url: http://other/v1\n');
+    await writeFile(openCodePath, JSON.stringify({ provider: { unrelated: { options: { baseURL: 'http://other/v1' } } } }));
+    await manager.connect('hermes', 'http://127.0.0.1:8787/v1');
+    await manager.connect('opencode', 'http://127.0.0.1:8787/v1');
+    const hermesConfig = parse(await readFile(join(hermesHome, 'config.yaml'), 'utf8'));
+    const openConfig = JSON.parse(await readFile(openCodePath, 'utf8'));
+    hermesConfig.custom_providers[0].base_url = 'http://127.0.0.1:8787/v1';
+    hermesConfig.custom_providers[0].api_mode = 'codex_responses';
+    await writeFile(join(hermesHome, 'config.yaml'), stringify(hermesConfig));
+    openConfig.provider['local-ai-relay'].options.baseURL = 'http://127.0.0.1:8787/v1';
+    await writeFile(openCodePath, JSON.stringify(openConfig));
+    const repaired = await manager.repairOwnedConfigurations({ activePort: 8788 });
+    assert.deepEqual(repaired.sort(), ['hermes', 'opencode']);
+    const repairedHermes = parse(await readFile(join(hermesHome, 'config.yaml'), 'utf8'));
+    const repairedOpen = JSON.parse(await readFile(openCodePath, 'utf8'));
+    assert.equal(repairedHermes.custom_providers.find((p: Record<string, unknown>) => p.name === 'local-ai-relay').base_url, 'http://127.0.0.1:8788/v1');
+    assert.equal(repairedHermes.custom_providers.find((p: Record<string, unknown>) => p.name === 'local-ai-relay').api_mode, 'chat_completions');
+    assert.equal(repairedHermes.custom_providers.find((p: Record<string, unknown>) => p.name === 'unrelated').base_url, 'http://other/v1');
+    assert.equal(repairedOpen.provider['local-ai-relay'].options.baseURL, 'http://127.0.0.1:8788/v1');
+    assert.equal(repairedOpen.provider.unrelated.options.baseURL, 'http://other/v1');
+    assert.equal(tokens.verify(repairedHermes.custom_providers.find((p: Record<string, unknown>) => p.name === 'local-ai-relay').api_key as string), true);
+    assert.equal(tokens.verify(repairedOpen.provider['local-ai-relay'].options.apiKey as string), true);
+  } finally {
+    if (oldHermes === undefined) delete process.env.HERMES_HOME; else process.env.HERMES_HOME = oldHermes;
+    if (oldOpenCode === undefined) delete process.env.OPENCODE_CONFIG; else process.env.OPENCODE_CONFIG = oldOpenCode;
   }
 });
 

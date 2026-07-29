@@ -32,6 +32,7 @@ import {
 import { listReadyModels } from '../providers/registry.js';
 import { detectHarnessExecutable } from './detection.js';
 import { launchHarness } from './launcher.js';
+import { resolveRelayPort } from '../startup/relay-location.js';
 
 export type HarnessId = 'hermes' | 'opencode' | 'generic';
 
@@ -57,6 +58,8 @@ export interface HarnessStatus {
   installed: boolean;
   configurationDetected: boolean;
   connected: boolean;
+  /** Configuration exists but points at an old relay URL or unsupported protocol. */
+  needsRepair?: boolean;
   executable?: string;
   installUrl?: string;
   path?: string;
@@ -185,18 +188,24 @@ export class HarnessManager {
     const executable = await detectHarnessExecutable(harnessId);
     const configurationDetected = await exists(path);
     let connected = false;
+    let needsRepair = false;
     if (configurationDetected) {
       try {
         const source = await readFile(path, 'utf8');
         const config = harnessId === 'hermes' ? record(parse(source)) : record(JSON.parse(source));
-        connected = harnessId === 'hermes'
-          ? (Array.isArray(config.custom_providers) && config.custom_providers.some(
-              (item) => record(item).name === HERMES_PROVIDER_NAME,
-            ))
-          : Object.prototype.hasOwnProperty.call(
-              record(config.provider),
-              OPENCODE_PROVIDER_ID,
-            );
+        const relay = harnessId === 'hermes'
+          ? (Array.isArray(config.custom_providers)
+            ? config.custom_providers.find((item: unknown) => record(item).name === HERMES_PROVIDER_NAME)
+            : undefined)
+          : record(record(config.provider))[OPENCODE_PROVIDER_ID];
+        const key = harnessId === 'hermes' ? record(relay).api_key : record(record(relay).options).apiKey;
+        const url = harnessId === 'hermes' ? record(relay).base_url : record(record(relay).options).baseURL;
+        const protocolValid = harnessId !== 'hermes' || record(relay).api_mode === 'chat_completions';
+        connected = Boolean(relay && typeof key === 'string' && this.tokenRegistry.verify(key) && protocolValid);
+        const activePort = await resolveRelayPort();
+        const activeUrl = activePort ? `http://127.0.0.1:${activePort}/v1` : undefined;
+        needsRepair = Boolean(connected && activeUrl && url !== activeUrl);
+        if (needsRepair) connected = false;
       } catch {
         connected = false;
       }
@@ -209,6 +218,7 @@ export class HarnessManager {
       installed: Boolean(executable),
       configurationDetected,
       connected,
+      ...(needsRepair ? { needsRepair: true } : {}),
       path,
       ...(executable ? { executable } : {}),
       ...(INSTALL_URLS[harnessId] ? { installUrl: INSTALL_URLS[harnessId] } : {}),
@@ -304,6 +314,44 @@ export class HarnessManager {
       await this.tokenRegistry.revokeToken(tokenRecord.id);
       throw error;
     }
+  }
+
+  /**
+   * Move relay-owned configurations to the port currently recorded by the
+   * runtime. Only entries with a receipt and a still-valid scoped token are
+   * touched; unrelated user configuration is never rewritten.
+   */
+  async repairOwnedConfigurations(options: { activePort?: number } = {}): Promise<string[]> {
+    const port = options.activePort ?? await resolveRelayPort();
+    if (!port) return [];
+    const baseUrl = `http://127.0.0.1:${port}/v1`;
+    const repaired: string[] = [];
+    const ledger = this.loadLedger();
+    for (const receipt of ledger.receipts.filter((item) => item.harnessId === 'hermes' || item.harnessId === 'opencode')) {
+      if (!receipt.path || !(await exists(receipt.path))) continue;
+      try {
+        const text = await readFile(receipt.path, 'utf8');
+        const source = receipt.harnessId === 'hermes' ? parse(text) : JSON.parse(text);
+        const relay = receipt.harnessId === 'hermes'
+          ? (Array.isArray(record(source).custom_providers)
+            ? (record(source).custom_providers as unknown[]).find((item: unknown) => record(item).name === HERMES_PROVIDER_NAME)
+            : undefined)
+          : record(record(source).provider)[OPENCODE_PROVIDER_ID];
+        const key = receipt.harnessId === 'hermes' ? record(relay).api_key : record(record(relay).options).apiKey;
+        if (typeof key !== 'string' || !this.tokenRegistry.verify(key)) continue;
+        const oldUrl = receipt.harnessId === 'hermes' ? record(relay).base_url : record(record(relay).options).baseURL;
+        const protocolNeedsRepair = receipt.harnessId === 'hermes' && record(relay).api_mode !== 'chat_completions';
+        if (oldUrl === baseUrl && !protocolNeedsRepair) continue;
+        const updated = receipt.harnessId === 'hermes'
+          ? upsertHermesRelayConfig(source, baseUrl, key, Object.keys(record(record(relay).models)), record(relay).model as string | undefined)
+          : upsertOpenCodeRelayConfig(source, baseUrl, key, Object.keys(record(record(relay).models)).map((id) => ({ id, status: 'ready' })));
+        await writeConfigAtomic(receipt.path, receipt.harnessId === 'hermes' ? stringify(updated) : `${JSON.stringify(updated, null, 2)}\n`);
+        repaired.push(receipt.harnessId);
+      } catch {
+        // A malformed or concurrently replaced config is not safe to repair.
+      }
+    }
+    return repaired;
   }
 
   async launch(harnessId: HarnessId): Promise<HarnessStatus> {

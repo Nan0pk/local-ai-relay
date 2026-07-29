@@ -66,6 +66,10 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
   const startedAt = new Date().toISOString();
 
   app.get('/v1/control/overview', async () => {
+    // Replacement startup may select a successor port while an older relay is
+    // still shutting down. Repair relay-owned harness URLs before reporting
+    // status so the dashboard and harnesses converge automatically.
+    await harnessManager.repairOwnedConfigurations({ activePort: config.port });
     const statuses = new Map(
       getAllCapabilityRecords().map((record) => [record.providerId, record]),
     );

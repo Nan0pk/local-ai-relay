@@ -242,3 +242,34 @@ npm run verify
 [Browser connection details](docs/login-solution.md) ·
 [OpenAPI](docs/openapi.json) ·
 [Contributing](CONTRIBUTING.md)
+
+### Non-interactive harness use and port repair
+
+After a provider has been logged in and a real completion has succeeded, the relay
+serves batch, non-interactive OpenAI-compatible requests at `/v1/chat/completions`
+and `/v1/responses`. Login and CAPTCHA challenges remain interactive; they are not
+silently bypassed. The dashboard **Connect** action performs a real completion
+(`Reply with only: relay ready`) before writing a harness configuration, so a file
+existing on disk is not treated as proof of readiness.
+
+Relay-owned Hermes and OpenCode URLs follow the active relay port automatically,
+including after safe runtime replacement. Only configurations previously created
+by this relay, with a still-valid scoped token, are repaired; unrelated settings
+are left alone and a timestamped backup is retained. To remove an integration and
+revoke its key, use:
+
+```bash
+npm run integrations:remove -- --harness hermes
+npm run integrations:remove -- --harness opencode
+```
+
+To reconfigure against the currently running relay, use `npm run hermes:configure`
+or `npm run harnesses:configure`. Verify the result with one real request rather
+than relying on dashboard status:
+
+```bash
+curl --fail-with-body "$RELAY_BASE_URL/v1/chat/completions" \
+  -H "Authorization: Bearer $RELAY_HARNESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"relay-auto","messages":[{"role":"user","content":"Reply with only: relay ready"}]}'
+```
