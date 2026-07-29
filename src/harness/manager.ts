@@ -226,7 +226,11 @@ export class HarnessManager {
     };
   }
 
-  async connect(harnessId: HarnessId, baseUrl: string): Promise<HarnessConnectResult> {
+  async connect(
+    harnessId: HarnessId,
+    baseUrl: string,
+    options: { verifyCompletion?: boolean } = {},
+  ): Promise<HarnessConnectResult> {
     const models = modelCatalog();
     // Keep the previous token valid until the new configuration is committed.
     // This makes reconnect transactional if a config file is malformed or
@@ -237,6 +241,26 @@ export class HarnessManager {
     );
     const ledger = this.loadLedger();
     const previousReceipt = ledger.receipts.find((item) => item.harnessId === harnessId);
+    if (options.verifyCompletion) {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${tokenRecord.token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'relay-auto',
+          messages: [{ role: 'user', content: 'Reply with only: relay ready' }],
+        }),
+      });
+      if (!response.ok) {
+        await this.tokenRegistry.revokeToken(tokenRecord.id);
+        throw new Error(`Harness verification failed with HTTP ${response.status}.`);
+      }
+      const result = await response.json() as { choices?: Array<{ message?: { content?: unknown } }> };
+      const text = result.choices?.[0]?.message?.content;
+      if (typeof text !== 'string' || text.trim().length === 0) {
+        await this.tokenRegistry.revokeToken(tokenRecord.id);
+        throw new Error('Harness verification returned no completion text.');
+      }
+    }
     try {
       if (harnessId === 'generic') {
         const receipt: HarnessReceipt = {
