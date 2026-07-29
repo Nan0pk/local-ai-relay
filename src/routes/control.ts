@@ -303,6 +303,7 @@ export function registerControlRoutes(app: FastifyInstance, config: AppConfig): 
           return await harnessManager.connect(
             harnessId,
             `http://127.0.0.1:${config.port}/v1`,
+            { verifyCompletion: true },
           );
         case 'disconnect':
           return await harnessManager.disconnect(harnessId);
