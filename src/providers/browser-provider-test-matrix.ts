@@ -121,14 +121,14 @@ export function runBrowserProviderTestMatrix(
       const tools = [terminalTool];
       const firstMessages = [userMessage('Inspect the repo.')];
       await provider.complete({ ...basicRequest(modelId, firstMessages), tools }, modelId, { sessionId: 'tools-1' });
-      assert.match(driver.requests[0]!.prompt, /AVAILABLE HERMES TOOLS/);
+      assert.match(driver.requests[0]!.prompt, /AVAILABLE TOOLS/);
       assert.match(driver.requests[0]!.prompt, /"name"\s*:\s*"terminal"/);
       await provider.complete(
         { ...basicRequest(modelId, [...firstMessages, { role: 'assistant', content: 'Completed the whole batch.' }, userMessage('Implement.')]), tools },
         modelId, { sessionId: 'tools-1' },
       );
       assert.match(driver.requests[1]!.prompt, /^CONTINUE BATCH MISSION/);
-      assert.match(driver.requests[1]!.prompt, /AVAILABLE HERMES TOOLS/);
+      assert.match(driver.requests[1]!.prompt, /AVAILABLE TOOLS/);
       assert.notEqual(
         driver.requests[0]!.prompt.match(/nonce="([^"]+)"/)?.[1],
         driver.requests[1]!.prompt.match(/nonce="([^"]+)"/)?.[1],

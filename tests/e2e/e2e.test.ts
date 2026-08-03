@@ -217,12 +217,12 @@ describe('local-ai-relay E2E Test Suite (62 Cases)', () => {
       assert.equal(res.status, 200);
       const data = await res.json() as any;
       // 1. Verify that internal tool instructions are removed from returned assistant content
-      assert.doesNotMatch(data.choices[0].message.content, /AVAILABLE HERMES TOOLS/);
+      assert.doesNotMatch(data.choices[0].message.content, /AVAILABLE TOOLS/);
       // 2. Verify that they were appended to the prompt in the browser
       const context = await BrowserContextManager.getInstance().getContext();
       const pages = context.pages() as any[];
       const lastPage = pages[pages.length - 1];
-      assert.match(lastPage.composerText, /AVAILABLE HERMES TOOLS/);
+      assert.match(lastPage.composerText, /AVAILABLE TOOLS/);
     });
 
     test('22. Translates valid tool call XML envelope into tool_calls JSON', async () => {

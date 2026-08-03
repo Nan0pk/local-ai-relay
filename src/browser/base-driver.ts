@@ -203,7 +203,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
     if (this.options.interactive) {
       await page.bringToFront();
-      await this.handleSsoLogin(page).catch(() => {});
     }
   }
 
@@ -217,7 +216,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       if (signal?.aborted) {
         throw new BrowserFailure('cancelled', `${cfg.name} connection was cancelled.`);
       }
-      if (this.options.interactive) await this.handleSsoLogin(page).catch(() => {});
       const composer = await this.resolve(page, 'composer', cfg.composerSelectors, false);
       if (composer && await isComposerUsable(composer)) return;
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -229,41 +227,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     this.pages.clear();
     await this.context?.close();
     this.context = undefined;
-  }
-
-  async handleSsoLogin(page: Page): Promise<boolean> {
-    try {
-      if (!page || typeof page.url !== 'function') return false;
-      const url = page.url() || '';
-      const cfg = this.config();
-      const isLoginPage = cfg.loginUrlPattern.test(url) || 
-        cfg.signInButtonLabels.some(l => url.toLowerCase().includes(l.toLowerCase()));
-
-      if (isLoginPage) {
-        const ssoSelectors = [
-          'button:has-text("Sign in with Google")',
-          'button:has-text("Continue with Google")',
-          'a:has-text("Sign in with Google")',
-          'a:has-text("Continue with Google")',
-          'div[role="button"]:has-text("Sign in with Google")',
-          'div[role="button"]:has-text("Continue with Google")',
-          'button:has-text("Google")',
-          'a:has-text("Google")',
-          '[data-provider="google"]',
-        ];
-        for (const selector of ssoSelectors) {
-          const btn = page.locator(selector).first();
-          if (await btn.isVisible().catch(() => false) && await btn.isEnabled().catch(() => false)) {
-            await btn.click().catch(() => {});
-            return true;
-          }
-        }
-      }
-
-      return false;
-    } catch {
-      return false;
-    }
   }
 
   private async getContext(): Promise<BrowserContext> {
@@ -278,14 +241,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       this.context.on('close', () => {
         this.context = undefined;
         this.pages.clear();
-      });
-
-      this.context.on('page', (p) => {
-        p.on('framenavigated', async (frame) => {
-          if (this.options.interactive && frame === p.mainFrame()) {
-            await this.handleSsoLogin(p).catch(() => {});
-          }
-        });
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -423,15 +378,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const cfg = this.config();
     const url = typeof page.url === 'function' ? page.url() : '';
     if (cfg.loginUrlPattern.test(url)) {
-      const didSso = this.options.interactive
-        ? await this.handleSsoLogin(page).catch(() => false)
-        : false;
-      if (didSso) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        if (!cfg.loginUrlPattern.test(page.url())) {
-          return;
-        }
-      }
       throw new BrowserFailure('login_required',
         `${cfg.name} is showing a login page. Run \`npm run login:${cfg.name}\` and sign in normally.`);
     }
@@ -459,16 +405,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       const signInVisible = await firstLocatorVisible(page, labelPattern);
       const currentComposer = signInVisible ? await this.composer(page) : undefined;
       if (signInVisible && !currentComposer) {
-        const didSso = this.options.interactive
-          ? await this.handleSsoLogin(page).catch(() => false)
-          : false;
-        if (didSso) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          const stillVisible = await firstLocatorVisible(page, labelPattern);
-          if (!stillVisible) {
-            return;
-          }
-        }
         throw new BrowserFailure('login_required',
           `${cfg.name} is showing its landing page with a sign-in button. Run \`npm run login:${cfg.name}\` and sign in normally.`);
       }
@@ -485,6 +421,14 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     }
   }
 
+  /** Presses the site's own stop control, if one is visible, before a cancellation propagates. */
+  private async pressStopIfVisible(page: Page): Promise<void> {
+    const stopButton = await this.stopButton(page);
+    if (stopButton && await stopButton.isVisible().catch(() => false)) {
+      await stopButton.click().catch(() => {});
+    }
+  }
+
   private async waitForNewAssistantMessage(
     page: Page,
     countsBefore: ReadonlyMap<string, number>,
@@ -493,7 +437,10 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const cfg = this.config();
     const started = Date.now();
     while (Date.now() - started < this.options.timeoutMs) {
-      if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      if (signal?.aborted) {
+        await this.pressStopIfVisible(page);
+        throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      }
       await this.assertNotBlocked(page);
       for (const selector of cfg.assistantMessageSelectors) {
         const messages = page.locator(selector);
@@ -514,7 +461,10 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     let stableSince = Date.now();
     let sawStop = false;
     while (Date.now() - started < this.options.timeoutMs) {
-      if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      if (signal?.aborted) {
+        await this.pressStopIfVisible(page);
+        throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      }
       await this.assertNotBlocked(page);
       const text = await locator.innerText().catch(() => '');
       if (text !== lastText) { lastText = text; stableSince = Date.now(); }

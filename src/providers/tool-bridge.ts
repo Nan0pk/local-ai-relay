@@ -3,6 +3,10 @@ import { BrowserFailure } from '../browser/types.js';
 import type { ChatCompletionRequest, ChatToolCall, ChatToolDefinition } from '../types/openai.js';
 
 const TAG_NAME = 'relay_tool_calls';
+// Client-neutral: this text is injected into the prompt of every browser
+// provider regardless of which harness (Hermes, OpenCode, a generic client)
+// issued the request, so it must not name one of them.
+const TOOL_BLOCK_HEADER = 'AVAILABLE TOOLS';
 const ajv = new Ajv({ allErrors: true, strict: false });
 
 export interface ToolBridgeContext {
@@ -34,51 +38,53 @@ function invalidToolCall(message: string): never {
   throw new BrowserFailure('invalid_tool_call', message);
 }
 
-function truncate(str: string | undefined, max: number): string | undefined {
-  if (!str) return str;
-  if (str.length <= max) return str;
-  return str.slice(0, max - 3) + '...';
-}
-
-function minifyProperties(properties: Record<string, any> | undefined): Record<string, any> | undefined {
-  if (!properties) return properties;
-  const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(properties)) {
-    if (value && typeof value === 'object') {
-      result[key] = {
-        ...value,
-        description: truncate(value.description, 100),
-        ...(value.properties ? { properties: minifyProperties(value.properties) } : {}),
-        ...(value.items && typeof value.items === 'object' ? {
-          items: {
-            ...value.items,
-            description: truncate(value.items.description, 100),
-            ...(value.items.properties ? { properties: minifyProperties(value.items.properties) } : {}),
-          }
-        } : {}),
-      };
-    } else {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-function minifyTool(tool: ChatToolDefinition): unknown {
-  const params = tool.function.parameters as any;
+// A coding agent's tool description is operational instruction, not filler text —
+// truncating it produces a tool the model is confidently wrong about how to use.
+// Full descriptions are always sent; see budgetTools() for how an oversized
+// overall request is handled instead (drop whole tools, never mangle one).
+function serializeTool(tool: ChatToolDefinition): unknown {
   return {
     type: tool.type,
     function: {
       name: tool.function.name,
-      description: truncate(tool.function.description, 150),
-      ...(params ? {
-        parameters: {
-          ...params,
-          properties: minifyProperties(params.properties),
-        }
-      } : {})
-    }
+      description: tool.function.description,
+      ...(tool.function.parameters ? { parameters: tool.function.parameters } : {}),
+    },
   };
+}
+
+// Conservative default; not measured against any real provider's composer limit.
+// Step 1 of docs/plans/completion-plan.md is expected to replace this with a
+// value derived from an actual per-site measurement.
+const DEFAULT_TOOL_BLOCK_MAX_CHARS = 20_000;
+
+interface BudgetedTools {
+  readonly kept: readonly ChatToolDefinition[];
+  readonly dropped: readonly string[];
+}
+
+/**
+ * Fits as many tools as possible under a character budget by dropping whole
+ * tools from the end of the list, never by truncating a kept tool's schema.
+ */
+function budgetTools(
+  tools: readonly ChatToolDefinition[],
+  maxChars = Number(process.env.RELAY_TOOL_BLOCK_MAX_CHARS ?? DEFAULT_TOOL_BLOCK_MAX_CHARS),
+): BudgetedTools {
+  const kept: ChatToolDefinition[] = [];
+  const dropped: string[] = [];
+  let size = 2; // '[' + ']'
+  for (const tool of tools) {
+    const serialized = JSON.stringify(serializeTool(tool));
+    const addedSize = serialized.length + (kept.length > 0 ? 1 : 0); // comma
+    if (kept.length > 0 && size + addedSize > maxChars) {
+      dropped.push(tool.function.name);
+      continue;
+    }
+    size += addedSize;
+    kept.push(tool);
+  }
+  return { kept, dropped };
 }
 
 function selectedToolName(choice: ChatCompletionRequest['tool_choice']): string | undefined {
@@ -93,14 +99,31 @@ export function toolInstructions(context: ToolBridgeContext): string {
   if (context.toolChoice === 'none' || context.tools.length === 0) {
     return '\n\nTOOL POLICY\nNo tool calls are allowed for this request. Answer normally without any relay tool-call tags.';
   }
-  const minified = context.tools.map(minifyTool);
+  const { kept, dropped } = budgetTools(context.tools);
+  if (kept.length === 0) {
+    invalidToolCall(
+      'The offered tools do not fit this provider\'s prompt budget even one at a time '
+      + `(RELAY_TOOL_BLOCK_MAX_CHARS=${process.env.RELAY_TOOL_BLOCK_MAX_CHARS ?? DEFAULT_TOOL_BLOCK_MAX_CHARS}).`,
+    );
+  }
   const requiredName = selectedToolName(context.toolChoice);
+  if (requiredName && !kept.some((tool) => tool.function.name === requiredName)) {
+    invalidToolCall(
+      `tool_choice requires ${JSON.stringify(requiredName)}, but it was dropped to fit the prompt budget alongside: `
+      + `${dropped.filter((n) => n !== requiredName).join(', ') || 'none'}.`,
+    );
+  }
+  const serialized = kept.map(serializeTool);
+  const droppedNotice = dropped.length > 0
+    ? `\n\nNOTE: ${dropped.length} tool(s) were omitted to fit this request's size budget and are NOT available: `
+      + `${dropped.join(', ')}. Do not attempt to call them.`
+    : '';
   const choiceInstruction = requiredName
     ? `You must call only the required tool ${JSON.stringify(requiredName)}.`
     : context.toolChoice === 'required'
       ? 'You must return at least one offered tool call.'
       : 'Use an offered tool only when it is needed.';
-  return `\n\nAVAILABLE HERMES TOOLS\n${JSON.stringify(minified)}\n\n` +
+  return `\n\n${TOOL_BLOCK_HEADER}\n${JSON.stringify(serialized)}${droppedNotice}\n\n` +
     `${choiceInstruction} Never pretend to execute a tool. Return calls only inside this request-specific envelope:\n` +
     `${openTag}\n` +
     '[{"id":"call_unique","name":"tool_name","arguments":{}}]\n' +
@@ -123,7 +146,7 @@ export interface ParsedBrowserResponse {
 export function parseBrowserResponse(text: string, context: ToolBridgeContext): ParsedBrowserResponse {
   // 1. Identify and strip echoed instruction blocks to avoid content leaks
   let cleanText = text;
-  const instructionIndex = text.indexOf('AVAILABLE HERMES TOOLS');
+  const instructionIndex = text.indexOf(TOOL_BLOCK_HEADER);
   if (instructionIndex >= 0) {
     cleanText = text.slice(0, instructionIndex).trim();
   }

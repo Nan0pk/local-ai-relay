@@ -307,94 +307,32 @@ test('BrowserContextManager accepts visible launch options after a background co
   }
 });
 
-test('handleSsoLogin logic triggers correctly on login page', async () => {
+test('assertNotBlocked never clicks any control on a login page — no automatic account selection', async () => {
   const driver = new TestDriver();
-  
-  // Test non-login URL
-  const mockPage1 = {
-    url: () => 'https://test.com/chat',
-    locator: () => ({
+  let clicked = false;
+  const mockPage = {
+    url: () => 'https://test.com/login',
+    locator: (_selector: string) => ({
       first: () => ({
-        isVisible: async () => false,
-        isEnabled: async () => false,
+        isVisible: async () => true,
+        isEnabled: async () => true,
+        click: async () => { clicked = true; },
       }),
+      count: async () => 0,
+      nth: () => ({ isVisible: async () => false }),
     }),
   } as unknown as Page;
-  const result1 = await driver.handleSsoLogin(mockPage1);
-  assert.equal(result1, false);
 
-  // Test login page with visible selector
-  let clicked = false;
-  const mockPage2 = {
-    url: () => 'https://test.com/login',
-    locator: (selector: string) => {
-      return {
-        first: () => ({
-          isVisible: async () => selector === 'button:has-text("Sign in with Google")',
-          isEnabled: async () => selector === 'button:has-text("Sign in with Google")',
-          click: async () => { clicked = true; },
-        }),
-      };
-    },
-  } as unknown as Page;
-  const result2 = await driver.handleSsoLogin(mockPage2);
-  assert.equal(result2, true);
-  assert.equal(clicked, true);
+  await assert.rejects(
+    () => driver['assertNotBlocked'](mockPage),
+    (err: unknown) => err instanceof BrowserFailure && err.kind === 'login_required',
+  );
+  assert.equal(clicked, false, 'the relay must never click a login control automatically');
 });
 
-test('handleSsoLogin logic does not automatically select accounts on accounts.google.com page', async () => {
+test('base driver exposes no automatic SSO/account-selection method', () => {
   const driver = new TestDriver();
-  
-  let clicked = false;
-  const mockPage = {
-    url: () => 'https://accounts.google.com/signin/v2/identifier',
-    locator: (selector: string) => {
-      return {
-        first: () => ({
-          isVisible: async () => selector === '[data-authuser="0"]',
-          isEnabled: async () => selector === '[data-authuser="0"]',
-          click: async () => { clicked = true; },
-        }),
-      };
-    },
-  } as unknown as Page;
-  const result = await driver.handleSsoLogin(mockPage);
-  assert.equal(result, false);
-  assert.equal(clicked, false);
-});
-
-test('assertNotBlocked attempts SSO auto-login and succeeds if page transitions away', async () => {
-  const driver = new TestDriver();
-  let ssoCalled = false;
-  let pageUrl = 'https://test.com/login';
-  
-  // Custom driver subclass method override
-  const originalHandleSso = driver.handleSsoLogin;
-  driver.handleSsoLogin = async (_page: Page) => {
-    ssoCalled = true;
-    pageUrl = 'https://test.com/chat';
-    return true;
-  };
-  
-  const mockPage = {
-    url: () => pageUrl,
-    locator: (_selector: string) => {
-      // Mock no captcha elements
-      return {
-        first: () => ({
-          isVisible: async () => false,
-        }),
-        innerText: async () => '',
-      };
-    },
-  } as unknown as Page;
-  
-  try {
-    await driver['assertNotBlocked'](mockPage);
-    assert.equal(ssoCalled, true);
-  } finally {
-    driver.handleSsoLogin = originalHandleSso;
-  }
+  assert.equal((driver as unknown as { handleSsoLogin?: unknown }).handleSsoLogin, undefined);
 });
 
 test('a usable anonymous composer is not rejected merely because sign-in is also offered', async () => {
@@ -441,4 +379,33 @@ test('a visible provider login gate blocks a composer behind its modal', async (
     driver['assertNotBlocked'](page),
     (error: Error) => error instanceof BrowserFailure && error.kind === 'login_required',
   );
+});
+
+test('cancelling a request presses the site stop button instead of only abandoning the poll', async () => {
+  const driver = new TestDriver();
+  let stopClicked = false;
+  driver.mockStopButton = {
+    isVisible: async () => true,
+    click: async () => { stopClicked = true; },
+  } as unknown as Locator;
+
+  const stillGrowing = new FixtureLocator('never stable');
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (_selector: string) => ({
+      count: async () => 0,
+      nth: () => stillGrowing,
+      first: () => ({ isVisible: async () => false }),
+      innerText: async () => '',
+    }),
+  } as unknown as Page;
+
+  const controller = new AbortController();
+  controller.abort();
+
+  await assert.rejects(
+    driver['waitUntilStable'](page, stillGrowing as unknown as Locator, controller.signal),
+    (error: Error) => error instanceof BrowserFailure && error.kind === 'cancelled',
+  );
+  assert.equal(stopClicked, true, 'cancel must press the website stop control, not just stop polling');
 });

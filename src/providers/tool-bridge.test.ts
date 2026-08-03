@@ -100,7 +100,7 @@ test('named tool_choice rejects a different offered tool', () => {
 
 test('echo adversarial test: echoes the instruction template with tool_name', () => {
   const context = createToolBridgeContext([terminal], 'auto');
-  const text = `AVAILABLE HERMES TOOLS ... ` + envelope(context.nonce, '[{"id":"call_unique","name":"tool_name","arguments":{}}]');
+  const text = `AVAILABLE TOOLS ... ` + envelope(context.nonce, '[{"id":"call_unique","name":"tool_name","arguments":{}}]');
   const parsed = parseBrowserResponse(text, context);
   assert.equal(parsed.toolCalls, undefined);
 });
@@ -160,7 +160,7 @@ test('destructive tool test: unoffered destructive tool is blocked with invalid_
 
 test('instruction leak test: prompt instructions are stripped from assistant content', () => {
   const context = createToolBridgeContext([terminal], 'auto');
-  const text = `I will run a command. AVAILABLE HERMES TOOLS: [{"name":"terminal"}]...`;
+  const text = `I will run a command. AVAILABLE TOOLS: [{"name":"terminal"}]...`;
   const parsed = parseBrowserResponse(text, context);
   assert.equal(parsed.content, 'I will run a command.');
   assert.equal(parsed.toolCalls, undefined);
@@ -176,6 +176,66 @@ test('quoted tag test: tag enclosed in backticks is ignored', () => {
 
 test('echoed template with required choice must fail', () => {
   const context = createToolBridgeContext([terminal], 'required');
-  const echoedResponse = `AVAILABLE HERMES TOOLS [{"name":"terminal"}]... <relay_tool_calls nonce="${context.nonce}">[{"id":"call_unique","name":"tool_name","arguments":{}}]</relay_tool_calls>`;
+  const echoedResponse = `AVAILABLE TOOLS [{"name":"terminal"}]... <relay_tool_calls nonce="${context.nonce}">[{"id":"call_unique","name":"tool_name","arguments":{}}]</relay_tool_calls>`;
   assertInvalid(() => parseBrowserResponse(echoedResponse, context));
+});
+
+test('a tool description longer than the old 150-char truncation limit is sent whole', () => {
+  const longDescription = 'A'.repeat(400) + ' END-OF-DESCRIPTION-MARKER';
+  const context = createToolBridgeContext(
+    [{ ...terminal, function: { ...terminal.function, description: longDescription } }],
+    'auto',
+  );
+  const instructions = toolInstructions(context);
+  assert.ok(
+    instructions.includes('END-OF-DESCRIPTION-MARKER'),
+    'the description must not be cut before its final marker',
+  );
+  assert.ok(instructions.includes(longDescription));
+});
+
+test('an oversized tool list drops whole tools from the end rather than truncating any one', () => {
+  const big = (name: string) => ({
+    type: 'function' as const,
+    function: {
+      name,
+      description: 'x'.repeat(15_000),
+      parameters: { type: 'object' as const, properties: {} },
+    },
+  });
+  const context = createToolBridgeContext([big('first'), big('second')], 'auto');
+  const originalEnv = process.env.RELAY_TOOL_BLOCK_MAX_CHARS;
+  process.env.RELAY_TOOL_BLOCK_MAX_CHARS = '20000';
+  try {
+    const instructions = toolInstructions(context);
+    assert.ok(instructions.includes('"first"'), 'the first tool must be kept whole');
+    assert.ok(!instructions.includes('"second"'), 'the second tool must be dropped, not truncated');
+    assert.ok(instructions.includes('second'), 'the dropped tool must be named so the model does not call it blind');
+  } finally {
+    if (originalEnv === undefined) delete process.env.RELAY_TOOL_BLOCK_MAX_CHARS;
+    else process.env.RELAY_TOOL_BLOCK_MAX_CHARS = originalEnv;
+  }
+});
+
+test('tool_choice requiring a tool that was dropped for size fails clearly instead of silently ignoring it', () => {
+  const big = (name: string) => ({
+    type: 'function' as const,
+    function: {
+      name,
+      description: 'x'.repeat(15_000),
+      parameters: { type: 'object' as const, properties: {} },
+    },
+  });
+  const context = createToolBridgeContext(
+    [big('first'), big('second')],
+    { type: 'function' as const, function: { name: 'second' } },
+  );
+  const originalEnv = process.env.RELAY_TOOL_BLOCK_MAX_CHARS;
+  process.env.RELAY_TOOL_BLOCK_MAX_CHARS = '20000';
+  try {
+    assertInvalid(() => toolInstructions(context));
+  } finally {
+    if (originalEnv === undefined) delete process.env.RELAY_TOOL_BLOCK_MAX_CHARS;
+    else process.env.RELAY_TOOL_BLOCK_MAX_CHARS = originalEnv;
+  }
 });

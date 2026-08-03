@@ -2,6 +2,14 @@ import type { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { timingSafeEqual } from 'node:crypto';
 import { getOrGenerateToken } from './token.js';
 import { harnessTokens } from './harness-tokens.js';
+import { SlidingWindowRateLimiter } from '../middleware/rate-limit.js';
+
+const RATE_LIMITED_PATHS = new Set(['/v1/chat/completions', '/v1/responses']);
+
+const inferenceRateLimiter = new SlidingWindowRateLimiter({
+  windowMs: Number(process.env.RELAY_RATE_LIMIT_WINDOW_MS ?? 60_000),
+  maxRequests: Number(process.env.RELAY_RATE_LIMIT_MAX_REQUESTS ?? 60),
+});
 
 function isOriginAllowed(
   origin: string,
@@ -125,6 +133,27 @@ export function registerAuthAndCors(app: FastifyInstance): void {
           code: 'insufficient_scope',
         },
       });
+    }
+
+    // Only the routes that actually drive a browser burn provider quota; the
+    // dashboard and control-plane polling paths are left unthrottled. The
+    // deterministic mock-browser suite fires many requests in quick
+    // succession with no real quota behind it, so it is exempt — the same
+    // convention base-driver.ts uses for its own timing behavior.
+    if (RATE_LIMITED_PATHS.has(pathname) && process.env.RELAY_MOCK_BROWSER !== 'true') {
+      const rateLimitKey = scopedToken?.harnessId ?? 'primary';
+      const check = inferenceRateLimiter.isAllowed(rateLimitKey);
+      if (!check.allowed) {
+        reply.header('Retry-After', Math.ceil(check.resetMs / 1000).toString());
+        return reply.code(429).send({
+          error: {
+            message: `Rate limit exceeded. Retry after ${Math.ceil(check.resetMs / 1000)}s.`,
+            type: 'rate_limit_error',
+            param: null,
+            code: 'rate_limit_exceeded',
+          },
+        });
+      }
     }
   });
 }
