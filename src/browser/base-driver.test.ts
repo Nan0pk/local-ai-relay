@@ -87,8 +87,8 @@ test('selector resolution skips disabled matches before using a fallback', async
 class TestDriver extends BaseBrowserDriver {
   mockStopButton: Locator | undefined = undefined;
 
-  constructor() {
-    super({ stableMs: 50, timeoutMs: 500 });
+  constructor(options: { stableMs?: number; timeoutMs?: number; maxSessions?: number } = {}) {
+    super({ stableMs: 50, timeoutMs: 500, ...options });
   }
 
   protected config(): SiteConfig {
@@ -146,7 +146,7 @@ test('short answers like OK, BANANA, 42 and tool-calls succeed', async () => {
     driver.mockStopButton = stopButtonWithToggle;
 
     const res = await driver['waitUntilStable'](mockPage, mockLocator, undefined);
-    assert.equal(res, text);
+    assert.equal(res.text, text);
   }
 });
 
@@ -307,94 +307,54 @@ test('BrowserContextManager accepts visible launch options after a background co
   }
 });
 
-test('handleSsoLogin logic triggers correctly on login page', async () => {
+test('session eviction is least-recently-used, not creation-order FIFO', async () => {
+  const originalMock = process.env.RELAY_MOCK_BROWSER;
+  process.env.RELAY_MOCK_BROWSER = 'true';
+  try {
+    const driver = new TestDriver({ maxSessions: 2 });
+    const pages = (driver as unknown as { pages: Map<string, unknown> }).pages;
+    const pageFor = (sessionId: string) =>
+      (driver as unknown as { pageFor(id: string, reset: boolean): Promise<unknown> }).pageFor(sessionId, false);
+
+    await pageFor('session-a'); // created first
+    await pageFor('session-b'); // created second; map is now at maxSessions(2)
+    await pageFor('session-a'); // touched again -- must now be the most-recently-used
+    await pageFor('session-c'); // forces an eviction
+
+    assert.ok(pages.has('session-a'), 'session-a was actively reused and must survive eviction');
+    assert.ok(!pages.has('session-b'), 'session-b was genuinely idle and should be the one evicted');
+    assert.ok(pages.has('session-c'));
+  } finally {
+    process.env.RELAY_MOCK_BROWSER = originalMock;
+  }
+});
+
+test('assertNotBlocked never clicks any control on a login page — no automatic account selection', async () => {
   const driver = new TestDriver();
-  
-  // Test non-login URL
-  const mockPage1 = {
-    url: () => 'https://test.com/chat',
-    locator: () => ({
+  let clicked = false;
+  const mockPage = {
+    url: () => 'https://test.com/login',
+    locator: (_selector: string) => ({
       first: () => ({
-        isVisible: async () => false,
-        isEnabled: async () => false,
+        isVisible: async () => true,
+        isEnabled: async () => true,
+        click: async () => { clicked = true; },
       }),
+      count: async () => 0,
+      nth: () => ({ isVisible: async () => false }),
     }),
   } as unknown as Page;
-  const result1 = await driver.handleSsoLogin(mockPage1);
-  assert.equal(result1, false);
 
-  // Test login page with visible selector
-  let clicked = false;
-  const mockPage2 = {
-    url: () => 'https://test.com/login',
-    locator: (selector: string) => {
-      return {
-        first: () => ({
-          isVisible: async () => selector === 'button:has-text("Sign in with Google")',
-          isEnabled: async () => selector === 'button:has-text("Sign in with Google")',
-          click: async () => { clicked = true; },
-        }),
-      };
-    },
-  } as unknown as Page;
-  const result2 = await driver.handleSsoLogin(mockPage2);
-  assert.equal(result2, true);
-  assert.equal(clicked, true);
+  await assert.rejects(
+    () => driver['assertNotBlocked'](mockPage),
+    (err: unknown) => err instanceof BrowserFailure && err.kind === 'login_required',
+  );
+  assert.equal(clicked, false, 'the relay must never click a login control automatically');
 });
 
-test('handleSsoLogin logic does not automatically select accounts on accounts.google.com page', async () => {
+test('base driver exposes no automatic SSO/account-selection method', () => {
   const driver = new TestDriver();
-  
-  let clicked = false;
-  const mockPage = {
-    url: () => 'https://accounts.google.com/signin/v2/identifier',
-    locator: (selector: string) => {
-      return {
-        first: () => ({
-          isVisible: async () => selector === '[data-authuser="0"]',
-          isEnabled: async () => selector === '[data-authuser="0"]',
-          click: async () => { clicked = true; },
-        }),
-      };
-    },
-  } as unknown as Page;
-  const result = await driver.handleSsoLogin(mockPage);
-  assert.equal(result, false);
-  assert.equal(clicked, false);
-});
-
-test('assertNotBlocked attempts SSO auto-login and succeeds if page transitions away', async () => {
-  const driver = new TestDriver();
-  let ssoCalled = false;
-  let pageUrl = 'https://test.com/login';
-  
-  // Custom driver subclass method override
-  const originalHandleSso = driver.handleSsoLogin;
-  driver.handleSsoLogin = async (_page: Page) => {
-    ssoCalled = true;
-    pageUrl = 'https://test.com/chat';
-    return true;
-  };
-  
-  const mockPage = {
-    url: () => pageUrl,
-    locator: (_selector: string) => {
-      // Mock no captcha elements
-      return {
-        first: () => ({
-          isVisible: async () => false,
-        }),
-        innerText: async () => '',
-      };
-    },
-  } as unknown as Page;
-  
-  try {
-    await driver['assertNotBlocked'](mockPage);
-    assert.equal(ssoCalled, true);
-  } finally {
-    driver.handleSsoLogin = originalHandleSso;
-  }
+  assert.equal((driver as unknown as { handleSsoLogin?: unknown }).handleSsoLogin, undefined);
 });
 
 test('a usable anonymous composer is not rejected merely because sign-in is also offered', async () => {
@@ -441,4 +401,111 @@ test('a visible provider login gate blocks a composer behind its modal', async (
     driver['assertNotBlocked'](page),
     (error: Error) => error instanceof BrowserFailure && error.kind === 'login_required',
   );
+});
+
+test('cancelling a request presses the site stop button instead of only abandoning the poll', async () => {
+  const driver = new TestDriver();
+  let stopClicked = false;
+  driver.mockStopButton = {
+    isVisible: async () => true,
+    click: async () => { stopClicked = true; },
+  } as unknown as Locator;
+
+  const stillGrowing = new FixtureLocator('never stable');
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (_selector: string) => ({
+      count: async () => 0,
+      nth: () => stillGrowing,
+      first: () => ({ isVisible: async () => false }),
+      innerText: async () => '',
+    }),
+  } as unknown as Page;
+
+  const controller = new AbortController();
+  controller.abort();
+
+  await assert.rejects(
+    driver['waitUntilStable'](page, stillGrowing as unknown as Locator, controller.signal),
+    (error: Error) => error instanceof BrowserFailure && error.kind === 'cancelled',
+  );
+  assert.equal(stopClicked, true, 'cancel must press the website stop control, not just stop polling');
+});
+
+test('a mid-answer pause is not returned as a truncated success when the stop button never resolves', async () => {
+  // The polling loop itself samples every 300ms regardless of stableMs, so
+  // this needs enough timeoutMs headroom for at least two real poll cycles
+  // (transition detected, then confirmed stable) before the fixture's
+  // answer settles.
+  const driver = new TestDriver({ timeoutMs: 2000 });
+  driver.mockStopButton = { isVisible: async () => false } as unknown as Locator;
+  const start = Date.now();
+  const elapsed = () => Date.now() - start;
+  // Text pauses at a partial answer for 100ms (less than stableMs(50) * the
+  // unevidenced multiplier(3) = 150ms required when no stop button is ever
+  // seen), then the real answer arrives and holds steady.
+  const growing = {
+    innerText: async () => (elapsed() < 100 ? 'partial answer' : 'partial answer, now complete'),
+  } as unknown as Locator;
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (_selector: string) => ({
+      count: async () => 0,
+      nth: () => growing,
+      first: () => ({ isVisible: async () => false }),
+      innerText: async () => '',
+    }),
+  } as unknown as Page;
+
+  const result = await driver['waitUntilStable'](page, growing, undefined);
+  assert.equal(result.text, 'partial answer, now complete', 'must not return the mid-pause text as final');
+  assert.equal(result.truncationRisk, true, 'an unevidenced finish must be flagged, not returned as a clean success');
+});
+
+test('an evidenced finish (stop button appeared then disappeared) is not flagged as truncation risk', async () => {
+  const driver = new TestDriver();
+  const start = Date.now();
+  const elapsed = () => Date.now() - start;
+  driver.mockStopButton = { isVisible: async () => elapsed() < 20 } as unknown as Locator;
+  const growing = { innerText: async () => 'complete answer' } as unknown as Locator;
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (_selector: string) => ({
+      count: async () => 0,
+      nth: () => growing,
+      first: () => ({ isVisible: async () => false }),
+      innerText: async () => '',
+    }),
+  } as unknown as Page;
+
+  const result = await driver['waitUntilStable'](page, growing, undefined);
+  assert.equal(result.text, 'complete answer');
+  assert.equal(result.truncationRisk, false, 'a real stop-button transition is positive evidence, not a risk');
+});
+
+test('assertNotBlocked caches the full page-text read instead of re-fetching every poll tick', async () => {
+  const driver = new TestDriver({ timeoutMs: 900 });
+  let bodyReads = 0;
+  // Text keeps changing every read so the loop never stabilizes and runs
+  // for the full timeout window, giving assertNotBlocked several chances
+  // to run across multiple 300ms poll ticks.
+  let counter = 0;
+  const growing = { innerText: async () => `still going ${counter++}` } as unknown as Locator;
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (selector: string) => {
+      if (selector === 'body') {
+        return {
+          innerText: async () => { bodyReads++; return 'no captcha, no quota'; },
+        } as unknown as Locator;
+      }
+      return { count: async () => 0, nth: () => undefined, first: () => ({ isVisible: async () => false }) } as unknown as Locator;
+    },
+  } as unknown as Page;
+
+  await assert.rejects(driver['waitUntilStable'](page, growing, undefined));
+  // Real elapsed time here spans multiple 300ms poll ticks (timeout=900ms),
+  // which would mean 2-3 body reads uncached; the 1s cache floor should
+  // hold it to exactly one.
+  assert.equal(bodyReads, 1, 'body text should be read once and reused across poll ticks within the cache floor');
 });

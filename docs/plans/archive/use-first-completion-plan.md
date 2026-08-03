@@ -1,5 +1,8 @@
 # local-ai-relay — Use-First Completion Plan
 
+> **Archived.** Superseded by [`docs/plans/completion-plan.md`](../completion-plan.md).
+> Kept for history; do not treat this as a current assignment.
+
 **Status:** authoritative execution order  
 **Updated:** 2026-07-19  
 **Primary objective:** put a useful relay in the maintainer's hands quickly,

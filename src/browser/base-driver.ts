@@ -10,6 +10,9 @@ import type { BrowserAutomationConfig } from '../extension/browser-bridge.js';
 
 const SELECT_ALL_KEY = process.platform === 'darwin' ? 'Meta' : 'Control';
 
+/** See the comment at its use in waitUntilStable(). */
+const UNEVIDENCED_STABILITY_MULTIPLIER = 3;
+
 /**
  * Shared browser-driver skeleton.
  *
@@ -69,6 +72,8 @@ export interface BaseDriverOptions {
   timeoutMs?: number;
   stableMs?: number;
   maxSessions?: number;
+  /** How long a cached full-page-text read is trusted before re-fetching. */
+  bodyTextCacheMs?: number;
 }
 
 function defaultProfileDir(cfg: SiteConfig): string {
@@ -139,6 +144,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
   private context?: BrowserContext;
   private readonly pages = new Map<string, Page>();
   private readonly selectedSelectors = new WeakMap<Page, Map<string, string>>();
+  private readonly bodyTextCache = new WeakMap<Page, { text: string; cachedAt: number }>();
 
   constructor(options: BaseDriverOptions = {}) {
     const cfg = this.config();
@@ -150,6 +156,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       timeoutMs: options.timeoutMs ?? Number(process.env.RELAY_BROWSER_TIMEOUT_MS ?? 180_000),
       stableMs: options.stableMs ?? (process.env.RELAY_MOCK_BROWSER === 'true' ? 0 : 2_000),
       maxSessions: options.maxSessions ?? Number(process.env.RELAY_BROWSER_MAX_SESSIONS ?? 8),
+      bodyTextCacheMs: options.bodyTextCacheMs ?? (process.env.RELAY_MOCK_BROWSER === 'true' ? 0 : 1_000),
     };
   }
 
@@ -203,7 +210,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
     if (this.options.interactive) {
       await page.bringToFront();
-      await this.handleSsoLogin(page).catch(() => {});
     }
   }
 
@@ -217,7 +223,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       if (signal?.aborted) {
         throw new BrowserFailure('cancelled', `${cfg.name} connection was cancelled.`);
       }
-      if (this.options.interactive) await this.handleSsoLogin(page).catch(() => {});
       const composer = await this.resolve(page, 'composer', cfg.composerSelectors, false);
       if (composer && await isComposerUsable(composer)) return;
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -229,41 +234,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     this.pages.clear();
     await this.context?.close();
     this.context = undefined;
-  }
-
-  async handleSsoLogin(page: Page): Promise<boolean> {
-    try {
-      if (!page || typeof page.url !== 'function') return false;
-      const url = page.url() || '';
-      const cfg = this.config();
-      const isLoginPage = cfg.loginUrlPattern.test(url) || 
-        cfg.signInButtonLabels.some(l => url.toLowerCase().includes(l.toLowerCase()));
-
-      if (isLoginPage) {
-        const ssoSelectors = [
-          'button:has-text("Sign in with Google")',
-          'button:has-text("Continue with Google")',
-          'a:has-text("Sign in with Google")',
-          'a:has-text("Continue with Google")',
-          'div[role="button"]:has-text("Sign in with Google")',
-          'div[role="button"]:has-text("Continue with Google")',
-          'button:has-text("Google")',
-          'a:has-text("Google")',
-          '[data-provider="google"]',
-        ];
-        for (const selector of ssoSelectors) {
-          const btn = page.locator(selector).first();
-          if (await btn.isVisible().catch(() => false) && await btn.isEnabled().catch(() => false)) {
-            await btn.click().catch(() => {});
-            return true;
-          }
-        }
-      }
-
-      return false;
-    } catch {
-      return false;
-    }
   }
 
   private async getContext(): Promise<BrowserContext> {
@@ -278,14 +248,6 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       this.context.on('close', () => {
         this.context = undefined;
         this.pages.clear();
-      });
-
-      this.context.on('page', (p) => {
-        p.on('framenavigated', async (frame) => {
-          if (this.options.interactive && frame === p.mainFrame()) {
-            await this.handleSsoLogin(p).catch(() => {});
-          }
-        });
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -309,12 +271,25 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const cfg = this.config();
     const key = sessionId ?? `stateless-${crypto.randomUUID()}`;
     const existing = this.pages.get(key);
-    if (existing && !reset && !existing.isClosed()) return existing;
+    if (existing && !reset && !existing.isClosed()) {
+      // Map preserves insertion order, and eviction below reads that order
+      // as least-recently-used-first. Re-inserting on every access is what
+      // makes that true: without it, iteration order is merely
+      // insertion-order (creation-order FIFO), so an active long-running
+      // conversation could be evicted ahead of one nobody has touched in a
+      // while, purely because it happened to be created earlier.
+      this.pages.delete(key);
+      this.pages.set(key, existing);
+      return existing;
+    }
     if (existing && !existing.isClosed()) await existing.close();
     const context = await this.getContext();
     if (sessionId && this.pages.size >= this.options.maxSessions) {
-      const oldest = this.pages.entries().next().value as [string, Page] | undefined;
-      if (oldest) { this.pages.delete(oldest[0]); if (!oldest[1].isClosed()) await oldest[1].close(); }
+      const leastRecentlyUsed = this.pages.entries().next().value as [string, Page] | undefined;
+      if (leastRecentlyUsed) {
+        this.pages.delete(leastRecentlyUsed[0]);
+        if (!leastRecentlyUsed[1].isClosed()) await leastRecentlyUsed[1].close();
+      }
     }
     const page = await context.newPage();
     await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
@@ -414,24 +389,32 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
 
     const assistantMessages = await this.waitForNewAssistantMessage(page, assistantCountsBefore, request.signal);
     const last = assistantMessages.last();
-    const text = await this.waitUntilStable(page, last, request.signal);
+    const { text, truncationRisk } = await this.waitUntilStable(page, last, request.signal);
     if (!text.trim()) throw new BrowserFailure('empty_response', `${cfg.name} returned an empty response.`);
-    return { text, conversationUrl: page.url() };
+    return { text, conversationUrl: page.url(), ...(truncationRisk ? { truncationRisk } : {}) };
+  }
+
+  /**
+   * assertNotBlocked runs on every poll tick of both wait loops (every
+   * 250-300ms), and re-extracting the full page text every tick is real
+   * cost for no benefit -- a rate-limit or quota banner doesn't need
+   * sub-second detection. Cached behind a floor; a fresh fetch happens at
+   * most once per options.bodyTextCacheMs. Disabled under the mock-browser
+   * suite so deterministic tests still observe body-text changes on the
+   * very next poll.
+   */
+  private async cachedBodyText(page: Page): Promise<string> {
+    const cached = this.bodyTextCache.get(page);
+    if (cached && Date.now() - cached.cachedAt < this.options.bodyTextCacheMs) return cached.text;
+    const text = await page.locator('body').innerText().catch(() => '');
+    this.bodyTextCache.set(page, { text, cachedAt: Date.now() });
+    return text;
   }
 
   private async assertNotBlocked(page: Page): Promise<void> {
     const cfg = this.config();
     const url = typeof page.url === 'function' ? page.url() : '';
     if (cfg.loginUrlPattern.test(url)) {
-      const didSso = this.options.interactive
-        ? await this.handleSsoLogin(page).catch(() => false)
-        : false;
-      if (didSso) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        if (!cfg.loginUrlPattern.test(page.url())) {
-          return;
-        }
-      }
       throw new BrowserFailure('login_required',
         `${cfg.name} is showing a login page. Run \`npm run login:${cfg.name}\` and sign in normally.`);
     }
@@ -459,21 +442,11 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       const signInVisible = await firstLocatorVisible(page, labelPattern);
       const currentComposer = signInVisible ? await this.composer(page) : undefined;
       if (signInVisible && !currentComposer) {
-        const didSso = this.options.interactive
-          ? await this.handleSsoLogin(page).catch(() => false)
-          : false;
-        if (didSso) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          const stillVisible = await firstLocatorVisible(page, labelPattern);
-          if (!stillVisible) {
-            return;
-          }
-        }
         throw new BrowserFailure('login_required',
           `${cfg.name} is showing its landing page with a sign-in button. Run \`npm run login:${cfg.name}\` and sign in normally.`);
       }
     }
-    const body = await page.locator('body').innerText().catch(() => '');
+    const body = await this.cachedBodyText(page);
     if (cfg.captchaTextPattern?.test(body)) {
       throw new BrowserFailure('captcha', `${cfg.name} is showing a CAPTCHA or challenge. Solve it normally in the browser, then retry.`);
     }
@@ -485,6 +458,14 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     }
   }
 
+  /** Presses the site's own stop control, if one is visible, before a cancellation propagates. */
+  private async pressStopIfVisible(page: Page): Promise<void> {
+    const stopButton = await this.stopButton(page);
+    if (stopButton && await stopButton.isVisible().catch(() => false)) {
+      await stopButton.click().catch(() => {});
+    }
+  }
+
   private async waitForNewAssistantMessage(
     page: Page,
     countsBefore: ReadonlyMap<string, number>,
@@ -493,7 +474,10 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const cfg = this.config();
     const started = Date.now();
     while (Date.now() - started < this.options.timeoutMs) {
-      if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      if (signal?.aborted) {
+        await this.pressStopIfVisible(page);
+        throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      }
       await this.assertNotBlocked(page);
       for (const selector of cfg.assistantMessageSelectors) {
         const messages = page.locator(selector);
@@ -507,14 +491,21 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     throw new BrowserFailure('timeout', `Timed out waiting for ${cfg.name} to begin its response.`);
   }
 
-  private async waitUntilStable(page: Page, locator: Locator, signal: AbortSignal | undefined): Promise<string> {
+  private async waitUntilStable(
+    page: Page,
+    locator: Locator,
+    signal: AbortSignal | undefined,
+  ): Promise<{ text: string; truncationRisk: boolean }> {
     const cfg = this.config();
     const started = Date.now();
     let lastText = '';
     let stableSince = Date.now();
     let sawStop = false;
     while (Date.now() - started < this.options.timeoutMs) {
-      if (signal?.aborted) throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      if (signal?.aborted) {
+        await this.pressStopIfVisible(page);
+        throw new BrowserFailure('cancelled', 'Browser request was cancelled.');
+      }
       await this.assertNotBlocked(page);
       const text = await locator.innerText().catch(() => '');
       if (text !== lastText) { lastText = text; stableSince = Date.now(); }
@@ -527,14 +518,27 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
         throw new BrowserFailure('empty_response', `${cfg.name} returned an empty response.`);
       }
 
-      if (lastText && !stopVisible && Date.now() - stableSince >= this.options.stableMs) {
+      // A stop-button appear-then-disappear transition is real evidence the site
+      // finished generating. Its absence is not proof of a fast response -- it
+      // equally means the site's stop-button selector no longer resolves (a
+      // layout change), in which case trusting the same short stability window
+      // would silently return a mid-pause answer as a complete success. An
+      // unevidenced finish is therefore held to a longer window and reported to
+      // the caller as truncationRisk rather than returned as a clean success.
+      // UNEVIDENCED_STABILITY_MULTIPLIER is a provisional constant, not measured
+      // against any real site's pause behavior -- see Step 1 of
+      // docs/plans/completion-plan.md.
+      const requiredStableMs = sawStop
+        ? this.options.stableMs
+        : this.options.stableMs * UNEVIDENCED_STABILITY_MULTIPLIER;
+      if (lastText && !stopVisible && Date.now() - stableSince >= requiredStableMs) {
         if (sawStop && countWords(lastText) < 3) {
           if (await hasPageInterruptionError(page)) {
             throw new BrowserFailure('generation_interrupted',
               `${cfg.name} appears to have stopped generating before producing a complete response. Retry the turn.`);
           }
         }
-        return lastText;
+        return { text: lastText, truncationRisk: !sawStop };
       }
       await new Promise((r) => setTimeout(r, 300));
     }

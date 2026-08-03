@@ -1,7 +1,8 @@
 # Roadmap
 
 This file records remaining outcomes, not completed work inferred from adapter
-registration. [TASK.md](../TASK.md) is the current assignment.
+registration. [docs/plans/completion-plan.md](plans/completion-plan.md) is the
+current assignment.
 
 ## Verified deterministic foundation
 

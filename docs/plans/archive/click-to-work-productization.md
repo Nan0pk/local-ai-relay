@@ -1,5 +1,8 @@
 # Click-to-work productization
 
+> **Archived.** Superseded by [`docs/plans/completion-plan.md`](../completion-plan.md).
+> Kept for history; do not treat this as a current assignment.
+
 This plan translates newcomer friction into observable product behavior. It is
 ordered by the point at which a user would otherwise stop trusting the product.
 

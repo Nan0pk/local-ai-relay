@@ -8,6 +8,13 @@ export interface BrowserChatRequest {
 export interface BrowserChatResult {
   text: string;
   conversationUrl?: string;
+  /**
+   * Set when the driver returned this text purely because it stopped
+   * changing for a while, with no positive evidence (like a stop-button
+   * transition) that generation actually finished. The text may be a
+   * mid-pause truncation rather than a complete answer.
+   */
+  truncationRisk?: boolean;
 }
 
 /** Site-independent boundary used by browser providers and unit tests. */

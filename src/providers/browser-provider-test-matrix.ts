@@ -121,14 +121,14 @@ export function runBrowserProviderTestMatrix(
       const tools = [terminalTool];
       const firstMessages = [userMessage('Inspect the repo.')];
       await provider.complete({ ...basicRequest(modelId, firstMessages), tools }, modelId, { sessionId: 'tools-1' });
-      assert.match(driver.requests[0]!.prompt, /AVAILABLE HERMES TOOLS/);
+      assert.match(driver.requests[0]!.prompt, /AVAILABLE TOOLS/);
       assert.match(driver.requests[0]!.prompt, /"name"\s*:\s*"terminal"/);
       await provider.complete(
         { ...basicRequest(modelId, [...firstMessages, { role: 'assistant', content: 'Completed the whole batch.' }, userMessage('Implement.')]), tools },
         modelId, { sessionId: 'tools-1' },
       );
       assert.match(driver.requests[1]!.prompt, /^CONTINUE BATCH MISSION/);
-      assert.match(driver.requests[1]!.prompt, /AVAILABLE HERMES TOOLS/);
+      assert.match(driver.requests[1]!.prompt, /AVAILABLE TOOLS/);
       assert.notEqual(
         driver.requests[0]!.prompt.match(/nonce="([^"]+)"/)?.[1],
         driver.requests[1]!.prompt.match(/nonce="([^"]+)"/)?.[1],
@@ -217,6 +217,22 @@ export function runBrowserProviderTestMatrix(
       const tokens = response.choices[0]!.message.content!.split(/(\s+)/).filter((s) => s.length > 0);
       assert.ok(tokens.length > 0);
       assert.equal(tokens.join(''), 'One two three.');
+    });
+
+    test('surfaces truncationRisk from the driver as x_relay.truncation_risk', async () => {
+      const driver = new FakeDriver();
+      driver.setResults([{ text: 'An unevidenced answer.', truncationRisk: true }]);
+      const provider = providerFactory(driver);
+      const response = await provider.complete(basicRequest(modelId, [userMessage('Explain.')]), modelId, { sessionId: 'risk-1' });
+      assert.equal(response.x_relay?.truncation_risk, true);
+    });
+
+    test('omits x_relay.truncation_risk entirely for an evidenced completion', async () => {
+      const driver = new FakeDriver();
+      driver.setResults([{ text: 'An evidenced answer.' }]);
+      const provider = providerFactory(driver);
+      const response = await provider.complete(basicRequest(modelId, [userMessage('Explain.')]), modelId, { sessionId: 'risk-2' });
+      assert.equal(response.x_relay, undefined);
     });
   });
 }

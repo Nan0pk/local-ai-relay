@@ -65,6 +65,16 @@ export interface ChatCompletionResponse {
     completion_tokens: number;
     total_tokens: number;
   };
+  /** Relay-specific capability hints. OpenAI clients safely ignore this. */
+  x_relay?: {
+    /**
+     * Present and true only when a browser provider had no positive
+     * evidence (like a stop-button transition) that generation actually
+     * finished before returning this text. The content may be a mid-pause
+     * truncation rather than a complete answer.
+     */
+    truncation_risk?: boolean;
+  };
 }
 
 export interface ModelCard {

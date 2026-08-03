@@ -40,6 +40,7 @@
     "probe:meta": "node --import tsx src/cli/live-probe.ts --provider meta",
     "probe:all": "node --import tsx scripts/probe-all.ts",
     "canary:chatgpt": "node --import tsx src/cli/chatgpt-canary.ts",
+    "provider:control": "node --import tsx src/cli/provider-control-cli.ts",
     "health:check": "node --import tsx src/cli/scheduled-health-check.ts",
     "smoke:claude-driver": "node --import tsx scripts/claude-driver-smoke.ts",
     "smoke:startup": "npm run build && node dist/cli/startup-smoke.js",
