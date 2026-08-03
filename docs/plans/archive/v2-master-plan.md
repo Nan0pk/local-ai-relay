@@ -1,5 +1,8 @@
 # local-ai-relay v2 Hybrid — Master Execution Plan
 
+> **Archived.** Superseded by [`docs/plans/completion-plan.md`](../completion-plan.md).
+> Kept for history; do not treat this as a current assignment.
+
 **Status:** architecture and threat-model reference  
 **Updated:** 2026-07-19  
 **Scope:** repository truth, transport migration, API/MCP integration, provider
