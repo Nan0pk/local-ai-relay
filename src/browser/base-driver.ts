@@ -72,6 +72,8 @@ export interface BaseDriverOptions {
   timeoutMs?: number;
   stableMs?: number;
   maxSessions?: number;
+  /** How long a cached full-page-text read is trusted before re-fetching. */
+  bodyTextCacheMs?: number;
 }
 
 function defaultProfileDir(cfg: SiteConfig): string {
@@ -142,6 +144,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
   private context?: BrowserContext;
   private readonly pages = new Map<string, Page>();
   private readonly selectedSelectors = new WeakMap<Page, Map<string, string>>();
+  private readonly bodyTextCache = new WeakMap<Page, { text: string; cachedAt: number }>();
 
   constructor(options: BaseDriverOptions = {}) {
     const cfg = this.config();
@@ -153,6 +156,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
       timeoutMs: options.timeoutMs ?? Number(process.env.RELAY_BROWSER_TIMEOUT_MS ?? 180_000),
       stableMs: options.stableMs ?? (process.env.RELAY_MOCK_BROWSER === 'true' ? 0 : 2_000),
       maxSessions: options.maxSessions ?? Number(process.env.RELAY_BROWSER_MAX_SESSIONS ?? 8),
+      bodyTextCacheMs: options.bodyTextCacheMs ?? (process.env.RELAY_MOCK_BROWSER === 'true' ? 0 : 1_000),
     };
   }
 
@@ -267,12 +271,25 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     const cfg = this.config();
     const key = sessionId ?? `stateless-${crypto.randomUUID()}`;
     const existing = this.pages.get(key);
-    if (existing && !reset && !existing.isClosed()) return existing;
+    if (existing && !reset && !existing.isClosed()) {
+      // Map preserves insertion order, and eviction below reads that order
+      // as least-recently-used-first. Re-inserting on every access is what
+      // makes that true: without it, iteration order is merely
+      // insertion-order (creation-order FIFO), so an active long-running
+      // conversation could be evicted ahead of one nobody has touched in a
+      // while, purely because it happened to be created earlier.
+      this.pages.delete(key);
+      this.pages.set(key, existing);
+      return existing;
+    }
     if (existing && !existing.isClosed()) await existing.close();
     const context = await this.getContext();
     if (sessionId && this.pages.size >= this.options.maxSessions) {
-      const oldest = this.pages.entries().next().value as [string, Page] | undefined;
-      if (oldest) { this.pages.delete(oldest[0]); if (!oldest[1].isClosed()) await oldest[1].close(); }
+      const leastRecentlyUsed = this.pages.entries().next().value as [string, Page] | undefined;
+      if (leastRecentlyUsed) {
+        this.pages.delete(leastRecentlyUsed[0]);
+        if (!leastRecentlyUsed[1].isClosed()) await leastRecentlyUsed[1].close();
+      }
     }
     const page = await context.newPage();
     await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
@@ -377,6 +394,23 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     return { text, conversationUrl: page.url(), ...(truncationRisk ? { truncationRisk } : {}) };
   }
 
+  /**
+   * assertNotBlocked runs on every poll tick of both wait loops (every
+   * 250-300ms), and re-extracting the full page text every tick is real
+   * cost for no benefit -- a rate-limit or quota banner doesn't need
+   * sub-second detection. Cached behind a floor; a fresh fetch happens at
+   * most once per options.bodyTextCacheMs. Disabled under the mock-browser
+   * suite so deterministic tests still observe body-text changes on the
+   * very next poll.
+   */
+  private async cachedBodyText(page: Page): Promise<string> {
+    const cached = this.bodyTextCache.get(page);
+    if (cached && Date.now() - cached.cachedAt < this.options.bodyTextCacheMs) return cached.text;
+    const text = await page.locator('body').innerText().catch(() => '');
+    this.bodyTextCache.set(page, { text, cachedAt: Date.now() });
+    return text;
+  }
+
   private async assertNotBlocked(page: Page): Promise<void> {
     const cfg = this.config();
     const url = typeof page.url === 'function' ? page.url() : '';
@@ -412,7 +446,7 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
           `${cfg.name} is showing its landing page with a sign-in button. Run \`npm run login:${cfg.name}\` and sign in normally.`);
       }
     }
-    const body = await page.locator('body').innerText().catch(() => '');
+    const body = await this.cachedBodyText(page);
     if (cfg.captchaTextPattern?.test(body)) {
       throw new BrowserFailure('captcha', `${cfg.name} is showing a CAPTCHA or challenge. Solve it normally in the browser, then retry.`);
     }

@@ -87,7 +87,7 @@ test('selector resolution skips disabled matches before using a fallback', async
 class TestDriver extends BaseBrowserDriver {
   mockStopButton: Locator | undefined = undefined;
 
-  constructor(options: { stableMs?: number; timeoutMs?: number } = {}) {
+  constructor(options: { stableMs?: number; timeoutMs?: number; maxSessions?: number } = {}) {
     super({ stableMs: 50, timeoutMs: 500, ...options });
   }
 
@@ -307,6 +307,28 @@ test('BrowserContextManager accepts visible launch options after a background co
   }
 });
 
+test('session eviction is least-recently-used, not creation-order FIFO', async () => {
+  const originalMock = process.env.RELAY_MOCK_BROWSER;
+  process.env.RELAY_MOCK_BROWSER = 'true';
+  try {
+    const driver = new TestDriver({ maxSessions: 2 });
+    const pages = (driver as unknown as { pages: Map<string, unknown> }).pages;
+    const pageFor = (sessionId: string) =>
+      (driver as unknown as { pageFor(id: string, reset: boolean): Promise<unknown> }).pageFor(sessionId, false);
+
+    await pageFor('session-a'); // created first
+    await pageFor('session-b'); // created second; map is now at maxSessions(2)
+    await pageFor('session-a'); // touched again -- must now be the most-recently-used
+    await pageFor('session-c'); // forces an eviction
+
+    assert.ok(pages.has('session-a'), 'session-a was actively reused and must survive eviction');
+    assert.ok(!pages.has('session-b'), 'session-b was genuinely idle and should be the one evicted');
+    assert.ok(pages.has('session-c'));
+  } finally {
+    process.env.RELAY_MOCK_BROWSER = originalMock;
+  }
+});
+
 test('assertNotBlocked never clicks any control on a login page — no automatic account selection', async () => {
   const driver = new TestDriver();
   let clicked = false;
@@ -459,4 +481,31 @@ test('an evidenced finish (stop button appeared then disappeared) is not flagged
   const result = await driver['waitUntilStable'](page, growing, undefined);
   assert.equal(result.text, 'complete answer');
   assert.equal(result.truncationRisk, false, 'a real stop-button transition is positive evidence, not a risk');
+});
+
+test('assertNotBlocked caches the full page-text read instead of re-fetching every poll tick', async () => {
+  const driver = new TestDriver({ timeoutMs: 900 });
+  let bodyReads = 0;
+  // Text keeps changing every read so the loop never stabilizes and runs
+  // for the full timeout window, giving assertNotBlocked several chances
+  // to run across multiple 300ms poll ticks.
+  let counter = 0;
+  const growing = { innerText: async () => `still going ${counter++}` } as unknown as Locator;
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (selector: string) => {
+      if (selector === 'body') {
+        return {
+          innerText: async () => { bodyReads++; return 'no captcha, no quota'; },
+        } as unknown as Locator;
+      }
+      return { count: async () => 0, nth: () => undefined, first: () => ({ isVisible: async () => false }) } as unknown as Locator;
+    },
+  } as unknown as Page;
+
+  await assert.rejects(driver['waitUntilStable'](page, growing, undefined));
+  // Real elapsed time here spans multiple 300ms poll ticks (timeout=900ms),
+  // which would mean 2-3 body reads uncached; the 1s cache floor should
+  // hold it to exactly one.
+  assert.equal(bodyReads, 1, 'body text should be read once and reused across poll ticks within the cache floor');
 });
