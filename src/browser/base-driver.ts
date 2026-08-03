@@ -10,6 +10,9 @@ import type { BrowserAutomationConfig } from '../extension/browser-bridge.js';
 
 const SELECT_ALL_KEY = process.platform === 'darwin' ? 'Meta' : 'Control';
 
+/** See the comment at its use in waitUntilStable(). */
+const UNEVIDENCED_STABILITY_MULTIPLIER = 3;
+
 /**
  * Shared browser-driver skeleton.
  *
@@ -369,9 +372,9 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
 
     const assistantMessages = await this.waitForNewAssistantMessage(page, assistantCountsBefore, request.signal);
     const last = assistantMessages.last();
-    const text = await this.waitUntilStable(page, last, request.signal);
+    const { text, truncationRisk } = await this.waitUntilStable(page, last, request.signal);
     if (!text.trim()) throw new BrowserFailure('empty_response', `${cfg.name} returned an empty response.`);
-    return { text, conversationUrl: page.url() };
+    return { text, conversationUrl: page.url(), ...(truncationRisk ? { truncationRisk } : {}) };
   }
 
   private async assertNotBlocked(page: Page): Promise<void> {
@@ -454,7 +457,11 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
     throw new BrowserFailure('timeout', `Timed out waiting for ${cfg.name} to begin its response.`);
   }
 
-  private async waitUntilStable(page: Page, locator: Locator, signal: AbortSignal | undefined): Promise<string> {
+  private async waitUntilStable(
+    page: Page,
+    locator: Locator,
+    signal: AbortSignal | undefined,
+  ): Promise<{ text: string; truncationRisk: boolean }> {
     const cfg = this.config();
     const started = Date.now();
     let lastText = '';
@@ -477,14 +484,27 @@ export abstract class BaseBrowserDriver implements BrowserChatDriver {
         throw new BrowserFailure('empty_response', `${cfg.name} returned an empty response.`);
       }
 
-      if (lastText && !stopVisible && Date.now() - stableSince >= this.options.stableMs) {
+      // A stop-button appear-then-disappear transition is real evidence the site
+      // finished generating. Its absence is not proof of a fast response -- it
+      // equally means the site's stop-button selector no longer resolves (a
+      // layout change), in which case trusting the same short stability window
+      // would silently return a mid-pause answer as a complete success. An
+      // unevidenced finish is therefore held to a longer window and reported to
+      // the caller as truncationRisk rather than returned as a clean success.
+      // UNEVIDENCED_STABILITY_MULTIPLIER is a provisional constant, not measured
+      // against any real site's pause behavior -- see Step 1 of
+      // docs/plans/completion-plan.md.
+      const requiredStableMs = sawStop
+        ? this.options.stableMs
+        : this.options.stableMs * UNEVIDENCED_STABILITY_MULTIPLIER;
+      if (lastText && !stopVisible && Date.now() - stableSince >= requiredStableMs) {
         if (sawStop && countWords(lastText) < 3) {
           if (await hasPageInterruptionError(page)) {
             throw new BrowserFailure('generation_interrupted',
               `${cfg.name} appears to have stopped generating before producing a complete response. Retry the turn.`);
           }
         }
-        return lastText;
+        return { text: lastText, truncationRisk: !sawStop };
       }
       await new Promise((r) => setTimeout(r, 300));
     }

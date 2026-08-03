@@ -32,7 +32,8 @@ export class MetaBrowserProvider implements Provider {
     const completionTokens = estimateTokens(result.text);
     return { id: `chatcmpl-browser-${crypto.randomUUID()}`, object: 'chat.completion', created: Math.floor(Date.now() / 1000), model,
       choices: [{ index: 0, message: assistantMessage, finish_reason: parsed.toolCalls ? 'tool_calls' : 'stop', logprobs: null }],
-      usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens } };
+      usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens },
+      ...(result.truncationRisk ? { x_relay: { truncation_risk: true } } : {}) };
   }
   async close(): Promise<void> { await this.driver.close(); }
 }

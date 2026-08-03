@@ -87,8 +87,8 @@ test('selector resolution skips disabled matches before using a fallback', async
 class TestDriver extends BaseBrowserDriver {
   mockStopButton: Locator | undefined = undefined;
 
-  constructor() {
-    super({ stableMs: 50, timeoutMs: 500 });
+  constructor(options: { stableMs?: number; timeoutMs?: number } = {}) {
+    super({ stableMs: 50, timeoutMs: 500, ...options });
   }
 
   protected config(): SiteConfig {
@@ -146,7 +146,7 @@ test('short answers like OK, BANANA, 42 and tool-calls succeed', async () => {
     driver.mockStopButton = stopButtonWithToggle;
 
     const res = await driver['waitUntilStable'](mockPage, mockLocator, undefined);
-    assert.equal(res, text);
+    assert.equal(res.text, text);
   }
 });
 
@@ -408,4 +408,55 @@ test('cancelling a request presses the site stop button instead of only abandoni
     (error: Error) => error instanceof BrowserFailure && error.kind === 'cancelled',
   );
   assert.equal(stopClicked, true, 'cancel must press the website stop control, not just stop polling');
+});
+
+test('a mid-answer pause is not returned as a truncated success when the stop button never resolves', async () => {
+  // The polling loop itself samples every 300ms regardless of stableMs, so
+  // this needs enough timeoutMs headroom for at least two real poll cycles
+  // (transition detected, then confirmed stable) before the fixture's
+  // answer settles.
+  const driver = new TestDriver({ timeoutMs: 2000 });
+  driver.mockStopButton = { isVisible: async () => false } as unknown as Locator;
+  const start = Date.now();
+  const elapsed = () => Date.now() - start;
+  // Text pauses at a partial answer for 100ms (less than stableMs(50) * the
+  // unevidenced multiplier(3) = 150ms required when no stop button is ever
+  // seen), then the real answer arrives and holds steady.
+  const growing = {
+    innerText: async () => (elapsed() < 100 ? 'partial answer' : 'partial answer, now complete'),
+  } as unknown as Locator;
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (_selector: string) => ({
+      count: async () => 0,
+      nth: () => growing,
+      first: () => ({ isVisible: async () => false }),
+      innerText: async () => '',
+    }),
+  } as unknown as Page;
+
+  const result = await driver['waitUntilStable'](page, growing, undefined);
+  assert.equal(result.text, 'partial answer, now complete', 'must not return the mid-pause text as final');
+  assert.equal(result.truncationRisk, true, 'an unevidenced finish must be flagged, not returned as a clean success');
+});
+
+test('an evidenced finish (stop button appeared then disappeared) is not flagged as truncation risk', async () => {
+  const driver = new TestDriver();
+  const start = Date.now();
+  const elapsed = () => Date.now() - start;
+  driver.mockStopButton = { isVisible: async () => elapsed() < 20 } as unknown as Locator;
+  const growing = { innerText: async () => 'complete answer' } as unknown as Locator;
+  const page = {
+    url: () => 'https://test.com/',
+    locator: (_selector: string) => ({
+      count: async () => 0,
+      nth: () => growing,
+      first: () => ({ isVisible: async () => false }),
+      innerText: async () => '',
+    }),
+  } as unknown as Page;
+
+  const result = await driver['waitUntilStable'](page, growing, undefined);
+  assert.equal(result.text, 'complete answer');
+  assert.equal(result.truncationRisk, false, 'a real stop-button transition is positive evidence, not a risk');
 });

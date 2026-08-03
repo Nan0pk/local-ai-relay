@@ -74,6 +74,7 @@ export class ArenaBrowserProvider implements Provider {
         completion_tokens: completionTokens,
         total_tokens: promptTokens + completionTokens,
       },
+      ...(result.truncationRisk ? { x_relay: { truncation_risk: true } } : {}),
     };
   }
 

@@ -218,5 +218,21 @@ export function runBrowserProviderTestMatrix(
       assert.ok(tokens.length > 0);
       assert.equal(tokens.join(''), 'One two three.');
     });
+
+    test('surfaces truncationRisk from the driver as x_relay.truncation_risk', async () => {
+      const driver = new FakeDriver();
+      driver.setResults([{ text: 'An unevidenced answer.', truncationRisk: true }]);
+      const provider = providerFactory(driver);
+      const response = await provider.complete(basicRequest(modelId, [userMessage('Explain.')]), modelId, { sessionId: 'risk-1' });
+      assert.equal(response.x_relay?.truncation_risk, true);
+    });
+
+    test('omits x_relay.truncation_risk entirely for an evidenced completion', async () => {
+      const driver = new FakeDriver();
+      driver.setResults([{ text: 'An evidenced answer.' }]);
+      const provider = providerFactory(driver);
+      const response = await provider.complete(basicRequest(modelId, [userMessage('Explain.')]), modelId, { sessionId: 'risk-2' });
+      assert.equal(response.x_relay, undefined);
+    });
   });
 }
